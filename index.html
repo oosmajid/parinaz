@@ -39,6 +39,16 @@
         .time-tab.active-tab { color: #ec4899; border-bottom-color: #ec4899; }
         .phase-tab { transition: all 0.2s; }
         .phase-tab.active-tab { background-color: #ec4899; color: white; }
+
+        /* Date Picker Styles */
+        #datepicker-modal-content { padding: 1rem; width: 90%; max-width: 22rem; }
+        .datepicker-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+        .datepicker-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+        .datepicker-day { aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; border-radius: 50%; cursor: pointer; transition: background-color 0.2s; }
+        .datepicker-day:hover:not(.disabled) { background-color: #f3f4f6; }
+        .datepicker-day.disabled { opacity: 0.4; cursor: not-allowed; }
+        .datepicker-day.selected { background-color: #ec4899; color: white; }
+        .datepicker-day.today { border: 2px solid #ec4899; }
     </style>
 </head>
 <body class="bg-gray-50 flex items-center justify-center min-h-screen py-8">
@@ -62,426 +72,471 @@
         <div id="log-modal-content" class="modal-content"></div>
     </div>
 
+    <div id="datepicker-modal" class="modal-overlay">
+        <div id="datepicker-modal-content" class="modal-content"></div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/jalali-moment/dist/jalali-moment.browser.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-    // --- HELPERS (GLOBAL SCOPE) ---
-    window.toPersian = num => num.toString().replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
+        // --- HELPERS (GLOBAL SCOPE) ---
+        window.toPersian = num => num.toString().replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
 
-    document.addEventListener('DOMContentLoaded', function() {
-        try {
-            // --- STATE & CONSTANTS ---
-            let userData = { user: null, logs: {} };
-            let calendarDate = moment();
-            let selectedLogDate = null;
-            let charts = {};
-            const API_BASE_URL = 'http://localhost:3001/api';
-            const TELEGRAM_ID = 123456789; 
+        document.addEventListener('DOMContentLoaded', function() {
+            try {
+                // --- STATE & CONSTANTS ---
+                let userData = { user: null, logs: {} };
+                let calendarDate = moment();
+                let selectedLogDate = null;
+                let charts = {};
+                const API_BASE_URL = 'http://localhost:3001/api';
+                const TELEGRAM_ID = 123456789; 
 
-            const LOG_CONFIG = {
-                metrics: { title: 'مقادیر روزانه', items: {
-                    weight: { title: 'وزن (کیلوگرم)', type: 'number', min: 30, max: 250, step: 0.1, unit: 'kg' },
-                    water: { title: 'نوشیدن آب (لیوان)', type: 'slider', min: 0, max: 20, step: 1, unit: 'لیوان' },
-                    sleep: { title: 'وضعیت خواب (ساعت)', type: 'slider', min: 0, max: 14, step: 0.5, unit: 'ساعت' }
-                }},
-                sex: { title: 'رابطه جنسی', single: true, items: { 'رابطه نداشتم': '🚫', 'رابطه محافظت‌شده': '🔒', 'رابطه محافظت‌نشده': '❤️' } },
-                libido: { title: 'میل جنسی', single: true, items: { 'میل زیاد': '🔥', 'بی‌میل': '❄️' } },
-                moods: { title: 'حالت', single: false, items: { 'آرام': '😌', 'خوشحال': '😊', 'پرانرژی': '⚡️', 'مودی': '😒', 'عصبانی': '😠', 'غمگین': '😔', 'احساس گناه': '😥', 'افکار وسواسی': '🤔', 'بی‌تفاوت': '😐', 'سردرگم': '😕', 'حس عشق': '🥰', 'خواب‌آلود': '😴', 'خسته': '😩' } },
-                symptoms: { title: 'علائم', single: false, items: { 'همه‌چیز خوبه': '👍', 'گرفتگی عضله': '💪', 'درد سینه': '🍈', 'سردرد': '🤕', 'آکنه': '✨', 'کمردرد': '🚶‍♀️', 'تهوع': '🤢', 'خستگی': '😩', 'نفخ شکم': '💨', 'ولع': '🍫', 'بی‌خوابی': '😵', 'یبوست': '🚽', 'اسهال': '💨', 'درد شکم': '😫', 'تورم': '🎈', 'آلرژی': '🤧' } },
-                activity: { title: 'فعالیت فیزیکی', single: false, items: { 'ورزش نکردم': '🛋️', 'دویدن': '🏃‍♀️', 'دوچرخه‌سواری': '🚴‍♀️', 'سالن ورزش': '🏋️‍♀️', 'هوازی و رقص': '💃', 'یوگا': '🧘‍♀️', 'شنا': '🏊‍♀️', 'کارهای خانه': '🧹', 'پیاده‌روی': '🚶‍♀️', 'تناسب اندام': '🤸‍♀️' } },
-                breasts: { title: 'پستان', single: false, items: { 'پستان سالم': '👍', 'تورم پستان': '🍈', 'توده پستان': '●', 'درد پستان': '😖', 'قرمزی پوست پستان': '🔴', 'نوک پستان ترک‌خورده': '🩹', 'ترشح غیرطبیعی پستان': '⚠️', 'سینه‌های حساس': '😣' } },
-                discharge: { title: 'ترشحات واژن', single: true, items: { 'واژن بدون ترشح': '🚫', 'لکه‌بینی': '💧', 'ترشح چسبناک واژن': '🍯', 'ترشح خامه‌ای واژن': '🍦', 'ترشح سفیده‌تخم‌مرغی واژن': '🥚', 'ترشح آبکی واژن': '💧', 'ترشح غیرمعمول واژن': '❓' } },
-                bloodColor: { title: 'رنگ خون پریود', single: true, items: { 'صورتی': '🌸', 'قرمز روشن': '🩸', 'قرمز تیره': '🍷', 'قهوه‌ای': '🍫' } },
-                flow: { title: 'شدت خونریزی', single: true, items: { 'کم': '🩸', 'متوسط': '🩸🩸', 'شدید': '🩸🩸🩸' } },
-                hair: { title: 'مو', single: false, items: { 'موهای سالم': '💇‍♀️', 'موهای شکننده': '🍂', 'موی خشک': '🌵', 'ریزش مو': '👴', 'موی چرب': '✨', 'موخوره': '✂️' } },
-                nails: { title: 'ناخن', single: false, items: { 'ناخن سالم': '💅', 'ناخن شکننده': '💅', 'تغییر فرم ناخن': '⚠️', 'لکه‌های سفید ناخن': '⚪' } },
-                skin: { title: 'پوست', single: false, items: { 'پوست سالم': '😊', 'پوست خشک': '🌵', 'پوست چرب': '✨', 'آکنه پوست': '✨', 'پوست لکه‌دار': '🐞' } },
-                other: { title: 'سایر', single: false, items: { 'مسافرت': '✈️', 'فشار شدید': '🤯', 'بیماری یا آسیب‌دیدگی': '🤒', 'مصرف الکل': '🍷' } },
-            };
-            const ALL_SYMPTOM_CATEGORIES = ['symptoms', 'libido', 'breasts', 'skin', 'hair', 'nails', 'discharge', 'other'];
+                // --- DATE PICKER STATE ---
+                let datepickerState = {
+                    visible: false,
+                    targetInputId: null,
+                    currentDate: moment()
+                };
 
-            // --- DOM ELEMENTS ---
-            const appContent = document.getElementById('app-content');
-            const settingsBtn = document.getElementById('settings-btn');
-            const analysisBtn = document.getElementById('analysis-btn');
-            const backBtn = document.getElementById('back-btn');
-            const logModal = document.getElementById('log-modal');
-            const logModalContent = document.getElementById('log-modal-content');
+                const LOG_CONFIG = {
+                    metrics: { title: 'مقادیر روزانه', items: {
+                        weight: { title: 'وزن (کیلوگرم)', type: 'number', min: 30, max: 250, step: 0.1, unit: 'kg' },
+                        water: { title: 'نوشیدن آب (لیوان)', type: 'slider', min: 0, max: 20, step: 1, unit: 'لیوان' },
+                        sleep: { title: 'وضعیت خواب (ساعت)', type: 'slider', min: 0, max: 14, step: 0.5, unit: 'ساعت' }
+                    }},
+                    sex: { title: 'رابطه جنسی', single: true, items: { 'رابطه نداشتم': '🚫', 'رابطه محافظت‌شده': '🔒', 'رابطه محافظت‌نشده': '❤️' } },
+                    libido: { title: 'میل جنسی', single: true, items: { 'میل زیاد': '🔥', 'بی‌میل': '❄️' } },
+                    moods: { title: 'حالت', single: false, items: { 'آرام': '😌', 'خوشحال': '😊', 'پرانرژی': '⚡️', 'مودی': '😒', 'عصبانی': '😠', 'غمگین': '😔', 'احساس گناه': '😥', 'افکار وسواسی': '🤔', 'بی‌تفاوت': '😐', 'سردرگم': '😕', 'حس عشق': '🥰', 'خواب‌آلود': '😴', 'خسته': '😩' } },
+                    symptoms: { title: 'علائم', single: false, items: { 'همه‌چیز خوبه': '👍', 'گرفتگی عضله': '💪', 'درد سینه': '🍈', 'سردرد': '🤕', 'آکنه': '✨', 'کمردرد': '🚶‍♀️', 'تهوع': '🤢', 'خستگی': '😩', 'نفخ شکم': '💨', 'ولع': '🍫', 'بی‌خوابی': '😵', 'یبوست': '🚽', 'اسهال': '💨', 'درد شکم': '😫', 'تورم': '🎈', 'آلرژی': '🤧' } },
+                    activity: { title: 'فعالیت فیزیکی', single: false, items: { 'ورزش نکردم': '🛋️', 'دویدن': '🏃‍♀️', 'دوچرخه‌سواری': '🚴‍♀️', 'سالن ورزش': '🏋️‍♀️', 'هوازی و رقص': '💃', 'یوگا': '🧘‍♀️', 'شنا': '🏊‍♀️', 'کارهای خانه': '🧹', 'پیاده‌روی': '🚶‍♀️', 'تناسب اندام': '🤸‍♀️' } },
+                    breasts: { title: 'پستان', single: false, items: { 'پستان سالم': '👍', 'تورم پستان': '🍈', 'توده پستان': '●', 'درد پستان': '😖', 'قرمزی پوست پستان': '🔴', 'نوک پستان ترک‌خورده': '🩹', 'ترشح غیرطبیعی پستان': '⚠️', 'سینه‌های حساس': '😣' } },
+                    discharge: { title: 'ترشحات واژن', single: true, items: { 'واژن بدون ترشح': '🚫', 'لکه‌بینی': '💧', 'ترشح چسبناک واژن': '🍯', 'ترشح خامه‌ای واژن': '🍦', 'ترشح سفیده‌تخم‌مرغی واژن': '🥚', 'ترشح آبکی واژن': '💧', 'ترشح غیرمعمول واژن': '❓' } },
+                    bloodColor: { title: 'رنگ خون پریود', single: true, items: { 'صورتی': '🌸', 'قرمز روشن': '🩸', 'قرمز تیره': '🍷', 'قهوه‌ای': '🍫' } },
+                    flow: { title: 'شدت خونریزی', single: true, items: { 'کم': '🩸', 'متوسط': '🩸🩸', 'شدید': '🩸🩸🩸' } },
+                    hair: { title: 'مو', single: false, items: { 'موهای سالم': '💇‍♀️', 'موهای شکننده': '🍂', 'موی خشک': '🌵', 'ریزش مو': '👴', 'موی چرب': '✨', 'موخوره': '✂️' } },
+                    nails: { title: 'ناخن', single: false, items: { 'ناخن سالم': '💅', 'ناخن شکننده': '💅', 'تغییر فرم ناخن': '⚠️', 'لکه‌های سفید ناخن': '⚪' } },
+                    skin: { title: 'پوست', single: false, items: { 'پوست سالم': '😊', 'پوست خشک': '�', 'پوست چرب': '✨', 'آکنه پوست': '✨', 'پوست لکه‌دار': '🐞' } },
+                    other: { title: 'سایر', single: false, items: { 'مسافرت': '✈️', 'فشار شدید': '🤯', 'بیماری یا آسیب‌دیدگی': '🤒', 'مصرف الکل': '🍷' } },
+                };
+                const ALL_SYMPTOM_CATEGORIES = ['symptoms', 'libido', 'breasts', 'skin', 'hair', 'nails', 'discharge', 'other'];
 
-            // --- TOAST NOTIFICATION ---
-            const toast = document.createElement('div');
-            toast.style.cssText = 'position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 8px; color: white; font-weight: 500; transition: bottom 0.5s ease-in-out; z-index: 100;';
-            document.body.appendChild(toast);
-            let toastTimeout;
+                // --- DOM ELEMENTS ---
+                const appContent = document.getElementById('app-content');
+                const settingsBtn = document.getElementById('settings-btn');
+                const analysisBtn = document.getElementById('analysis-btn');
+                const backBtn = document.getElementById('back-btn');
+                const logModal = document.getElementById('log-modal');
+                const logModalContent = document.getElementById('log-modal-content');
+                const datepickerModal = document.getElementById('datepicker-modal');
+                const datepickerModalContent = document.getElementById('datepicker-modal-content');
 
-            const showToast = (message, isError = false) => {
-                toast.textContent = message;
-                toast.style.backgroundColor = isError ? '#be123c' : '#16a34a'; // red-700 or green-600
-                toast.style.bottom = '20px';
-                clearTimeout(toastTimeout);
-                toastTimeout = setTimeout(() => {
-                    toast.style.bottom = '-100px';
-                }, 3000);
-            };
+                // --- TOAST NOTIFICATION ---
+                const toast = document.createElement('div');
+                toast.style.cssText = 'position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 8px; color: white; font-weight: 500; transition: bottom 0.5s ease-in-out; z-index: 100;';
+                document.body.appendChild(toast);
+                let toastTimeout;
 
-            // --- TEMPLATES ---
-            const templates = {
-                onboardingStep(step) { return `<div class="page-enter"><h2 class="text-xl font-semibold text-gray-700 text-center mb-6">${{1:'طول سیکل پریود شما؟',2:'طول دوره پریود شما؟',3:'آخرین بار کی پریود شدید؟',4:'سال تولد شما؟'}[step]}</h2>${step===3?`<div class="flex justify-between space-x-2 rtl:space-x-reverse"><select id="date-day" class="w-1/3 p-3 bg-gray-100 rounded-lg text-center text-lg"></select><select id="date-month" class="w-1/3 p-3 bg-gray-100 rounded-lg text-center text-lg"></select><select id="date-year" class="w-1/3 p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div>`:`<select id="${{1:'cycle-length',2:'period-length',4:'birth-year'}[step]}" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select>`}<button onclick="window.app.nextStep(${step + 1})" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg mt-8">${step===4?'تأیید و ورود':'تأیید'}</button></div>`; },
-                home() { return `<div class="page-enter"><div class="flex flex-col items-center text-center"><div class="relative my-6"><svg class="w-56 h-56" viewBox="0 0 120 120"><circle cx="60" cy="60" r="54" fill="none" stroke="#fce7f3" stroke-width="12" /><circle id="progress-circle" class="progress-ring__circle" cx="60" cy="60" r="54" fill="none" stroke="#ec4899" stroke-width="12" stroke-linecap="round" /></svg><div class="absolute inset-0 flex flex-col items-center justify-center"><span id="days-left" class="text-5xl font-bold text-pink-500">--</span><span id="days-unit" class="text-lg text-gray-600">روز دیگر</span><p id="pms-countdown" class="text-sm text-amber-600 mt-1"></p></div></div><button onclick="window.app.goToSettings()" class="text-xs text-pink-500 hover:bg-pink-200 -mt-2 bg-pink-100 px-3 py-1.5 rounded-full font-semibold">ویرایش زمان پریود</button><div class="flex items-center justify-center gap-2 mt-4 text-lg"><span class="text-gray-600">تاریخ پریود بعدی:</span><p id="next-period-date" class="font-semibold text-gray-800"></p></div></div><div id="calendar-view" class="mt-8"><div class="flex justify-between items-center mb-4"><button onclick="window.app.changeMonth(-1)" class="p-2 rounded-full hover:bg-gray-100">&lt;</button><h3 id="calendar-month-year" class="text-lg font-bold"></h3><button onclick="window.app.changeMonth(1)" class="p-2 rounded-full hover:bg-gray-100">&gt;</button></div><div class="grid grid-cols-7 text-center text-xs text-gray-500 mb-2">${['ش','ی','د','س','چ','پ','ج'].map(d=>`<span>${d}</span>`).join('')}</div><div id="calendar-grid" class="grid grid-cols-7"></div></div>
-                <div class="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs text-gray-600">
-                    <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: #fef08a;"></span><span>روزهای PMS</span></div>
-                    <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: #fecdd3;"></span><span>روزهای پریود</span></div>
-                    <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: #dcfce7;"></span><span>بازه باروری</span></div>
-                    <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: #bae6fd; border: 1px solid #38bdf8"></span><span>تخمک‌گذاری</span></div>
-                </div>
-                </div>`; },
-                settings() { return `<div class="page-enter space-y-6"><div><label class="block text-gray-600 mb-2">طول سیکل پریود</label><select id="settings-cycle-length" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div><div><label class="block text-gray-600 mb-2">طول دوره پریود</label><select id="settings-period-length" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div><div><label class="block text-gray-600 mb-2">تاریخ آخرین پریود</label><div class="flex justify-between space-x-2 rtl:space-x-reverse"><select id="settings-date-day" class="w-1/3 p-3 bg-gray-100 rounded-lg text-center text-lg"></select><select id="settings-date-month" class="w-1/3 p-3 bg-gray-100 rounded-lg text-center text-lg"></select><select id="settings-date-year" class="w-1/3 p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div></div><div><label class="block text-gray-600 mb-2">سال تولد</label><select id="settings-birth-year" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div><button onclick="window.app.saveSettings()" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg mt-8">ذخیره تغییرات</button></div>`; },
-                analysis() { return `<div class="page-enter space-y-6">
-                    <div class="flex justify-center border-b">
-                        <button data-months="1" class="analysis-tab time-tab active-tab px-4 py-2 font-semibold">۱ ماه</button>
-                        <button data-months="3" class="analysis-tab time-tab px-4 py-2 font-semibold">۳ ماه</button>
-                        <button data-months="6" class="analysis-tab time-tab px-4 py-2 font-semibold">۶ ماه</button>
-                        <button data-months="12" class="analysis-tab time-tab px-4 py-2 font-semibold">۱ سال</button>
+                const showToast = (message, isError = false) => {
+                    toast.textContent = message;
+                    toast.style.backgroundColor = isError ? '#be123c' : '#16a34a';
+                    toast.style.bottom = '20px';
+                    clearTimeout(toastTimeout);
+                    toastTimeout = setTimeout(() => {
+                        toast.style.bottom = '-100px';
+                    }, 3000);
+                };
+
+                // --- TEMPLATES ---
+                const templates = {
+                    onboardingStep(step) { return `<div class="page-enter"><h2 class="text-xl font-semibold text-gray-700 text-center mb-6">${{1:'طول سیکل پریود شما؟',2:'طول دوره پریود شما؟',3:'آخرین بار کی پریود شدید؟',4:'سال تولد شما؟'}[step]}</h2>${step===3?`<input type="text" id="onboarding-date-input" readonly class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg cursor-pointer" placeholder="تاریخ را انتخاب کنید" onclick="window.app.openDatePicker('onboarding-date-input')">`:`<select id="${{1:'cycle-length',2:'period-length',4:'birth-year'}[step]}" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select>`}<button onclick="window.app.nextStep(${step + 1})" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg mt-8">${step===4?'تأیید و ورود':'تأیید'}</button></div>`; },
+                    home() { return `<div class="page-enter"><div class="flex flex-col items-center text-center"><div class="relative my-6"><svg class="w-56 h-56" viewBox="0 0 120 120"><circle cx="60" cy="60" r="54" fill="none" stroke="#fce7f3" stroke-width="12" /><circle id="progress-circle" class="progress-ring__circle" cx="60" cy="60" r="54" fill="none" stroke="#ec4899" stroke-width="12" stroke-linecap="round" /></svg><div class="absolute inset-0 flex flex-col items-center justify-center"><span id="days-left" class="text-5xl font-bold text-pink-500">--</span><span id="days-unit" class="text-lg text-gray-600">روز دیگر</span><p id="pms-countdown" class="text-sm text-amber-600 mt-1"></p></div></div><button onclick="window.app.goToSettings()" class="text-xs text-pink-500 hover:bg-pink-200 -mt-2 bg-pink-100 px-3 py-1.5 rounded-full font-semibold">ویرایش زمان پریود</button><div class="flex items-center justify-center gap-2 mt-4 text-lg"><span class="text-gray-600">تاریخ پریود بعدی:</span><p id="next-period-date" class="font-semibold text-gray-800"></p></div></div><div id="calendar-view" class="mt-8"><div class="flex justify-between items-center mb-4"><button onclick="window.app.changeMonth(-1)" class="p-2 rounded-full hover:bg-gray-100">&lt;</button><h3 id="calendar-month-year" class="text-lg font-bold"></h3><button onclick="window.app.changeMonth(1)" class="p-2 rounded-full hover:bg-gray-100">&gt;</button></div><div class="grid grid-cols-7 text-center text-xs text-gray-500 mb-2">${['ش','ی','د','س','چ','پ','ج'].map(d=>`<span>${d}</span>`).join('')}</div><div id="calendar-grid" class="grid grid-cols-7"></div></div>
+                    <div class="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs text-gray-600">
+                        <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: #fef08a;"></span><span>روزهای PMS</span></div>
+                        <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: #fecdd3;"></span><span>روزهای پریود</span></div>
+                        <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: #dcfce7;"></span><span>بازه باروری</span></div>
+                        <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: #bae6fd; border: 1px solid #38bdf8"></span><span>تخمک‌گذاری</span></div>
                     </div>
-                    <div class="flex justify-center mb-4">
-                        <div class="flex p-1 bg-gray-200 rounded-full text-sm">
-                            <button data-phase="all" class="analysis-tab phase-tab active-tab px-4 py-1 rounded-full">کلی</button>
-                            <button data-phase="pms" class="analysis-tab phase-tab px-4 py-1 rounded-full">دوره PMS</button>
-                            <button data-phase="period" class="analysis-tab phase-tab px-4 py-1 rounded-full">دوره پریود</button>
+                    </div>`; },
+                    settings() { return `<div class="page-enter space-y-6"><div><label class="block text-gray-600 mb-2">طول سیکل پریود</label><select id="settings-cycle-length" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div><div><label class="block text-gray-600 mb-2">طول دوره پریود</label><select id="settings-period-length" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div><div><label class="block text-gray-600 mb-2">تاریخ آخرین پریود</label><input type="text" id="settings-date-input" readonly class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg cursor-pointer" onclick="window.app.openDatePicker('settings-date-input')"></div><div><label class="block text-gray-600 mb-2">سال تولد</label><select id="settings-birth-year" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div><button onclick="window.app.saveSettings()" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg mt-8">ذخیره تغییرات</button></div>`; },
+                    analysis() { return `<div class="page-enter space-y-6">
+                        <div class="flex justify-center border-b">
+                            <button data-months="1" class="analysis-tab time-tab active-tab px-4 py-2 font-semibold">۱ ماه</button>
+                            <button data-months="3" class="analysis-tab time-tab px-4 py-2 font-semibold">۳ ماه</button>
+                            <button data-months="6" class="analysis-tab time-tab px-4 py-2 font-semibold">۶ ماه</button>
+                            <button data-months="12" class="analysis-tab time-tab px-4 py-2 font-semibold">۱ سال</button>
                         </div>
-                    </div>
-                    <div id="analysis-charts" class="space-y-6">
-                        <!-- Charts will be rendered here -->
-                    </div>
-                </div>`;}
-            };
+                        <div class="flex justify-center mb-4">
+                            <div class="flex p-1 bg-gray-200 rounded-full text-sm">
+                                <button data-phase="all" class="analysis-tab phase-tab active-tab px-4 py-1 rounded-full">کلی</button>
+                                <button data-phase="pms" class="analysis-tab phase-tab px-4 py-1 rounded-full">دوره PMS</button>
+                                <button data-phase="period" class="analysis-tab phase-tab px-4 py-1 rounded-full">دوره پریود</button>
+                            </div>
+                        </div>
+                        <div id="analysis-charts" class="space-y-6"></div>
+                    </div>`;}
+                };
 
-            // --- RENDER FUNCTIONS ---
-            const render = (template, ...args) => { appContent.innerHTML = template(...args); };
-            
-            const renderDashboard = () => { if (!userData.user) { console.error("No user data to render dashboard"); return; } render(templates.home); const today = moment(); const lastPeriod = moment(userData.user.last_period_date, 'YYYY-MM-DD'); const cycleLength = parseInt(userData.user.cycle_length); const periodLength = parseInt(userData.user.period_length); const cyclesSince = Math.floor(today.diff(lastPeriod, 'days') / cycleLength); const currentPeriodStart = lastPeriod.clone().add(cyclesSince * cycleLength, 'days'); const currentPeriodEnd = currentPeriodStart.clone().add(periodLength - 1, 'days'); const nextPeriodStart = currentPeriodStart.clone().add(cycleLength, 'days'); const nextPmsStart = nextPeriodStart.clone().subtract(7, 'days'); const daysLeftEl = document.getElementById('days-left'); const daysUnitEl = document.getElementById('days-unit'); const pmsCountdownEl = document.getElementById('pms-countdown'); if (today.isBetween(currentPeriodStart, currentPeriodEnd, null, '[]')) { const daysToEnd = currentPeriodEnd.diff(today, 'days') + 1; daysLeftEl.textContent = toPersian(daysToEnd); daysUnitEl.textContent = 'روز تا پایان پریود'; pmsCountdownEl.classList.add('hidden'); } else { const daysToPeriod = nextPeriodStart.diff(today, 'days'); daysLeftEl.textContent = toPersian(daysToPeriod); daysUnitEl.textContent = 'روز تا پریود بعدی'; if (today.isBetween(nextPmsStart, nextPeriodStart.clone().subtract(1, 'day'), null, '[]')) { pmsCountdownEl.textContent = 'شما در دوره PMS هستید'; pmsCountdownEl.classList.remove('hidden'); } else { const daysToPms = nextPmsStart.diff(today, 'days'); if (daysToPms > 0) { pmsCountdownEl.textContent = `${toPersian(daysToPms)} روز تا PMS`; pmsCountdownEl.classList.remove('hidden'); } else { pmsCountdownEl.classList.add('hidden'); } } } document.getElementById('next-period-date').textContent = toPersian(nextPeriodStart.format('dddd، jD jMMMM')); const progressCircle = document.getElementById('progress-circle'); const radius=54,circumference=2*Math.PI*radius; const daysPassed = cycleLength - nextPeriodStart.diff(today, 'days'); progressCircle.style.strokeDasharray=`${circumference} ${circumference}`; progressCircle.style.strokeDashoffset=circumference-(daysPassed/cycleLength)*circumference; calendarDate=moment(); renderCalendar(); settingsBtn.classList.remove('hidden');analysisBtn.classList.remove('hidden');backBtn.classList.add('hidden'); };
-            
-            const renderCalendar = () => { if (!userData.user) return; document.getElementById('calendar-month-year').textContent=toPersian(calendarDate.format('jMMMM jYYYY'));const calendarGrid=document.getElementById('calendar-grid');calendarGrid.innerHTML='';const monthStart=calendarDate.clone().startOf('jMonth');const monthEnd=calendarDate.clone().endOf('jMonth');const lastPeriod=moment(userData.user.last_period_date,'YYYY-MM-DD');let cycleStartDate=lastPeriod.clone();while(cycleStartDate.clone().add(userData.user.cycle_length,'days').isBefore(monthStart))cycleStartDate.add(userData.user.cycle_length,'days');while(cycleStartDate.isAfter(monthStart))cycleStartDate.subtract(userData.user.cycle_length,'days');const specialDays=new Map();for(let d=cycleStartDate.clone();d.isBefore(monthEnd.clone().add(1,'month'));d.add(userData.user.cycle_length,'days')){const periodStart=d.clone();const ovulationDay=periodStart.clone().add(userData.user.cycle_length-14,'days');const fertileStart=ovulationDay.clone().subtract(5,'days');const fertileEnd=ovulationDay.clone().add(1,'days');const pmsStart=periodStart.clone().subtract(7,'days');for(let pms=pmsStart.clone();pms.isBefore(periodStart);pms.add(1,'days'))specialDays.set(pms.format('YYYY-MM-DD'),'pms-day');for(let f=fertileStart.clone();f.isSameOrBefore(fertileEnd);f.add(1,'days'))specialDays.set(f.format('YYYY-MM-DD'),'fertile-day');specialDays.set(ovulationDay.format('YYYY-MM-DD'),'ovulation-day');for(let p=0;p<userData.user.period_length;p++)specialDays.set(periodStart.clone().add(p,'days').format('YYYY-MM-DD'),'period-day');}for(let i=0;i<monthStart.jDay();i++)calendarGrid.innerHTML+='<div></div>';for(let day=monthStart.clone();day.isSameOrBefore(monthEnd);day.add(1,'days')){const dayKey=day.format('YYYY-MM-DD');const canLog=day.isSameOrBefore(moment(),'day');let classes='calendar-day ';if(specialDays.has(dayKey))classes+=specialDays.get(dayKey);if(day.isSame(moment(),'day'))classes+=' today';if(!canLog)classes+=' disabled';const logData=userData.logs?.[dayKey];const hasLog=logData&&Object.values(logData).some(v=>(Array.isArray(v)&&v.length>0)||(typeof v==='string'&&v)|| (typeof v === 'number' && v !== ''));const logIndicator=hasLog?'<div class="log-indicator"></div>':'';const clickHandler=canLog?`onclick="window.app.openLogModal('${dayKey}')"`:'';calendarGrid.innerHTML+=`<div class="${classes}" ${clickHandler}><span>${toPersian(day.jDate())}</span>${logIndicator}</div>`;} };
-            
-            const renderSettings = () => { 
-                render(templates.settings);
-                const populateSelect=(id,s,e,u='')=>{const el=document.getElementById(id);el.innerHTML='';for(let i=s;i>=e;i--)el.innerHTML+=`<option value="${i}">${toPersian(i)}${u}</option>`;};
-                const populateMonths=id=>{const el=document.getElementById(id);el.innerHTML='';const months=["فروردین","اردیبهشت","خرداد","تیر","مرداد","شهریور","مهر","آبان","آذر","دی","بهمن","اسفند"];months.forEach((m,i)=>el.innerHTML+=`<option value="${i+1}">${m}</option>`);};
-                const y=parseInt(new Intl.DateTimeFormat('fa-IR-u-nu-latn',{year:'numeric'}).format(new Date()));
-                populateSelect('settings-cycle-length',60,21,' روز');
-                populateSelect('settings-period-length',12,3,' روز');
-                populateSelect('settings-date-day',31,1);
-                populateMonths('settings-date-month');
-                populateSelect('settings-date-year',y,y-15);
-                populateSelect('settings-birth-year',1396,1350);
-                const s=id=>document.getElementById('settings-'+id);
-                
-                const lastPeriodDate = moment(userData.user.last_period_date, 'YYYY-MM-DD');
-                const [year, month, day] = lastPeriodDate.format('jYYYY-jM-jD').split('-');
+                // --- RENDER FUNCTIONS ---
+                const render = (template, ...args) => { appContent.innerHTML = template(...args); };
+                const renderDashboard = () => { if (!userData.user) { return; } render(templates.home); const today = moment(); const lastPeriod = moment(userData.user.last_period_date, 'YYYY-MM-DD'); const cycleLength = parseInt(userData.user.cycle_length); const periodLength = parseInt(userData.user.period_length); const cyclesSince = Math.floor(today.diff(lastPeriod, 'days') / cycleLength); const currentPeriodStart = lastPeriod.clone().add(cyclesSince * cycleLength, 'days'); const currentPeriodEnd = currentPeriodStart.clone().add(periodLength - 1, 'days'); const nextPeriodStart = currentPeriodStart.clone().add(cycleLength, 'days'); const nextPmsStart = nextPeriodStart.clone().subtract(7, 'days'); const daysLeftEl = document.getElementById('days-left'); const daysUnitEl = document.getElementById('days-unit'); const pmsCountdownEl = document.getElementById('pms-countdown'); if (today.isBetween(currentPeriodStart, currentPeriodEnd, null, '[]')) { const daysToEnd = currentPeriodEnd.diff(today, 'days') + 1; daysLeftEl.textContent = toPersian(daysToEnd); daysUnitEl.textContent = 'روز تا پایان پریود'; pmsCountdownEl.classList.add('hidden'); } else { const daysToPeriod = nextPeriodStart.diff(today, 'days'); daysLeftEl.textContent = toPersian(daysToPeriod); daysUnitEl.textContent = 'روز تا پریود بعدی'; if (today.isBetween(nextPmsStart, nextPeriodStart.clone().subtract(1, 'day'), null, '[]')) { pmsCountdownEl.textContent = 'شما در دوره PMS هستید'; pmsCountdownEl.classList.remove('hidden'); } else { const daysToPms = nextPmsStart.diff(today, 'days'); if (daysToPms > 0) { pmsCountdownEl.textContent = `${toPersian(daysToPms)} روز تا PMS`; pmsCountdownEl.classList.remove('hidden'); } else { pmsCountdownEl.classList.add('hidden'); } } } document.getElementById('next-period-date').textContent = toPersian(nextPeriodStart.format('dddd، jD jMMMM')); const progressCircle = document.getElementById('progress-circle'); const radius=54,circumference=2*Math.PI*radius; const daysPassed = cycleLength - nextPeriodStart.diff(today, 'days'); progressCircle.style.strokeDasharray=`${circumference} ${circumference}`; progressCircle.style.strokeDashoffset=circumference-(daysPassed/cycleLength)*circumference; calendarDate=moment(); renderCalendar(); settingsBtn.classList.remove('hidden');analysisBtn.classList.remove('hidden');backBtn.classList.add('hidden'); };
+                const renderCalendar = () => { if (!userData.user) return; document.getElementById('calendar-month-year').textContent=toPersian(calendarDate.format('jMMMM jYYYY'));const calendarGrid=document.getElementById('calendar-grid');calendarGrid.innerHTML='';const monthStart=calendarDate.clone().startOf('jMonth');const monthEnd=calendarDate.clone().endOf('jMonth');const lastPeriod=moment(userData.user.last_period_date,'YYYY-MM-DD');let cycleStartDate=lastPeriod.clone();while(cycleStartDate.clone().add(userData.user.cycle_length,'days').isBefore(monthStart))cycleStartDate.add(userData.user.cycle_length,'days');while(cycleStartDate.isAfter(monthStart))cycleStartDate.subtract(userData.user.cycle_length,'days');const specialDays=new Map();for(let d=cycleStartDate.clone();d.isBefore(monthEnd.clone().add(1,'month'));d.add(userData.user.cycle_length,'days')){const periodStart=d.clone();const ovulationDay=periodStart.clone().add(userData.user.cycle_length-14,'days');const fertileStart=ovulationDay.clone().subtract(5,'days');const fertileEnd=ovulationDay.clone().add(1,'days');const pmsStart=periodStart.clone().subtract(7,'days');for(let pms=pmsStart.clone();pms.isBefore(periodStart);pms.add(1,'days'))specialDays.set(pms.format('YYYY-MM-DD'),'pms-day');for(let f=fertileStart.clone();f.isSameOrBefore(fertileEnd);f.add(1,'days'))specialDays.set(f.format('YYYY-MM-DD'),'fertile-day');specialDays.set(ovulationDay.format('YYYY-MM-DD'),'ovulation-day');for(let p=0;p<userData.user.period_length;p++)specialDays.set(periodStart.clone().add(p,'days').format('YYYY-MM-DD'),'period-day');}for(let i=0;i<monthStart.jDay();i++)calendarGrid.innerHTML+='<div></div>';for(let day=monthStart.clone();day.isSameOrBefore(monthEnd);day.add(1,'days')){const dayKey=day.format('YYYY-MM-DD');const canLog=day.isSameOrBefore(moment(),'day');let classes='calendar-day ';if(specialDays.has(dayKey))classes+=specialDays.get(dayKey);if(day.isSame(moment(),'day'))classes+=' today';if(!canLog)classes+=' disabled';const logData=userData.logs?.[dayKey];const hasLog=logData&&Object.values(logData).some(v=>(Array.isArray(v)&&v.length>0)||(typeof v==='string'&&v)|| (typeof v === 'number' && v !== ''));const logIndicator=hasLog?'<div class="log-indicator"></div>':'';const clickHandler=canLog?`onclick="window.app.openLogModal('${dayKey}')"`:'';calendarGrid.innerHTML+=`<div class="${classes}" ${clickHandler}><span>${toPersian(day.jDate())}</span>${logIndicator}</div>`;} };
+                const renderSettings = () => { render(templates.settings); const populateSelect=(id,s,e,u='')=>{const el=document.getElementById(id);el.innerHTML='';for(let i=s;i>=e;i--)el.innerHTML+=`<option value="${i}">${toPersian(i)}${u}</option>`;}; const y=parseInt(new Intl.DateTimeFormat('fa-IR-u-nu-latn',{year:'numeric'}).format(new Date())); populateSelect('settings-cycle-length',60,21,' روز'); populateSelect('settings-period-length',12,3,' روز'); populateSelect('settings-birth-year',1396,1350); const s=id=>document.getElementById('settings-'+id); const dateInput = document.getElementById('settings-date-input'); const lastPeriodDate = moment(userData.user.last_period_date, 'YYYY-MM-DD'); dateInput.value = toPersian(lastPeriodDate.format('jYYYY/jM/jD')); dateInput.dataset.value = lastPeriodDate.format('YYYY-MM-DD'); s('cycle-length').value=userData.user.cycle_length; s('period-length').value=userData.user.period_length; s('birth-year').value=userData.user.birth_year; settingsBtn.classList.add('hidden'); analysisBtn.classList.add('hidden'); backBtn.classList.remove('hidden'); };
+                const renderAnalysis = () => { render(templates.analysis); let currentFilter = { months: 1, phase: 'all' }; const createBarChart = (canvasId, data, label) => { const container = document.getElementById(canvasId)?.parentElement; if (!container) return; if (charts[canvasId]) charts[canvasId].destroy(); container.innerHTML = `<canvas id="${canvasId}"></canvas>`; const ctx = document.getElementById(canvasId); if (data.length === 0) { container.innerHTML = `<p class="text-center text-gray-500 p-4">داده‌ای برای نمایش در این بازه زمانی وجود ندارد.</p>`; return; } charts[canvasId] = new Chart(ctx, { type: 'bar', data: { labels: data.map(item => item[0]), datasets: [{ label, data: data.map(item => item[1]), backgroundColor: 'rgba(236, 72, 153, 0.6)', borderColor: 'rgba(236, 72, 153, 1)', borderWidth: 1 }] }, options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { stepSize: 1, callback: (v) => toPersian(v) } } } } }); }; const createLineChart = (canvasId, data, label, unit) => { const container = document.getElementById(canvasId)?.parentElement; if (!container) return; if (charts[canvasId]) charts[canvasId].destroy(); container.innerHTML = `<canvas id="${canvasId}"></canvas>`; const ctx = document.getElementById(canvasId); if (data.labels.length < 2) { container.innerHTML = `<p class="text-center text-gray-500 p-4">داده کافی برای رسم نمودار خطی وجود ندارد.</p>`; return; } charts[canvasId] = new Chart(ctx, { type: 'line', data: { labels: data.labels.map(l => toPersian(moment(l, 'YYYY-MM-DD').format('jM/jD'))), datasets: [{ label, data: data.data, fill: false, borderColor: 'rgba(236, 72, 153, 1)', backgroundColor: 'rgba(236, 72, 153, 0.6)', tension: 0.1 }] }, options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: false, ticks: { callback: (value) => toPersian(value) + ` ${unit}` } }, x: { ticks: { callback: function(val, index) { return index % Math.ceil(data.labels.length / 7) === 0 ? this.getLabelForValue(val) : ''; } } } } } }); }; const updateAnalysisCharts = (months, phase) => { const startDate = moment().subtract(months, 'months'); const lastPeriod = moment(userData.user.last_period_date, 'YYYY-MM-DD'); const getLogPhase = (logDate) => { const cycleLength = parseInt(userData.user.cycle_length); const periodLength = parseInt(userData.user.period_length); const diffDays = logDate.diff(lastPeriod, 'days'); let cycleStartDate = lastPeriod.clone(); if (diffDays >= 0) { const numCycles = Math.floor(diffDays / cycleLength); cycleStartDate = lastPeriod.clone().add(numCycles * cycleLength, 'days'); } else { const numCycles = Math.ceil(Math.abs(diffDays) / cycleLength); cycleStartDate = lastPeriod.clone().subtract(numCycles * cycleLength, 'days'); } const periodStart = cycleStartDate.clone(); const pmsStart = periodStart.clone().add(cycleLength, 'days').subtract(7, 'days'); if (logDate.isBetween(pmsStart, periodStart.clone().add(cycleLength, 'days').subtract(1, 'day'), null, '[]')) return 'pms'; if (logDate.isBetween(periodStart, periodStart.clone().add(periodLength - 1, 'days'), null, '[]')) return 'period'; return 'other'; }; const processLogs = (categories) => { const counts = {}; Object.entries(userData.logs || {}).forEach(([dateKey, log]) => { const logDate = moment(dateKey, 'YYYY-MM-DD'); if (!logDate.isSameOrAfter(startDate)) return; const currentPhase = getLogPhase(logDate); if (phase === 'all' || currentPhase === phase) { categories.forEach(categoryKey => { if (log[categoryKey]) { const items = Array.isArray(log[categoryKey]) ? log[categoryKey] : [log[categoryKey]]; items.forEach(item => { counts[item] = (counts[item] || 0) + 1; }); } }); } }); return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5); }; const processMetricLogs = (metricKey) => { const metricData = []; Object.entries(userData.logs || {}).forEach(([dateKey, log]) => { const logDate = moment(dateKey, 'YYYY-MM-DD'); if (!logDate.isSameOrAfter(startDate)) return; const currentPhase = getLogPhase(logDate); if ((phase === 'all' || currentPhase === phase) && log[metricKey] !== undefined && log[metricKey] !== '') { metricData.push({ date: logDate, value: parseFloat(log[metricKey]) }); } }); metricData.sort((a, b) => a.date - b.date); return { labels: metricData.map(d => d.date.format('YYYY-MM-DD')), data: metricData.map(d => d.value) }; }; const chartContainer = document.getElementById('analysis-charts'); chartContainer.innerHTML = `<div><h3 class="text-xl font-bold text-gray-800 mb-2">علائم پرتکرار</h3><div class="bg-gray-100 p-4 rounded-lg"><canvas id="symptoms-chart"></canvas></div></div><div><h3 class="text-xl font-bold text-gray-800 mb-2">حالات روحی پرتکرار</h3><div class="bg-gray-100 p-4 rounded-lg"><canvas id="moods-chart"></canvas></div></div><div><h3 class="text-xl font-bold text-gray-800 mb-2">روند تغییرات وزن</h3><div class="bg-gray-100 p-4 rounded-lg"><canvas id="weight-chart"></canvas></div></div><div><h3 class="text-xl font-bold text-gray-800 mb-2">روند نوشیدن آب</h3><div class="bg-gray-100 p-4 rounded-lg"><canvas id="water-chart"></canvas></div></div><div><h3 class="text-xl font-bold text-gray-800 mb-2">روند وضعیت خواب</h3><div class="bg-gray-100 p-4 rounded-lg"><canvas id="sleep-chart"></canvas></div></div>`; createBarChart('symptoms-chart', processLogs(ALL_SYMPTOM_CATEGORIES), 'تعداد روزها'); createBarChart('moods-chart', processLogs(['moods']), 'تعداد روزها'); createLineChart('weight-chart', processMetricLogs('weight'), 'وزن', 'kg'); createLineChart('water-chart', processMetricLogs('water'), 'آب', 'لیوان'); createLineChart('sleep-chart', processMetricLogs('sleep'), 'خواب', 'ساعت'); }; const tabs = document.querySelectorAll('.analysis-tab'); tabs.forEach(tab => { tab.addEventListener('click', () => { if (tab.classList.contains('time-tab')) { document.querySelectorAll('.time-tab').forEach(t => t.classList.remove('active-tab')); currentFilter.months = parseInt(tab.dataset.months); } if (tab.classList.contains('phase-tab')) { document.querySelectorAll('.phase-tab').forEach(t => t.classList.remove('active-tab')); currentFilter.phase = tab.dataset.phase; } tab.classList.add('active-tab'); updateAnalysisCharts(currentFilter.months, currentFilter.phase); }); }); updateAnalysisCharts(currentFilter.months, currentFilter.phase); settingsBtn.classList.add('hidden'); analysisBtn.classList.add('hidden'); backBtn.classList.remove('hidden'); };
 
-                s('cycle-length').value=userData.user.cycle_length;
-                s('period-length').value=userData.user.period_length;
-                s('birth-year').value=userData.user.birth_year;
-                s('date-year').value=year;
-                s('date-month').value=month;
-                s('date-day').value=day;
-                settingsBtn.classList.add('hidden');
-                analysisBtn.classList.add('hidden');
-                backBtn.classList.remove('hidden'); 
-            };
-            
-            const renderAnalysis = () => { render(templates.analysis); let currentFilter = { months: 1, phase: 'all' }; const createBarChart = (canvasId, data, label) => { const container = document.getElementById(canvasId)?.parentElement; if (!container) return; if (charts[canvasId]) charts[canvasId].destroy(); container.innerHTML = `<canvas id="${canvasId}"></canvas>`; const ctx = document.getElementById(canvasId); if (data.length === 0) { container.innerHTML = `<p class="text-center text-gray-500 p-4">داده‌ای برای نمایش در این بازه زمانی وجود ندارد.</p>`; return; } charts[canvasId] = new Chart(ctx, { type: 'bar', data: { labels: data.map(item => item[0]), datasets: [{ label, data: data.map(item => item[1]), backgroundColor: 'rgba(236, 72, 153, 0.6)', borderColor: 'rgba(236, 72, 153, 1)', borderWidth: 1 }] }, options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { stepSize: 1, callback: (v) => toPersian(v) } } } } }); }; const createLineChart = (canvasId, data, label, unit) => { const container = document.getElementById(canvasId)?.parentElement; if (!container) return; if (charts[canvasId]) charts[canvasId].destroy(); container.innerHTML = `<canvas id="${canvasId}"></canvas>`; const ctx = document.getElementById(canvasId); if (data.labels.length < 2) { container.innerHTML = `<p class="text-center text-gray-500 p-4">داده کافی برای رسم نمودار خطی وجود ندارد.</p>`; return; } charts[canvasId] = new Chart(ctx, { type: 'line', data: { labels: data.labels.map(l => toPersian(moment(l, 'YYYY-MM-DD').format('jM/jD'))), datasets: [{ label, data: data.data, fill: false, borderColor: 'rgba(236, 72, 153, 1)', backgroundColor: 'rgba(236, 72, 153, 0.6)', tension: 0.1 }] }, options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: false, ticks: { callback: (value) => toPersian(value) + ` ${unit}` } }, x: { ticks: { callback: function(val, index) { return index % Math.ceil(data.labels.length / 7) === 0 ? this.getLabelForValue(val) : ''; } } } } } }); }; const updateAnalysisCharts = (months, phase) => { const startDate = moment().subtract(months, 'months'); const lastPeriod = moment(userData.user.last_period_date, 'YYYY-MM-DD'); const getLogPhase = (logDate) => { const cycleLength = parseInt(userData.user.cycle_length); const periodLength = parseInt(userData.user.period_length); const diffDays = logDate.diff(lastPeriod, 'days'); let cycleStartDate = lastPeriod.clone(); if (diffDays >= 0) { const numCycles = Math.floor(diffDays / cycleLength); cycleStartDate = lastPeriod.clone().add(numCycles * cycleLength, 'days'); } else { const numCycles = Math.ceil(Math.abs(diffDays) / cycleLength); cycleStartDate = lastPeriod.clone().subtract(numCycles * cycleLength, 'days'); } const periodStart = cycleStartDate.clone(); const pmsStart = periodStart.clone().add(cycleLength, 'days').subtract(7, 'days'); if (logDate.isBetween(pmsStart, periodStart.clone().add(cycleLength, 'days').subtract(1, 'day'), null, '[]')) return 'pms'; if (logDate.isBetween(periodStart, periodStart.clone().add(periodLength - 1, 'days'), null, '[]')) return 'period'; return 'other'; }; const processLogs = (categories) => { const counts = {}; Object.entries(userData.logs || {}).forEach(([dateKey, log]) => { const logDate = moment(dateKey, 'YYYY-MM-DD'); if (!logDate.isSameOrAfter(startDate)) return; const currentPhase = getLogPhase(logDate); if (phase === 'all' || currentPhase === phase) { categories.forEach(categoryKey => { if (log[categoryKey]) { const items = Array.isArray(log[categoryKey]) ? log[categoryKey] : [log[categoryKey]]; items.forEach(item => { counts[item] = (counts[item] || 0) + 1; }); } }); } }); return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5); }; const processMetricLogs = (metricKey) => { const metricData = []; Object.entries(userData.logs || {}).forEach(([dateKey, log]) => { const logDate = moment(dateKey, 'YYYY-MM-DD'); if (!logDate.isSameOrAfter(startDate)) return; const currentPhase = getLogPhase(logDate); if ((phase === 'all' || currentPhase === phase) && log[metricKey] !== undefined && log[metricKey] !== '') { metricData.push({ date: logDate, value: parseFloat(log[metricKey]) }); } }); metricData.sort((a, b) => a.date - b.date); return { labels: metricData.map(d => d.date.format('YYYY-MM-DD')), data: metricData.map(d => d.value) }; }; const chartContainer = document.getElementById('analysis-charts'); chartContainer.innerHTML = `<div><h3 class="text-xl font-bold text-gray-800 mb-2">علائم پرتکرار</h3><div class="bg-gray-100 p-4 rounded-lg"><canvas id="symptoms-chart"></canvas></div></div><div><h3 class="text-xl font-bold text-gray-800 mb-2">حالات روحی پرتکرار</h3><div class="bg-gray-100 p-4 rounded-lg"><canvas id="moods-chart"></canvas></div></div><div><h3 class="text-xl font-bold text-gray-800 mb-2">روند تغییرات وزن</h3><div class="bg-gray-100 p-4 rounded-lg"><canvas id="weight-chart"></canvas></div></div><div><h3 class="text-xl font-bold text-gray-800 mb-2">روند نوشیدن آب</h3><div class="bg-gray-100 p-4 rounded-lg"><canvas id="water-chart"></canvas></div></div><div><h3 class="text-xl font-bold text-gray-800 mb-2">روند وضعیت خواب</h3><div class="bg-gray-100 p-4 rounded-lg"><canvas id="sleep-chart"></canvas></div></div>`; createBarChart('symptoms-chart', processLogs(ALL_SYMPTOM_CATEGORIES), 'تعداد روزها'); createBarChart('moods-chart', processLogs(['moods']), 'تعداد روزها'); createLineChart('weight-chart', processMetricLogs('weight'), 'وزن', 'kg'); createLineChart('water-chart', processMetricLogs('water'), 'آب', 'لیوان'); createLineChart('sleep-chart', processMetricLogs('sleep'), 'خواب', 'ساعت'); }; const tabs = document.querySelectorAll('.analysis-tab'); tabs.forEach(tab => { tab.addEventListener('click', () => { if (tab.classList.contains('time-tab')) { document.querySelectorAll('.time-tab').forEach(t => t.classList.remove('active-tab')); currentFilter.months = parseInt(tab.dataset.months); } if (tab.classList.contains('phase-tab')) { document.querySelectorAll('.phase-tab').forEach(t => t.classList.remove('active-tab')); currentFilter.phase = tab.dataset.phase; } tab.classList.add('active-tab'); updateAnalysisCharts(currentFilter.months, currentFilter.phase); }); }); updateAnalysisCharts(currentFilter.months, currentFilter.phase); settingsBtn.classList.add('hidden'); analysisBtn.classList.add('hidden'); backBtn.classList.remove('hidden'); };
-
-            // --- APP LOGIC ---
-            window.app = {
-                goToSettings() {
-                    renderSettings();
-                },
-                
-                onboardingData: {}, 
-
-                async nextStep(step) {
-                    if (step === 2) this.onboardingData.cycle_length = document.getElementById('cycle-length').value;
-                    if (step === 3) this.onboardingData.period_length = document.getElementById('period-length').value;
-                    if (step === 4) {
-                        const jMoment = moment(`${document.getElementById('date-year').value}/${document.getElementById('date-month').value}/${document.getElementById('date-day').value}`, 'jYYYY/jM/jD');
-                        this.onboardingData.last_period_date = jMoment.format('YYYY-MM-DD');
-                    }
+                // --- APP LOGIC ---
+                window.app = {
+                    goToSettings() {
+                        renderSettings();
+                    },
                     
-                    if (step > 4) {
-                        this.onboardingData.birth_year = document.getElementById('birth-year').value;
-                        this.onboardingData.telegram_id = TELEGRAM_ID;
+                    onboardingData: {}, 
+
+                    async nextStep(step) {
+                        if (step === 2) this.onboardingData.cycle_length = document.getElementById('cycle-length').value;
+                        if (step === 3) this.onboardingData.period_length = document.getElementById('period-length').value;
+                        if (step === 4) {
+                            const dateInput = document.getElementById('onboarding-date-input');
+                            if (!dateInput.dataset.value) {
+                                showToast('لطفاً تاریخ آخرین پریود را انتخاب کنید.', true);
+                                return;
+                            }
+                            this.onboardingData.last_period_date = dateInput.dataset.value;
+                        }
                         
-                        try {
-                            const response = await fetch(`${API_BASE_URL}/onboarding`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify(this.onboardingData)
-                            });
+                        if (step > 4) {
+                            this.onboardingData.birth_year = document.getElementById('birth-year').value;
+                            this.onboardingData.telegram_id = TELEGRAM_ID;
                             
-                            const data = await response.json();
-                            if (!response.ok && response.status !== 200) { // 200 is for existing user
-                                throw new Error(data.error || 'خطا در ثبت‌نام');
+                            try {
+                                const response = await fetch(`${API_BASE_URL}/onboarding`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify(this.onboardingData)
+                                });
+                                
+                                const data = await response.json();
+                                if (!response.ok && response.status !== 200) {
+                                    throw new Error(data.error || 'خطا در ثبت‌نام');
+                                }
+                                showToast(data.message);
+                                await this.init(); 
+
+                            } catch (error) {
+                                console.error('Onboarding failed:', error);
+                                showToast(error.message, true);
                             }
-                            showToast(data.message);
-                            await this.init(); 
 
-                        } catch (error) {
-                            console.error('Onboarding failed:', error);
-                            showToast(error.message, true);
-                        }
-
-                    } else {
-                        render(templates.onboardingStep, step);
-                        const populateSelectsForStep = (elId, start, end, unit = '') => { const el = document.getElementById(elId); el.innerHTML = ''; for (let i = start; i >= end; i--) el.innerHTML += `<option value="${i}">${toPersian(i)}${unit}</option>`; };
-                        if (step === 3) {
-                            const y = parseInt(new Intl.DateTimeFormat('fa-IR-u-nu-latn', { year: 'numeric' }).format(new Date()));
-                            populateSelectsForStep('date-day', 31, 1);
-                            document.getElementById('date-month').innerHTML = ["فروردین","اردیبهشت","خرداد","تیر","مرداد","شهریور","مهر","آبان","آذر","دی","بهمن","اسفند"].map((m, i) => `<option value="${i + 1}">${m}</option>`).join('');
-                            populateSelectsForStep('date-year', y, y - 1);
-                            const sevenDaysAgo = moment().subtract(7, 'days');
-                            document.getElementById('date-year').value = sevenDaysAgo.jYear();
-                            document.getElementById('date-month').value = sevenDaysAgo.jMonth() + 1;
-                            document.getElementById('date-day').value = sevenDaysAgo.jDate();
                         } else {
-                            const config = { 1: ['cycle-length', 60, 21, ' روز'], 2: ['period-length', 12, 3, ' روز'], 4: ['birth-year', 1396, 1350] };
-                            if (config[step]) {
-                                populateSelectsForStep(...config[step]);
-                                if(step === 1) document.getElementById('cycle-length').value = 28;
-                                if(step === 2) document.getElementById('period-length').value = 7;
-                                if(step === 4) document.getElementById('birth-year').value = 1375;
-                            }
-                        }
-                    }
-                },
-                
-                async saveSettings() {
-                    const jMoment = moment(`${document.getElementById('settings-date-year').value}/${document.getElementById('settings-date-month').value}/${document.getElementById('settings-date-day').value}`, 'jYYYY/jM/jD');
-                    const settingsData = {
-                        cycle_length: document.getElementById('settings-cycle-length').value,
-                        period_length: document.getElementById('settings-period-length').value,
-                        last_period_date: jMoment.format('YYYY-MM-DD'),
-                        birth_year: document.getElementById('settings-birth-year').value,
-                    };
-                    try {
-                        const response = await fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}`, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(settingsData)
-                        });
-                        const data = await response.json();
-                        if (!response.ok) throw new Error(data.error || 'خطا در ذخیره تنظیمات');
-                        
-                        userData.user = data.user;
-                        showToast(data.message);
-                        renderDashboard();
-                    } catch (error) {
-                        console.error('Failed to save settings:', error);
-                        showToast(error.message, true);
-                    }
-                },
-
-                changeMonth(direction) { calendarDate.add(direction, 'jMonth'); renderCalendar(); },
-                
-                openLogModal(dateKey) {
-                    selectedLogDate = dateKey;
-                    const hasLog = userData.logs[selectedLogDate] && Object.keys(userData.logs[selectedLogDate]).length > 0;
-                    let modalHTML = `<div class="flex justify-between items-center mb-4">
-                        <button id="delete-log-btn" class="text-red-500 hover:text-red-700 text-sm font-semibold ${hasLog ? '' : 'invisible'}">حذف علائم</button>
-                        <h3 class="text-xl font-bold text-center">ثبت علائم</h3>
-                        <div class="w-16"></div>
-                    </div>
-                    <p class="text-center text-gray-500 mb-4 -mt-4">${toPersian(moment(dateKey, 'YYYY-MM-DD').format('dddd jD jMMMM'))}</p>
-                    <div class="space-y-4">`;
-                    const currentLog = userData.logs[selectedLogDate] || {};
-
-                    for (const categoryKey in LOG_CONFIG) {
-                        const category = LOG_CONFIG[categoryKey];
-                        modalHTML += `<div><h4 class="font-semibold mb-2 text-gray-600">${category.title}</h4>`;
-                        if (categoryKey === 'metrics') {
-                            modalHTML += '<div class="space-y-3">';
-                            for(const itemKey in category.items) {
-                                const item = category.items[itemKey];
-                                let value = currentLog[itemKey];
-                                if(item.type === 'number') {
-                                    modalHTML += `<div><label class="block text-sm text-gray-500">${item.title}</label><input type="number" id="log-${itemKey}" min="${item.min}" max="${item.max}" step="${item.step}" value="${value || ''}" placeholder="--" class="w-full p-2 border rounded-lg bg-gray-50 text-center"></div>`;
-                                } else if (item.type === 'slider') {
-                                    const hasValue = value !== undefined && value !== null && value !== '';
-                                    let displayValue = hasValue ? `${toPersian(value)} ${item.unit}` : '--';
-                                    let sliderValueAttr = hasValue ? `value="${value}"` : `value="${item.min}"`;
-                                    let interacted = hasValue ? 'true' : 'false';
-
-                                    modalHTML += `<div>
-                                        <div class="flex justify-between text-sm text-gray-500">
-                                            <span>${item.title}</span>
-                                            <span id="log-${itemKey}-value">${displayValue}</span>
-                                        </div>
-                                        <input type="range" id="log-${itemKey}" min="${item.min}" max="${item.max}" step="${item.step}" ${sliderValueAttr} data-interacted="${interacted}" class="w-full" oninput="this.dataset.interacted = 'true'; document.getElementById('log-${itemKey}-value').textContent = window.toPersian(this.value) + ' ${item.unit}'">
-                                    </div>`;
+                            render(templates.onboardingStep, step);
+                            if (step === 1 || step === 2 || step === 4) {
+                                const populateSelectsForStep = (elId, start, end, unit = '') => { const el = document.getElementById(elId); el.innerHTML = ''; for (let i = start; i >= end; i--) el.innerHTML += `<option value="${i}">${toPersian(i)}${unit}</option>`; };
+                                const config = { 1: ['cycle-length', 60, 21, ' روز'], 2: ['period-length', 12, 3, ' روز'], 4: ['birth-year', 1396, 1350] };
+                                if (config[step]) {
+                                    populateSelectsForStep(...config[step]);
+                                    if(step === 1) document.getElementById('cycle-length').value = 28;
+                                    if(step === 2) document.getElementById('period-length').value = 7;
+                                    if(step === 4) document.getElementById('birth-year').value = 1375;
                                 }
                             }
-                            modalHTML += '</div>';
-                        } else {
-                            modalHTML += '<div class="flex flex-wrap justify-center gap-2 text-sm">';
-                            const currentItems = currentLog[categoryKey] || (category.single ? null : []);
-                            for (const item in category.items) {
-                                const isSelected = category.single ? currentItems === item : (Array.isArray(currentItems) && currentItems.includes(item));
-                                modalHTML += `<div class="symptom-chip ${isSelected ? 'selected' : ''}" data-category="${categoryKey}" data-value="${item}">${category.items[item]} ${item}</div>`;
+                        }
+                    },
+                    
+                    async saveSettings() {
+                        const dateInput = document.getElementById('settings-date-input');
+                        const settingsData = {
+                            cycle_length: document.getElementById('settings-cycle-length').value,
+                            period_length: document.getElementById('settings-period-length').value,
+                            last_period_date: dateInput.dataset.value,
+                            birth_year: document.getElementById('settings-birth-year').value,
+                        };
+                        try {
+                            const response = await fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(settingsData)
+                            });
+                            const data = await response.json();
+                            if (!response.ok) throw new Error(data.error || 'خطا در ذخیره تنظیمات');
+                            
+                            userData.user = data.user;
+                            showToast(data.message);
+                            renderDashboard();
+                        } catch (error) {
+                            console.error('Failed to save settings:', error);
+                            showToast(error.message, true);
+                        }
+                    },
+
+                    changeMonth(direction) { calendarDate.add(direction, 'jMonth'); renderCalendar(); },
+                    
+                    openLogModal(dateKey) {
+                        selectedLogDate = dateKey;
+                        const hasLog = userData.logs[selectedLogDate] && Object.keys(userData.logs[selectedLogDate]).length > 0;
+                        let modalHTML = `<div class="flex justify-between items-center mb-4">
+                            <button id="delete-log-btn" class="text-red-500 hover:text-red-700 text-sm font-semibold ${hasLog ? '' : 'invisible'}">حذف علائم</button>
+                            <h3 class="text-xl font-bold text-center">ثبت علائم</h3>
+                            <div class="w-16"></div>
+                        </div>
+                        <p class="text-center text-gray-500 mb-4 -mt-4">${toPersian(moment(dateKey, 'YYYY-MM-DD').format('dddd jD jMMMM'))}</p>
+                        <div class="space-y-4">`;
+                        const currentLog = userData.logs[selectedLogDate] || {};
+
+                        for (const categoryKey in LOG_CONFIG) {
+                            const category = LOG_CONFIG[categoryKey];
+                            modalHTML += `<div><h4 class="font-semibold mb-2 text-gray-600">${category.title}</h4>`;
+                            if (categoryKey === 'metrics') {
+                                modalHTML += '<div class="space-y-3">';
+                                for(const itemKey in category.items) {
+                                    const item = category.items[itemKey];
+                                    let value = currentLog[itemKey];
+                                    if(item.type === 'number') {
+                                        modalHTML += `<div><label class="block text-sm text-gray-500">${item.title}</label><input type="number" id="log-${itemKey}" min="${item.min}" max="${item.max}" step="${item.step}" value="${value || ''}" placeholder="--" class="w-full p-2 border rounded-lg bg-gray-50 text-center"></div>`;
+                                    } else if (item.type === 'slider') {
+                                        const hasValue = value !== undefined && value !== null && value !== '';
+                                        let displayValue = hasValue ? `${toPersian(value)} ${item.unit}` : '--';
+                                        let sliderValueAttr = hasValue ? `value="${value}"` : `value="${item.min}"`;
+                                        let interacted = hasValue ? 'true' : 'false';
+
+                                        modalHTML += `<div>
+                                            <div class="flex justify-between text-sm text-gray-500">
+                                                <span>${item.title}</span>
+                                                <span id="log-${itemKey}-value">${displayValue}</span>
+                                            </div>
+                                            <input type="range" id="log-${itemKey}" min="${item.min}" max="${item.max}" step="${item.step}" ${sliderValueAttr} data-interacted="${interacted}" class="w-full" oninput="this.dataset.interacted = 'true'; document.getElementById('log-${itemKey}-value').textContent = window.toPersian(this.value) + ' ${item.unit}'">
+                                        </div>`;
+                                    }
+                                }
+                                modalHTML += '</div>';
+                            } else {
+                                modalHTML += '<div class="flex flex-wrap justify-center gap-2 text-sm">';
+                                const currentItems = currentLog[categoryKey] || (category.single ? null : []);
+                                for (const item in category.items) {
+                                    const isSelected = category.single ? currentItems === item : (Array.isArray(currentItems) && currentItems.includes(item));
+                                    modalHTML += `<div class="symptom-chip ${isSelected ? 'selected' : ''}" data-category="${categoryKey}" data-value="${item}">${category.items[item]} ${item}</div>`;
+                                }
+                                modalHTML += `</div>`;
                             }
                             modalHTML += `</div>`;
                         }
-                        modalHTML += `</div>`;
-                    }
-                    modalHTML += `<div>
-                        <div class="flex justify-between items-center mb-2">
-                            <h4 class="font-semibold text-gray-600">توضیحات دیگر</h4>
-                            <span id="notes-char-count" class="text-xs text-gray-400"></span>
-                        </div>
-                        <textarea id="log-notes" class="w-full p-2 border rounded-lg bg-gray-50" rows="3" maxlength="500" oninput="document.getElementById('notes-char-count').textContent = toPersian(this.value.length) + ' / ' + toPersian(500)">${currentLog.notes || ''}</textarea>
-                    </div>`;
-                    modalHTML += `</div><div class="flex gap-4 mt-6"><button id="save-log-btn" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg">ذخیره</button><button id="close-log-btn" class="w-full bg-gray-200 text-gray-700 font-bold py-3 rounded-lg">انصراف</button></div>`;
-                    
-                    logModalContent.innerHTML = modalHTML;
-                    logModal.classList.add('visible');
-                    document.getElementById('log-notes').dispatchEvent(new Event('input'));
-                },
+                        modalHTML += `<div>
+                            <div class="flex justify-between items-center mb-2">
+                                <h4 class="font-semibold text-gray-600">توضیحات دیگر</h4>
+                                <span id="notes-char-count" class="text-xs text-gray-400"></span>
+                            </div>
+                            <textarea id="log-notes" class="w-full p-2 border rounded-lg bg-gray-50" rows="3" maxlength="500" oninput="document.getElementById('notes-char-count').textContent = toPersian(this.value.length) + ' / ' + toPersian(500)">${currentLog.notes || ''}</textarea>
+                        </div>`;
+                        modalHTML += `</div><div class="flex gap-4 mt-6"><button id="save-log-btn" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg">ذخیره</button><button id="close-log-btn" class="w-full bg-gray-200 text-gray-700 font-bold py-3 rounded-lg">انصراف</button></div>`;
+                        
+                        logModalContent.innerHTML = modalHTML;
+                        logModal.classList.add('visible');
+                        document.getElementById('log-notes').dispatchEvent(new Event('input'));
+                    },
 
-                async saveLog() {
-                    const newLog = {};
-                    for (const itemKey in LOG_CONFIG.metrics.items) {
-                        const input = document.getElementById(`log-${itemKey}`);
-                        if (!input) continue;
+                    async saveLog() {
+                        const newLog = {};
+                        for (const itemKey in LOG_CONFIG.metrics.items) {
+                            const input = document.getElementById(`log-${itemKey}`);
+                            if (!input) continue;
 
-                        if (LOG_CONFIG.metrics.items[itemKey].type === 'slider') {
-                            if (input.dataset.interacted === 'true') {
-                                newLog[itemKey] = input.value;
+                            if (LOG_CONFIG.metrics.items[itemKey].type === 'slider') {
+                                if (input.dataset.interacted === 'true') {
+                                    newLog[itemKey] = input.value;
+                                }
+                            } else {
+                               if (input.value !== '') {
+                                    newLog[itemKey] = input.value;
+                               }
+                            }
+                        }
+                        document.querySelectorAll('#log-modal .symptom-chip.selected').forEach(el => {
+                            const { category, value } = el.dataset;
+                            if (LOG_CONFIG[category].single) {
+                                newLog[category] = value;
+                            } else {
+                                if (!newLog[category]) newLog[category] = [];
+                                newLog[category].push(value);
+                            }
+                        });
+                        const notes = document.getElementById('log-notes').value;
+                        if (notes) newLog.notes = notes;
+
+                        if (Object.values(newLog).some(v => v !== null && v !== '' && (!Array.isArray(v) || v.length > 0))) {
+                            const payload = {
+                                user_id: userData.user.id,
+                                log_date: selectedLogDate,
+                                ...newLog
+                            };
+                            try {
+                                const response = await fetch(`${API_BASE_URL}/logs`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify(payload)
+                                });
+                                const data = await response.json();
+                                if (!response.ok) throw new Error(data.error || 'خطا در ذخیره گزارش');
+                                
+                                userData.logs[selectedLogDate] = data.log;
+                                showToast(data.message);
+                            } catch (error) {
+                                 console.error('Failed to save log:', error);
+                                 showToast(error.message, true);
                             }
                         } else {
-                           if (input.value !== '') {
-                                newLog[itemKey] = input.value;
-                           }
+                           await this.deleteLog();
                         }
-                    }
-                    document.querySelectorAll('#log-modal .symptom-chip.selected').forEach(el => {
-                        const { category, value } = el.dataset;
-                        if (LOG_CONFIG[category].single) {
-                            newLog[category] = value;
-                        } else {
-                            if (!newLog[category]) newLog[category] = [];
-                            newLog[category].push(value);
-                        }
-                    });
-                    const notes = document.getElementById('log-notes').value;
-                    if (notes) newLog.notes = notes;
 
-                    if (Object.values(newLog).some(v => v !== null && v !== '' && (!Array.isArray(v) || v.length > 0))) {
-                        const payload = {
-                            user_id: userData.user.id,
-                            log_date: selectedLogDate,
-                            ...newLog
+                        logModal.classList.remove('visible');
+                        renderCalendar();
+                    },
+
+                    async deleteLog() {
+                        if (!userData.logs[selectedLogDate]) {
+                            logModal.classList.remove('visible');
+                            renderCalendar();
+                            return;
                         };
                         try {
                             const response = await fetch(`${API_BASE_URL}/logs`, {
-                                method: 'POST',
+                                method: 'DELETE',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify(payload)
+                                body: JSON.stringify({ user_id: userData.user.id, log_date: selectedLogDate })
                             });
                             const data = await response.json();
-                            if (!response.ok) throw new Error(data.error || 'خطا در ذخیره گزارش');
+                            if (!response.ok) throw new Error(data.error || 'خطا در حذف گزارش');
                             
-                            userData.logs[selectedLogDate] = data.log;
+                            delete userData.logs[selectedLogDate];
                             showToast(data.message);
                         } catch (error) {
-                             console.error('Failed to save log:', error);
-                             showToast(error.message, true);
+                            console.error('Failed to delete log:', error);
+                            showToast(error.message, true);
                         }
-                    } else {
-                       await this.deleteLog();
-                    }
 
-                    logModal.classList.remove('visible');
-                    renderCalendar();
-                },
-
-                async deleteLog() {
-                    if (!userData.logs[selectedLogDate]) {
                         logModal.classList.remove('visible');
                         renderCalendar();
-                        return;
-                    };
-                    try {
-                        const response = await fetch(`${API_BASE_URL}/logs`, {
-                            method: 'DELETE',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ user_id: userData.user.id, log_date: selectedLogDate })
-                        });
-                        const data = await response.json();
-                        if (!response.ok) throw new Error(data.error || 'خطا در حذف گزارش');
+                    },
+
+                    // --- DATE PICKER LOGIC ---
+                    openDatePicker(targetInputId) {
+                        const targetInput = document.getElementById(targetInputId);
+                        const initialDate = targetInput.dataset.value ? moment(targetInput.dataset.value, 'YYYY-MM-DD') : moment();
                         
-                        delete userData.logs[selectedLogDate];
-                        showToast(data.message);
-                    } catch (error) {
-                        console.error('Failed to delete log:', error);
-                        showToast(error.message, true);
-                    }
+                        datepickerState.targetInputId = targetInputId;
+                        datepickerState.currentDate = initialDate.clone();
+                        this.renderDatePicker();
+                        datepickerModal.classList.add('visible');
+                    },
 
-                    logModal.classList.remove('visible');
-                    renderCalendar();
-                },
+                    renderDatePicker() {
+                        const { currentDate, targetInputId } = datepickerState;
+                        const targetInput = document.getElementById(targetInputId);
+                        const selectedDate = targetInput.dataset.value ? moment(targetInput.dataset.value, 'YYYY-MM-DD') : null;
 
-                async init() {
-                    moment.locale('fa');
-                    try {
-                        const response = await fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}`);
-                        if (response.status === 404) {
-                            this.nextStep(1);
-                        } else if (response.ok) {
-                            const data = await response.json();
-                            userData = data;
-                            renderDashboard();
-                        } else {
-                            const err = await response.json();
-                            throw new Error(err.error || 'خطا در دریافت اطلاعات کاربر');
+                        const monthStart = currentDate.clone().startOf('jMonth');
+                        const today = moment();
+
+                        let html = `
+                            <div class="datepicker-header">
+                                <button class="p-2 rounded-full hover:bg-gray-100" onclick="window.app.changeDatePickerMonth(-1)">&lt;</button>
+                                <span class="font-bold">${toPersian(currentDate.format('jMMMM jYYYY'))}</span>
+                                <button class="p-2 rounded-full hover:bg-gray-100" onclick="window.app.changeDatePickerMonth(1)">&gt;</button>
+                            </div>
+                            <div class="grid grid-cols-7 text-center text-xs text-gray-500 mb-2">${['ش','ی','د','س','چ','پ','ج'].map(d=>`<span>${d}</span>`).join('')}</div>
+                            <div class="datepicker-grid">
+                        `;
+
+                        for (let i = 0; i < monthStart.jDay(); i++) {
+                            html += '<div></div>';
                         }
-                    } catch (error) {
-                        console.error('Initialization failed:', error);
-                        appContent.innerHTML = `<div class="text-center text-red-500 p-8">ارتباط با سرور برقرار نشد. لطفاً از روشن بودن سرور اطمینان حاصل کرده و صفحه را رفرش کنید.</div>`;
-                        showToast(error.message, true);
+
+                        for (let i = 1; i <= currentDate.jDaysInMonth(); i++) {
+                            const dayMoment = currentDate.clone().jDate(i);
+                            let classes = 'datepicker-day';
+                            const isDisabled = dayMoment.isAfter(today, 'day');
+
+                            if (isDisabled) classes += ' disabled';
+                            if (dayMoment.isSame(today, 'day')) classes += ' today';
+                            if (selectedDate && dayMoment.isSame(selectedDate, 'day')) classes += ' selected';
+                            
+                            const clickHandler = isDisabled ? '' : `onclick="window.app.selectDate('${dayMoment.format('YYYY-MM-DD')}')"`;
+                            html += `<div class="${classes}" ${clickHandler}>${toPersian(i)}</div>`;
+                        }
+
+                        html += `</div>`;
+                        datepickerModalContent.innerHTML = html;
+                    },
+
+                    changeDatePickerMonth(direction) {
+                        datepickerState.currentDate.add(direction, 'jMonth');
+                        this.renderDatePicker();
+                    },
+
+                    selectDate(dateStr) {
+                        const selectedMoment = moment(dateStr, 'YYYY-MM-DD');
+                        const targetInput = document.getElementById(datepickerState.targetInputId);
+                        targetInput.value = toPersian(selectedMoment.format('jYYYY/jM/jD'));
+                        targetInput.dataset.value = selectedMoment.format('YYYY-MM-DD');
+                        datepickerModal.classList.remove('visible');
+                    },
+
+                    async init() {
+                        moment.locale('fa');
+                        try {
+                            const response = await fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}`);
+                            if (response.status === 404) {
+                                this.nextStep(1);
+                            } else if (response.ok) {
+                                const data = await response.json();
+                                userData = data;
+                                renderDashboard();
+                            } else {
+                                const err = await response.json();
+                                throw new Error(err.error || 'خطا در دریافت اطلاعات کاربر');
+                            }
+                        } catch (error) {
+                            console.error('Initialization failed:', error);
+                            appContent.innerHTML = `<div class="text-center text-red-500 p-8">ارتباط با سرور برقرار نشد. لطفاً از روشن بودن سرور اطمینان حاصل کرده و صفحه را رفرش کنید.</div>`;
+                            showToast(error.message, true);
+                        }
                     }
-                }
-            };
-            
-            // Event Listeners
-            settingsBtn.addEventListener('click', () => app.goToSettings());
-            analysisBtn.addEventListener('click', () => renderAnalysis());
-            backBtn.addEventListener('click', () => renderDashboard());
-            logModal.addEventListener('click', (e) => {
-                if (e.target.id === 'save-log-btn') window.app.saveLog();
-                if (e.target.id === 'delete-log-btn') window.app.deleteLog();
-                if (e.target.id === 'close-log-btn' || e.target.classList.contains('modal-overlay')) logModal.classList.remove('visible');
+                };
                 
-                const chip = e.target.closest('.symptom-chip');
-                if (chip) {
-                    const { category } = chip.dataset;
-                    if (LOG_CONFIG[category].single) {
-                        const wasSelected = chip.classList.contains('selected');
-                        chip.parentElement.querySelectorAll('.symptom-chip').forEach(c => c.classList.remove('selected'));
-                        if (!wasSelected) chip.classList.add('selected');
-                    } else {
-                        chip.classList.toggle('selected');
+                // Event Listeners
+                settingsBtn.addEventListener('click', () => app.goToSettings());
+                analysisBtn.addEventListener('click', () => renderAnalysis());
+                backBtn.addEventListener('click', () => renderDashboard());
+                logModal.addEventListener('click', (e) => {
+                    if (e.target.id === 'save-log-btn') window.app.saveLog();
+                    if (e.target.id === 'delete-log-btn') window.app.deleteLog();
+                    if (e.target.id === 'close-log-btn' || e.target.classList.contains('modal-overlay')) logModal.classList.remove('visible');
+                    
+                    const chip = e.target.closest('.symptom-chip');
+                    if (chip) {
+                        const { category } = chip.dataset;
+                        if (LOG_CONFIG[category].single) {
+                            const wasSelected = chip.classList.contains('selected');
+                            chip.parentElement.querySelectorAll('.symptom-chip').forEach(c => c.classList.remove('selected'));
+                            if (!wasSelected) chip.classList.add('selected');
+                        } else {
+                            chip.classList.toggle('selected');
+                        }
                     }
-                }
-            });
+                });
 
-            // --- START APP ---
-            window.app.init();
+                datepickerModal.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('modal-overlay')) {
+                        datepickerModal.classList.remove('visible');
+                    }
+                });
 
-        } catch (error) {
-            console.error("An error occurred:", error);
-            appContent.innerHTML = `<div class="text-center text-red-500 p-8">یک خطای غیرمنتظره رخ داد. لطفاً صفحه را رفرش کنید.<br><small class="text-gray-400">${error.message}</small></div>`;
-        }
-    });
-</script>
+                // --- START APP ---
+                window.app.init();
 
+            } catch (error) {
+                console.error("An error occurred:", error);
+                appContent.innerHTML = `<div class="text-center text-red-500 p-8">یک خطای غیرمنتظره رخ داد. لطفاً صفحه را رفرش کنید.<br><small class="text-gray-400">${error.message}</small></div>`;
+            }
+        });
+    </script>
 </body>
 </html>
