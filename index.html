@@ -198,7 +198,7 @@
                     onboardingStep(step) { return `<div class="page-enter"><h2 class="text-xl font-semibold text-gray-700 text-center mb-6">${{1:'طول سیکل پریود شما؟',2:'طول دوره پریود شما؟',3:'آخرین بار کی پریود شدید؟',4:'سال تولد شما؟'}[step]}</h2>${step===3?`<input type="text" id="onboarding-date-input" readonly class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg cursor-pointer" placeholder="تاریخ را انتخاب کنید" onclick="window.app.openDatePicker('onboarding-date-input')">`:`<select id="${{1:'cycle-length',2:'period-length',4:'birth-year'}[step]}" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select>`}<button onclick="window.app.nextStep(${step + 1})" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg mt-8">${step===4?'تأیید و ورود':'تأیید'}</button></div>`; },
                     home() { return `<div class="page-enter">
                         <div class="flex flex-col items-center text-center">
-                            <div class="relative my-6 w-64 h-64">
+                            <div class="relative my-6 w-72 h-72">
                                 <svg id="cycle-chart" class="w-full h-full" viewBox="0 0 200 200"></svg>
                                 <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                                     <span id="days-left" class="text-5xl font-bold text-pink-500">--</span>
