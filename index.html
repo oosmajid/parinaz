@@ -22,7 +22,7 @@
         /* Color Styles */
         .pms-day { background-color: #fef08a; color: #a16207; }
         .period-day { background-color: #fecdd3; color: #be123c; }
-        .ovulation-day { background-color: #bae6fd; color: #0369a1; border: 2px solid #38bdf8; }
+        .ovulation-day { background-color: #dcfce7; color: #0369a1; border: 2px dashed #3bb265; }
         .fertile-day { background-color: #dcfce7; color: #15803d; }
         .today { box-shadow: 0 0 0 2px #ec4899; }
 
@@ -37,14 +37,12 @@
             transform: scale(0.9); 
             transition: transform 0.3s; 
             max-height: 90vh; 
-            /* FIX: Flex layout for sticky footer */
             display: flex;
             flex-direction: column;
             overflow: hidden;
         }
         .modal-overlay.visible .modal-content { transform: scale(1); }
 
-        /* FIX: New classes for modal body and footer */
         .modal-body {
             overflow-y: auto;
             padding: 1.5rem;
@@ -54,6 +52,7 @@
             padding: 1rem 1.5rem;
             border-top: 1px solid #e5e7eb; /* gray-200 */
             background-color: white;
+            flex-shrink: 0;
         }
 
         .symptom-chip { cursor: pointer; border: 1px solid #e5e7eb; padding: 0.5rem 1rem; border-radius: 9999px; transition: all 0.2s; }
@@ -66,7 +65,7 @@
         .phase-tab.active-tab { background-color: #ec4899; color: white; }
 
         /* Date Picker Styles */
-        #datepicker-modal { z-index: 60; }
+        #datepicker-modal { z-index: 60; } 
         #datepicker-modal-content { padding: 1rem; width: 90%; max-width: 22rem; }
         .datepicker-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
         .datepicker-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
@@ -199,15 +198,15 @@
                     onboardingStep(step) { return `<div class="page-enter"><h2 class="text-xl font-semibold text-gray-700 text-center mb-6">${{1:'طول سیکل پریود شما؟',2:'طول دوره پریود شما؟',3:'آخرین بار کی پریود شدید؟',4:'سال تولد شما؟'}[step]}</h2>${step===3?`<input type="text" id="onboarding-date-input" readonly class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg cursor-pointer" placeholder="تاریخ را انتخاب کنید" onclick="window.app.openDatePicker('onboarding-date-input')">`:`<select id="${{1:'cycle-length',2:'period-length',4:'birth-year'}[step]}" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select>`}<button onclick="window.app.nextStep(${step + 1})" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg mt-8">${step===4?'تأیید و ورود':'تأیید'}</button></div>`; },
                     home() { return `<div class="page-enter">
                         <div class="flex flex-col items-center text-center">
-                            <div class="relative my-6 w-56 h-56">
-                                <svg id="cycle-chart" class="w-full h-full" viewBox="0 0 120 120"></svg>
+                            <div class="relative my-6 w-64 h-64">
+                                <svg id="cycle-chart" class="w-full h-full" viewBox="0 0 130 130"></svg>
                                 <div class="absolute inset-0 flex flex-col items-center justify-center">
                                     <span id="days-left" class="text-5xl font-bold text-pink-500">--</span>
                                     <span id="days-unit" class="text-lg text-gray-600">روز دیگر</span>
                                     <p id="pms-countdown" class="text-sm text-amber-600 mt-1"></p>
                                 </div>
                             </div>
-                            <div class="flex items-center justify-center gap-2 mt-4">
+                            <div class="flex items-center justify-center gap-2 mt-2">
                                 <button onclick="window.app.logToday()" class="text-xs text-white bg-pink-500 hover:bg-pink-600 px-3 py-1.5 rounded-full font-semibold">ثبت وضعیت امروز</button>
                                 <button onclick="window.app.openEditPeriodModal()" class="text-xs text-pink-500 hover:bg-pink-200 bg-pink-100 px-3 py-1.5 rounded-full font-semibold">ویرایش زمان پریود</button>
                             </div>
@@ -229,7 +228,7 @@
                             <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: #fef08a;"></span><span>روزهای PMS</span></div>
                             <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: #fecdd3;"></span><span>روزهای پریود</span></div>
                             <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: #dcfce7;"></span><span>بازه باروری</span></div>
-                            <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: #bae6fd; border: 1px solid #38bdf8"></span><span>تخمک‌گذاری</span></div>
+                            <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: #dcfce7; border: dashed #3bb265;"></span><span>تخمک‌گذاری</span></div>
                         </div>
                     </div>`; },
                     settings() { return `<div class="page-enter space-y-6"><div><label class="block text-gray-600 mb-2">طول سیکل پریود</label><select id="settings-cycle-length" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div><div><label class="block text-gray-600 mb-2">طول دوره پریود</label><select id="settings-period-length" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div><div><label class="block text-gray-600 mb-2">تاریخ آخرین پریود</label><input type="text" id="settings-date-input" readonly class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg cursor-pointer" onclick="window.app.openDatePicker('settings-date-input')"></div><div><label class="block text-gray-600 mb-2">سال تولد</label><select id="settings-birth-year" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div><button onclick="window.app.saveSettings()" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg mt-8">ذخیره تغییرات</button></div>`; },
@@ -302,7 +301,7 @@
                     if (!svg) return;
                     svg.innerHTML = ''; 
 
-                    const center = 60;
+                    const center = 65; // Adjusted for new viewBox
                     const radius = 52;
                     const strokeWidth = 12;
                     const degreesPerDay = 360 / cycleLength;
@@ -811,8 +810,7 @@
 
                     // --- NEW MODAL LOGIC ---
                     openEditPeriodModal() {
-                        let modalHTML = `
-                            <h3 class="text-xl font-bold text-center mb-4">ویرایش زمان پریود</h3>
+                        const modalBody = `
                             <div class="space-y-4">
                                 <div>
                                     <label class="block text-gray-600 mb-2">تاریخ شروع آخرین خون‌ریزی</label>
@@ -823,12 +821,22 @@
                                     <select id="edit-period-length" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select>
                                 </div>
                             </div>
-                            <div class="flex gap-4 mt-6">
+                        `;
+
+                        const modalFooter = `
+                            <div class="flex gap-4">
                                 <button onclick="window.app.savePeriodUpdate()" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg">ذخیره</button>
                                 <button onclick="document.getElementById('edit-period-modal').classList.remove('visible')" class="w-full bg-gray-200 text-gray-700 font-bold py-3 rounded-lg">انصراف</button>
                             </div>
                         `;
-                        editPeriodModalContent.innerHTML = modalHTML;
+
+                        editPeriodModalContent.innerHTML = `
+                            <div class="modal-body">
+                                <h3 class="text-xl font-bold text-center mb-4">ویرایش زمان پریود</h3>
+                                ${modalBody}
+                            </div>
+                            <div class="modal-footer">${modalFooter}</div>
+                        `;
 
                         const dateInput = document.getElementById('edit-period-date-input');
                         const lastPeriodDate = moment(userData.user.last_period_date, 'YYYY-MM-DD');
