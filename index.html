@@ -28,8 +28,34 @@
 
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 50; opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s; }
         .modal-overlay.visible { opacity: 1; visibility: visible; }
-        .modal-content { background: white; padding: 1.5rem; border-radius: 1rem; width: 90%; max-width: 28rem; transform: scale(0.9); transition: transform 0.3s; max-height: 90vh; overflow-y: auto;}
+        
+        .modal-content { 
+            background: white; 
+            border-radius: 1rem; 
+            width: 90%; 
+            max-width: 28rem; 
+            transform: scale(0.9); 
+            transition: transform 0.3s; 
+            max-height: 90vh; 
+            /* FIX: Flex layout for sticky footer */
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
         .modal-overlay.visible .modal-content { transform: scale(1); }
+
+        /* FIX: New classes for modal body and footer */
+        .modal-body {
+            overflow-y: auto;
+            padding: 1.5rem;
+            flex-grow: 1;
+        }
+        .modal-footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid #e5e7eb; /* gray-200 */
+            background-color: white;
+        }
+
         .symptom-chip { cursor: pointer; border: 1px solid #e5e7eb; padding: 0.5rem 1rem; border-radius: 9999px; transition: all 0.2s; }
         .symptom-chip.selected { background-color: #ec4899; color: white; border-color: #ec4899; }
         
@@ -40,7 +66,7 @@
         .phase-tab.active-tab { background-color: #ec4899; color: white; }
 
         /* Date Picker Styles */
-        #datepicker-modal { z-index: 60; } /* FIX: Ensure datepicker is on top */
+        #datepicker-modal { z-index: 60; }
         #datepicker-modal-content { padding: 1rem; width: 90%; max-width: 22rem; }
         .datepicker-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
         .datepicker-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
@@ -135,7 +161,7 @@
                     flow: { title: 'شدت خونریزی', single: true, items: { 'کم': '🩸', 'متوسط': '🩸🩸', 'شدید': '🩸🩸🩸' } },
                     hair: { title: 'مو', single: false, items: { 'موهای سالم': '💇‍♀️', 'موهای شکننده': '🍂', 'موی خشک': '🌵', 'ریزش مو': '👴', 'موی چرب': '✨', 'موخوره': '✂️' } },
                     nails: { title: 'ناخن', single: false, items: { 'ناخن سالم': '💅', 'ناخن شکننده': '💅', 'تغییر فرم ناخن': '⚠️', 'لکه‌های سفید ناخن': '⚪' } },
-                    skin: { title: 'پوست', single: false, items: { 'پوست سالم': '😊', 'پوست خشک': '�', 'پوست چرب': '✨', 'آکنه پوست': '✨', 'پوست لکه‌دار': '🐞' } },
+                    skin: { title: 'پوست', single: false, items: { 'پوست سالم': '😊', 'پوست خشک': '🌵', 'پوست چرب': '✨', 'آکنه پوست': '✨', 'پوست لکه‌دار': '🐞' } },
                     other: { title: 'سایر', single: false, items: { 'مسافرت': '✈️', 'فشار شدید': '🤯', 'بیماری یا آسیب‌دیدگی': '🤒', 'مصرف الکل': '🍷' } },
                 };
                 const ALL_SYMPTOM_CATEGORIES = ['symptoms', 'libido', 'breasts', 'skin', 'hair', 'nails', 'discharge', 'other'];
@@ -181,7 +207,10 @@
                                     <p id="pms-countdown" class="text-sm text-amber-600 mt-1"></p>
                                 </div>
                             </div>
-                            <button onclick="window.app.openEditPeriodModal()" class="text-xs text-pink-500 hover:bg-pink-200 -mt-2 bg-pink-100 px-3 py-1.5 rounded-full font-semibold">ویرایش زمان پریود</button>
+                            <div class="flex items-center justify-center gap-2 mt-4">
+                                <button onclick="window.app.logToday()" class="text-xs text-white bg-pink-500 hover:bg-pink-600 px-3 py-1.5 rounded-full font-semibold">ثبت وضعیت امروز</button>
+                                <button onclick="window.app.openEditPeriodModal()" class="text-xs text-pink-500 hover:bg-pink-200 bg-pink-100 px-3 py-1.5 rounded-full font-semibold">ویرایش زمان پریود</button>
+                            </div>
                             <div class="flex items-center justify-center gap-2 mt-4 text-lg">
                                 <span class="text-gray-600">تاریخ پریود بعدی:</span>
                                 <p id="next-period-date" class="font-semibold text-gray-800"></p>
@@ -297,7 +326,6 @@
                         return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArcFlag} 0 ${end.x} ${end.y}`;
                     };
 
-                    // Draw background circle
                     const bgCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                     bgCircle.setAttribute('cx', center);
                     bgCircle.setAttribute('cy', center);
@@ -305,7 +333,6 @@
                     bgCircle.setAttribute('class', 'cycle-chart-path cycle-chart-bg');
                     svg.appendChild(bgCircle);
 
-                    // Draw phase arcs and labels
                     Object.values(phases).forEach(phase => {
                         const startAngle = (phase.start - 1) * degreesPerDay;
                         const endAngle = phase.end * degreesPerDay;
@@ -566,32 +593,36 @@
                     openLogModal(dateKey) {
                         selectedLogDate = dateKey;
                         const hasLog = userData.logs[selectedLogDate] && Object.keys(userData.logs[selectedLogDate]).length > 0;
-                        let modalHTML = `<div class="flex justify-between items-center mb-4">
-                            <button id="delete-log-btn" class="text-red-500 hover:text-red-700 text-sm font-semibold ${hasLog ? '' : 'invisible'}">حذف علائم</button>
-                            <h3 class="text-xl font-bold text-center">ثبت علائم</h3>
-                            <div class="w-16"></div>
-                        </div>
-                        <p class="text-center text-gray-500 mb-4 -mt-4">${toPersian(moment(dateKey, 'YYYY-MM-DD').format('dddd jD jMMMM'))}</p>
-                        <div class="space-y-4">`;
+                        
+                        let modalBodyHTML = `
+                            <div class="flex justify-between items-center mb-4">
+                                <button id="delete-log-btn" class="text-red-500 hover:text-red-700 text-sm font-semibold ${hasLog ? '' : 'invisible'}">حذف علائم</button>
+                                <h3 class="text-xl font-bold text-center">ثبت علائم</h3>
+                                <div class="w-16"></div>
+                            </div>
+                            <p class="text-center text-gray-500 mb-4 -mt-4">${toPersian(moment(dateKey, 'YYYY-MM-DD').format('dddd jD jMMMM'))}</p>
+                            <div class="space-y-4">
+                        `;
+                        
                         const currentLog = userData.logs[selectedLogDate] || {};
 
                         for (const categoryKey in LOG_CONFIG) {
                             const category = LOG_CONFIG[categoryKey];
-                            modalHTML += `<div><h4 class="font-semibold mb-2 text-gray-600">${category.title}</h4>`;
+                            modalBodyHTML += `<div><h4 class="font-semibold mb-2 text-gray-600">${category.title}</h4>`;
                             if (categoryKey === 'metrics') {
-                                modalHTML += '<div class="space-y-3">';
+                                modalBodyHTML += '<div class="space-y-3">';
                                 for(const itemKey in category.items) {
                                     const item = category.items[itemKey];
                                     let value = currentLog[itemKey];
                                     if(item.type === 'number') {
-                                        modalHTML += `<div><label class="block text-sm text-gray-500">${item.title}</label><input type="number" id="log-${itemKey}" min="${item.min}" max="${item.max}" step="${item.step}" value="${value || ''}" placeholder="--" class="w-full p-2 border rounded-lg bg-gray-50 text-center"></div>`;
+                                        modalBodyHTML += `<div><label class="block text-sm text-gray-500">${item.title}</label><input type="number" id="log-${itemKey}" min="${item.min}" max="${item.max}" step="${item.step}" value="${value || ''}" placeholder="--" class="w-full p-2 border rounded-lg bg-gray-50 text-center"></div>`;
                                     } else if (item.type === 'slider') {
                                         const hasValue = value !== undefined && value !== null && value !== '';
                                         let displayValue = hasValue ? `${toPersian(value)} ${item.unit}` : '--';
                                         let sliderValueAttr = hasValue ? `value="${value}"` : `value="${item.min}"`;
                                         let interacted = hasValue ? 'true' : 'false';
 
-                                        modalHTML += `<div>
+                                        modalBodyHTML += `<div>
                                             <div class="flex justify-between text-sm text-gray-500">
                                                 <span>${item.title}</span>
                                                 <span id="log-${itemKey}-value">${displayValue}</span>
@@ -600,28 +631,34 @@
                                         </div>`;
                                     }
                                 }
-                                modalHTML += '</div>';
+                                modalBodyHTML += '</div>';
                             } else {
-                                modalHTML += '<div class="flex flex-wrap justify-center gap-2 text-sm">';
+                                modalBodyHTML += '<div class="flex flex-wrap justify-center gap-2 text-sm">';
                                 const currentItems = currentLog[categoryKey] || (category.single ? null : []);
                                 for (const item in category.items) {
                                     const isSelected = category.single ? currentItems === item : (Array.isArray(currentItems) && currentItems.includes(item));
-                                    modalHTML += `<div class="symptom-chip ${isSelected ? 'selected' : ''}" data-category="${categoryKey}" data-value="${item}">${category.items[item]} ${item}</div>`;
+                                    modalBodyHTML += `<div class="symptom-chip ${isSelected ? 'selected' : ''}" data-category="${categoryKey}" data-value="${item}">${category.items[item]} ${item}</div>`;
                                 }
-                                modalHTML += `</div>`;
+                                modalBodyHTML += `</div>`;
                             }
-                            modalHTML += `</div>`;
+                            modalBodyHTML += `</div>`;
                         }
-                        modalHTML += `<div>
+                        modalBodyHTML += `<div>
                             <div class="flex justify-between items-center mb-2">
                                 <h4 class="font-semibold text-gray-600">توضیحات دیگر</h4>
                                 <span id="notes-char-count" class="text-xs text-gray-400"></span>
                             </div>
                             <textarea id="log-notes" class="w-full p-2 border rounded-lg bg-gray-50" rows="3" maxlength="500" oninput="document.getElementById('notes-char-count').textContent = toPersian(this.value.length) + ' / ' + toPersian(500)">${currentLog.notes || ''}</textarea>
-                        </div>`;
-                        modalHTML += `</div><div class="flex gap-4 mt-6"><button id="save-log-btn" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg">ذخیره</button><button id="close-log-btn" class="w-full bg-gray-200 text-gray-700 font-bold py-3 rounded-lg">انصراف</button></div>`;
+                        </div></div>`;
+
+                        const modalFooterHTML = `
+                            <div class="flex gap-4">
+                                <button id="save-log-btn" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg">ذخیره</button>
+                                <button id="close-log-btn" class="w-full bg-gray-200 text-gray-700 font-bold py-3 rounded-lg">انصراف</button>
+                            </div>
+                        `;
                         
-                        logModalContent.innerHTML = modalHTML;
+                        logModalContent.innerHTML = `<div class="modal-body">${modalBodyHTML}</div><div class="modal-footer">${modalFooterHTML}</div>`;
                         logModal.classList.add('visible');
                         document.getElementById('log-notes').dispatchEvent(new Event('input'));
                     },
@@ -833,6 +870,11 @@
                             console.error('Failed to update period data:', error);
                             showToast(error.message, true);
                         }
+                    },
+
+                    logToday() {
+                        const todayStr = moment().format('YYYY-MM-DD');
+                        this.openLogModal(todayStr);
                     },
 
                     async init() {
