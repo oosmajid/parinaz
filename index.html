@@ -12,7 +12,6 @@
         body { font-family: 'Vazirmatn', sans-serif; }
         .page-enter { animation: fadeIn 0.5s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .progress-ring__circle { transition: stroke-dashoffset 0.8s ease-out; transform: rotate(-90deg); transform-origin: 50% 50%; }
         
         #calendar-grid { gap: 4px; }
         .calendar-day { aspect-ratio: 1 / 1; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; position: relative; border-radius: 9999px; transition: background-color 0.2s; }
@@ -49,6 +48,21 @@
         .datepicker-day.disabled { opacity: 0.4; cursor: not-allowed; }
         .datepicker-day.selected { background-color: #ec4899; color: white; }
         .datepicker-day.today { border: 2px solid #ec4899; }
+
+        /* New Cycle Chart Styles */
+        .cycle-chart-path { fill: none; stroke-width: 12; }
+        .cycle-chart-bg { stroke: #f3f4f6; } /* gray-100 */
+        .cycle-chart-pms { stroke: #facc15; } /* amber-400 */
+        .cycle-chart-period { stroke: #f87171; } /* red-400 */
+        .cycle-chart-fertile { stroke: #4ade80; } /* green-400 */
+        
+        .cycle-chart-label { font-size: 9px; font-weight: bold; text-anchor: middle; dominant-baseline: central; }
+        .label-pms { fill: #ca8a04; font-size: 7px; font-weight: 200;} /* amber-600 */
+        .label-period { fill: #dc2626; font-size: 7px; font-weight: 200;} /* red-600 */
+        .label-fertile { fill: #16a34a; font-size: 7px; font-weight: 200;} /* green-600 */
+
+        .today-indicator-circle { fill: #111827;} /* gray-900 */
+        .today-indicator-text { fill: white; font-size: 7px; font-weight: 100; text-anchor: middle; dominant-baseline: central; }
     </style>
 </head>
 <body class="bg-gray-50 flex items-center justify-center min-h-screen py-8">
@@ -150,13 +164,37 @@
                 // --- TEMPLATES ---
                 const templates = {
                     onboardingStep(step) { return `<div class="page-enter"><h2 class="text-xl font-semibold text-gray-700 text-center mb-6">${{1:'طول سیکل پریود شما؟',2:'طول دوره پریود شما؟',3:'آخرین بار کی پریود شدید؟',4:'سال تولد شما؟'}[step]}</h2>${step===3?`<input type="text" id="onboarding-date-input" readonly class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg cursor-pointer" placeholder="تاریخ را انتخاب کنید" onclick="window.app.openDatePicker('onboarding-date-input')">`:`<select id="${{1:'cycle-length',2:'period-length',4:'birth-year'}[step]}" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select>`}<button onclick="window.app.nextStep(${step + 1})" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg mt-8">${step===4?'تأیید و ورود':'تأیید'}</button></div>`; },
-                    home() { return `<div class="page-enter"><div class="flex flex-col items-center text-center"><div class="relative my-6"><svg class="w-56 h-56" viewBox="0 0 120 120"><circle cx="60" cy="60" r="54" fill="none" stroke="#fce7f3" stroke-width="12" /><circle id="progress-circle" class="progress-ring__circle" cx="60" cy="60" r="54" fill="none" stroke="#ec4899" stroke-width="12" stroke-linecap="round" /></svg><div class="absolute inset-0 flex flex-col items-center justify-center"><span id="days-left" class="text-5xl font-bold text-pink-500">--</span><span id="days-unit" class="text-lg text-gray-600">روز دیگر</span><p id="pms-countdown" class="text-sm text-amber-600 mt-1"></p></div></div><button onclick="window.app.goToSettings()" class="text-xs text-pink-500 hover:bg-pink-200 -mt-2 bg-pink-100 px-3 py-1.5 rounded-full font-semibold">ویرایش زمان پریود</button><div class="flex items-center justify-center gap-2 mt-4 text-lg"><span class="text-gray-600">تاریخ پریود بعدی:</span><p id="next-period-date" class="font-semibold text-gray-800"></p></div></div><div id="calendar-view" class="mt-8"><div class="flex justify-between items-center mb-4"><button onclick="window.app.changeMonth(-1)" class="p-2 rounded-full hover:bg-gray-100">&lt;</button><h3 id="calendar-month-year" class="text-lg font-bold"></h3><button onclick="window.app.changeMonth(1)" class="p-2 rounded-full hover:bg-gray-100">&gt;</button></div><div class="grid grid-cols-7 text-center text-xs text-gray-500 mb-2">${['ش','ی','د','س','چ','پ','ج'].map(d=>`<span>${d}</span>`).join('')}</div><div id="calendar-grid" class="grid grid-cols-7"></div></div>
-                    <div class="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs text-gray-600">
-                        <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: #fef08a;"></span><span>روزهای PMS</span></div>
-                        <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: #fecdd3;"></span><span>روزهای پریود</span></div>
-                        <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: #dcfce7;"></span><span>بازه باروری</span></div>
-                        <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: #bae6fd; border: 1px solid #38bdf8"></span><span>تخمک‌گذاری</span></div>
-                    </div>
+                    home() { return `<div class="page-enter">
+                        <div class="flex flex-col items-center text-center">
+                            <div class="relative my-6 w-56 h-56">
+                                <svg id="cycle-chart" class="w-full h-full" viewBox="0 0 120 120"></svg>
+                                <div class="absolute inset-0 flex flex-col items-center justify-center">
+                                    <span id="days-left" class="text-5xl font-bold text-pink-500">--</span>
+                                    <span id="days-unit" class="text-lg text-gray-600">روز دیگر</span>
+                                    <p id="pms-countdown" class="text-sm text-amber-600 mt-1"></p>
+                                </div>
+                            </div>
+                            <button onclick="window.app.goToSettings()" class="text-xs text-pink-500 hover:bg-pink-200 -mt-2 bg-pink-100 px-3 py-1.5 rounded-full font-semibold">ویرایش زمان پریود</button>
+                            <div class="flex items-center justify-center gap-2 mt-4 text-lg">
+                                <span class="text-gray-600">تاریخ پریود بعدی:</span>
+                                <p id="next-period-date" class="font-semibold text-gray-800"></p>
+                            </div>
+                        </div>
+                        <div id="calendar-view" class="mt-8">
+                            <div class="flex justify-between items-center mb-4">
+                                <button onclick="window.app.changeMonth(-1)" class="p-2 rounded-full hover:bg-gray-100">&lt;</button>
+                                <h3 id="calendar-month-year" class="text-lg font-bold"></h3>
+                                <button onclick="window.app.changeMonth(1)" class="p-2 rounded-full hover:bg-gray-100">&gt;</button>
+                            </div>
+                            <div class="grid grid-cols-7 text-center text-xs text-gray-500 mb-2">${['ش','ی','د','س','چ','پ','ج'].map(d=>`<span>${d}</span>`).join('')}</div>
+                            <div id="calendar-grid" class="grid grid-cols-7"></div>
+                        </div>
+                        <div class="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs text-gray-600">
+                            <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: #fef08a;"></span><span>روزهای PMS</span></div>
+                            <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: #fecdd3;"></span><span>روزهای پریود</span></div>
+                            <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: #dcfce7;"></span><span>بازه باروری</span></div>
+                            <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: #bae6fd; border: 1px solid #38bdf8"></span><span>تخمک‌گذاری</span></div>
+                        </div>
                     </div>`; },
                     settings() { return `<div class="page-enter space-y-6"><div><label class="block text-gray-600 mb-2">طول سیکل پریود</label><select id="settings-cycle-length" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div><div><label class="block text-gray-600 mb-2">طول دوره پریود</label><select id="settings-period-length" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div><div><label class="block text-gray-600 mb-2">تاریخ آخرین پریود</label><input type="text" id="settings-date-input" readonly class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg cursor-pointer" onclick="window.app.openDatePicker('settings-date-input')"></div><div><label class="block text-gray-600 mb-2">سال تولد</label><select id="settings-birth-year" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div><button onclick="window.app.saveSettings()" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg mt-8">ذخیره تغییرات</button></div>`; },
                     analysis() { return `<div class="page-enter space-y-6">
@@ -179,10 +217,259 @@
 
                 // --- RENDER FUNCTIONS ---
                 const render = (template, ...args) => { appContent.innerHTML = template(...args); };
-                const renderDashboard = () => { if (!userData.user) { return; } render(templates.home); const today = moment(); const lastPeriod = moment(userData.user.last_period_date, 'YYYY-MM-DD'); const cycleLength = parseInt(userData.user.cycle_length); const periodLength = parseInt(userData.user.period_length); const cyclesSince = Math.floor(today.diff(lastPeriod, 'days') / cycleLength); const currentPeriodStart = lastPeriod.clone().add(cyclesSince * cycleLength, 'days'); const currentPeriodEnd = currentPeriodStart.clone().add(periodLength - 1, 'days'); const nextPeriodStart = currentPeriodStart.clone().add(cycleLength, 'days'); const nextPmsStart = nextPeriodStart.clone().subtract(7, 'days'); const daysLeftEl = document.getElementById('days-left'); const daysUnitEl = document.getElementById('days-unit'); const pmsCountdownEl = document.getElementById('pms-countdown'); if (today.isBetween(currentPeriodStart, currentPeriodEnd, null, '[]')) { const daysToEnd = currentPeriodEnd.diff(today, 'days') + 1; daysLeftEl.textContent = toPersian(daysToEnd); daysUnitEl.textContent = 'روز تا پایان پریود'; pmsCountdownEl.classList.add('hidden'); } else { const daysToPeriod = nextPeriodStart.diff(today, 'days'); daysLeftEl.textContent = toPersian(daysToPeriod); daysUnitEl.textContent = 'روز تا پریود بعدی'; if (today.isBetween(nextPmsStart, nextPeriodStart.clone().subtract(1, 'day'), null, '[]')) { pmsCountdownEl.textContent = 'شما در دوره PMS هستید'; pmsCountdownEl.classList.remove('hidden'); } else { const daysToPms = nextPmsStart.diff(today, 'days'); if (daysToPms > 0) { pmsCountdownEl.textContent = `${toPersian(daysToPms)} روز تا PMS`; pmsCountdownEl.classList.remove('hidden'); } else { pmsCountdownEl.classList.add('hidden'); } } } document.getElementById('next-period-date').textContent = toPersian(nextPeriodStart.format('dddd، jD jMMMM')); const progressCircle = document.getElementById('progress-circle'); const radius=54,circumference=2*Math.PI*radius; const daysPassed = cycleLength - nextPeriodStart.diff(today, 'days'); progressCircle.style.strokeDasharray=`${circumference} ${circumference}`; progressCircle.style.strokeDashoffset=circumference-(daysPassed/cycleLength)*circumference; calendarDate=moment(); renderCalendar(); settingsBtn.classList.remove('hidden');analysisBtn.classList.remove('hidden');backBtn.classList.add('hidden'); };
+                const renderDashboard = () => {
+                    if (!userData.user) { return; }
+                    render(templates.home);
+                    const today = moment();
+                    const lastPeriod = moment(userData.user.last_period_date, 'YYYY-MM-DD');
+                    const cycleLength = parseInt(userData.user.cycle_length);
+                    const periodLength = parseInt(userData.user.period_length);
+                    
+                    const cyclesSince = Math.floor(today.diff(lastPeriod, 'days') / cycleLength);
+                    const currentCycleStart = lastPeriod.clone().add(cyclesSince * cycleLength, 'days');
+                    const nextPeriodStart = currentCycleStart.clone().add(cycleLength, 'days');
+                    const dayOfCycle = today.diff(currentCycleStart, 'days') + 1;
+
+                    const daysLeftEl = document.getElementById('days-left');
+                    const daysUnitEl = document.getElementById('days-unit');
+                    const pmsCountdownEl = document.getElementById('pms-countdown');
+                    const daysToPeriod = nextPeriodStart.diff(today, 'days');
+                    
+                    if (dayOfCycle >= 1 && dayOfCycle <= periodLength) {
+                        const daysToEnd = periodLength - dayOfCycle + 1;
+                        daysLeftEl.textContent = toPersian(daysToEnd);
+                        daysUnitEl.textContent = 'روز تا پایان پریود';
+                        pmsCountdownEl.textContent = '';
+                    } else {
+                        daysLeftEl.textContent = toPersian(daysToPeriod);
+                        daysUnitEl.textContent = 'روز تا پریود بعدی';
+                        const pmsStartDay = cycleLength - 7;
+                        if (dayOfCycle >= pmsStartDay) {
+                            pmsCountdownEl.textContent = 'شما در دوره PMS هستید';
+                        } else {
+                            const daysToPms = pmsStartDay - dayOfCycle;
+                            pmsCountdownEl.textContent = `${toPersian(daysToPms)} روز تا PMS`;
+                        }
+                    }
+                    document.getElementById('next-period-date').textContent = toPersian(nextPeriodStart.format('dddd، jD jMMMM'));
+
+                    renderCycleChart(dayOfCycle, cycleLength, periodLength);
+                    calendarDate = moment();
+                    renderCalendar();
+                    settingsBtn.classList.remove('hidden');
+                    analysisBtn.classList.remove('hidden');
+                    backBtn.classList.add('hidden');
+                };
+
+                const renderCycleChart = (dayOfCycle, cycleLength, periodLength) => {
+                    const svg = document.getElementById('cycle-chart');
+                    if (!svg) return;
+                    svg.innerHTML = ''; 
+
+                    const center = 60;
+                    const radius = 52;
+                    const strokeWidth = 12;
+                    const degreesPerDay = 360 / cycleLength;
+
+                    const ovulationDay = cycleLength - 14;
+                    const phases = {
+                        period: { start: 1, end: periodLength, class: 'cycle-chart-period', label: 'پریود', labelClass: 'label-period' },
+                        fertile: { start: ovulationDay - 5, end: ovulationDay + 1, class: 'cycle-chart-fertile', label: 'باروری', labelClass: 'label-fertile' },
+                        pms: { start: cycleLength - 7, end: cycleLength, class: 'cycle-chart-pms', label: 'PMS', labelClass: 'label-pms' }
+                    };
+
+                    const polarToCartesian = (centerX, centerY, r, angleInDegrees) => {
+                        const angleInRadians = (angleInDegrees - 90) * Math.PI / 180.0;
+                        return { x: centerX + (r * Math.cos(angleInRadians)), y: centerY + (r * Math.sin(angleInRadians)) };
+                    };
+
+                    const describeArc = (x, y, r, startAngle, endAngle) => {
+                        const start = polarToCartesian(x, y, r, endAngle);
+                        const end = polarToCartesian(x, y, r, startAngle);
+                        const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+                        return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArcFlag} 0 ${end.x} ${end.y}`;
+                    };
+
+                    // Draw background circle
+                    const bgCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    bgCircle.setAttribute('cx', center);
+                    bgCircle.setAttribute('cy', center);
+                    bgCircle.setAttribute('r', radius);
+                    bgCircle.setAttribute('class', 'cycle-chart-path cycle-chart-bg');
+                    svg.appendChild(bgCircle);
+
+                    // Draw phase arcs and labels
+                    Object.values(phases).forEach(phase => {
+                        const startAngle = (phase.start - 1) * degreesPerDay;
+                        const endAngle = phase.end * degreesPerDay;
+                        
+                        const arcPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                        arcPath.setAttribute('d', describeArc(center, center, radius, startAngle, endAngle));
+                        arcPath.setAttribute('class', `cycle-chart-path ${phase.class}`);
+                        svg.appendChild(arcPath);
+
+                        // --- New Label Logic ---
+                        const textRadius = radius + (strokeWidth / 2) + 6;
+                        const midAngle = startAngle + (endAngle - startAngle) / 2;
+                        const pos = polarToCartesian(center, center, textRadius, midAngle);
+                        
+                        let rotation = midAngle;
+                        if (midAngle > 90 && midAngle < 270) {
+                            rotation += 180;
+                        }
+
+                        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                        text.setAttribute('x', pos.x);
+                        text.setAttribute('y', pos.y);
+                        text.setAttribute('transform', `rotate(${rotation}, ${pos.x}, ${pos.y})`);
+                        text.setAttribute('class', `cycle-chart-label ${phase.labelClass}`);
+                        text.textContent = phase.label;
+                        svg.appendChild(text);
+                    });
+
+                    const todayAngle = (dayOfCycle - 0.5) * degreesPerDay;
+                    const indicatorPos = polarToCartesian(center, center, radius, todayAngle);
+                    const indicatorGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                    const indicatorCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    indicatorCircle.setAttribute('cx', indicatorPos.x);
+                    indicatorCircle.setAttribute('cy', indicatorPos.y);
+                    indicatorCircle.setAttribute('r', 8);
+                    indicatorCircle.setAttribute('class', 'today-indicator-circle');
+                    const indicatorText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    indicatorText.setAttribute('x', indicatorPos.x);
+                    indicatorText.setAttribute('y', indicatorPos.y);
+                    indicatorText.setAttribute('class', 'today-indicator-text');
+                    indicatorText.textContent = toPersian(moment().jDate());
+                    indicatorGroup.appendChild(indicatorCircle);
+                    indicatorGroup.appendChild(indicatorText);
+                    svg.appendChild(indicatorGroup);
+                };
+
                 const renderCalendar = () => { if (!userData.user) return; document.getElementById('calendar-month-year').textContent=toPersian(calendarDate.format('jMMMM jYYYY'));const calendarGrid=document.getElementById('calendar-grid');calendarGrid.innerHTML='';const monthStart=calendarDate.clone().startOf('jMonth');const monthEnd=calendarDate.clone().endOf('jMonth');const lastPeriod=moment(userData.user.last_period_date,'YYYY-MM-DD');let cycleStartDate=lastPeriod.clone();while(cycleStartDate.clone().add(userData.user.cycle_length,'days').isBefore(monthStart))cycleStartDate.add(userData.user.cycle_length,'days');while(cycleStartDate.isAfter(monthStart))cycleStartDate.subtract(userData.user.cycle_length,'days');const specialDays=new Map();for(let d=cycleStartDate.clone();d.isBefore(monthEnd.clone().add(1,'month'));d.add(userData.user.cycle_length,'days')){const periodStart=d.clone();const ovulationDay=periodStart.clone().add(userData.user.cycle_length-14,'days');const fertileStart=ovulationDay.clone().subtract(5,'days');const fertileEnd=ovulationDay.clone().add(1,'days');const pmsStart=periodStart.clone().subtract(7,'days');for(let pms=pmsStart.clone();pms.isBefore(periodStart);pms.add(1,'days'))specialDays.set(pms.format('YYYY-MM-DD'),'pms-day');for(let f=fertileStart.clone();f.isSameOrBefore(fertileEnd);f.add(1,'days'))specialDays.set(f.format('YYYY-MM-DD'),'fertile-day');specialDays.set(ovulationDay.format('YYYY-MM-DD'),'ovulation-day');for(let p=0;p<userData.user.period_length;p++)specialDays.set(periodStart.clone().add(p,'days').format('YYYY-MM-DD'),'period-day');}for(let i=0;i<monthStart.jDay();i++)calendarGrid.innerHTML+='<div></div>';for(let day=monthStart.clone();day.isSameOrBefore(monthEnd);day.add(1,'days')){const dayKey=day.format('YYYY-MM-DD');const canLog=day.isSameOrBefore(moment(),'day');let classes='calendar-day ';if(specialDays.has(dayKey))classes+=specialDays.get(dayKey);if(day.isSame(moment(),'day'))classes+=' today';if(!canLog)classes+=' disabled';const logData=userData.logs?.[dayKey];const hasLog=logData&&Object.values(logData).some(v=>(Array.isArray(v)&&v.length>0)||(typeof v==='string'&&v)|| (typeof v === 'number' && v !== ''));const logIndicator=hasLog?'<div class="log-indicator"></div>':'';const clickHandler=canLog?`onclick="window.app.openLogModal('${dayKey}')"`:'';calendarGrid.innerHTML+=`<div class="${classes}" ${clickHandler}><span>${toPersian(day.jDate())}</span>${logIndicator}</div>`;} };
                 const renderSettings = () => { render(templates.settings); const populateSelect=(id,s,e,u='')=>{const el=document.getElementById(id);el.innerHTML='';for(let i=s;i>=e;i--)el.innerHTML+=`<option value="${i}">${toPersian(i)}${u}</option>`;}; const y=parseInt(new Intl.DateTimeFormat('fa-IR-u-nu-latn',{year:'numeric'}).format(new Date())); populateSelect('settings-cycle-length',60,21,' روز'); populateSelect('settings-period-length',12,3,' روز'); populateSelect('settings-birth-year',1396,1350); const s=id=>document.getElementById('settings-'+id); const dateInput = document.getElementById('settings-date-input'); const lastPeriodDate = moment(userData.user.last_period_date, 'YYYY-MM-DD'); dateInput.value = toPersian(lastPeriodDate.format('jYYYY/jM/jD')); dateInput.dataset.value = lastPeriodDate.format('YYYY-MM-DD'); s('cycle-length').value=userData.user.cycle_length; s('period-length').value=userData.user.period_length; s('birth-year').value=userData.user.birth_year; settingsBtn.classList.add('hidden'); analysisBtn.classList.add('hidden'); backBtn.classList.remove('hidden'); };
-                const renderAnalysis = () => { render(templates.analysis); let currentFilter = { months: 1, phase: 'all' }; const createBarChart = (canvasId, data, label) => { const container = document.getElementById(canvasId)?.parentElement; if (!container) return; if (charts[canvasId]) charts[canvasId].destroy(); container.innerHTML = `<canvas id="${canvasId}"></canvas>`; const ctx = document.getElementById(canvasId); if (data.length === 0) { container.innerHTML = `<p class="text-center text-gray-500 p-4">داده‌ای برای نمایش در این بازه زمانی وجود ندارد.</p>`; return; } charts[canvasId] = new Chart(ctx, { type: 'bar', data: { labels: data.map(item => item[0]), datasets: [{ label, data: data.map(item => item[1]), backgroundColor: 'rgba(236, 72, 153, 0.6)', borderColor: 'rgba(236, 72, 153, 1)', borderWidth: 1 }] }, options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { stepSize: 1, callback: (v) => toPersian(v) } } } } }); }; const createLineChart = (canvasId, data, label, unit) => { const container = document.getElementById(canvasId)?.parentElement; if (!container) return; if (charts[canvasId]) charts[canvasId].destroy(); container.innerHTML = `<canvas id="${canvasId}"></canvas>`; const ctx = document.getElementById(canvasId); if (data.labels.length < 2) { container.innerHTML = `<p class="text-center text-gray-500 p-4">داده کافی برای رسم نمودار خطی وجود ندارد.</p>`; return; } charts[canvasId] = new Chart(ctx, { type: 'line', data: { labels: data.labels.map(l => toPersian(moment(l, 'YYYY-MM-DD').format('jM/jD'))), datasets: [{ label, data: data.data, fill: false, borderColor: 'rgba(236, 72, 153, 1)', backgroundColor: 'rgba(236, 72, 153, 0.6)', tension: 0.1 }] }, options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: false, ticks: { callback: (value) => toPersian(value) + ` ${unit}` } }, x: { ticks: { callback: function(val, index) { return index % Math.ceil(data.labels.length / 7) === 0 ? this.getLabelForValue(val) : ''; } } } } } }); }; const updateAnalysisCharts = (months, phase) => { const startDate = moment().subtract(months, 'months'); const lastPeriod = moment(userData.user.last_period_date, 'YYYY-MM-DD'); const getLogPhase = (logDate) => { const cycleLength = parseInt(userData.user.cycle_length); const periodLength = parseInt(userData.user.period_length); const diffDays = logDate.diff(lastPeriod, 'days'); let cycleStartDate = lastPeriod.clone(); if (diffDays >= 0) { const numCycles = Math.floor(diffDays / cycleLength); cycleStartDate = lastPeriod.clone().add(numCycles * cycleLength, 'days'); } else { const numCycles = Math.ceil(Math.abs(diffDays) / cycleLength); cycleStartDate = lastPeriod.clone().subtract(numCycles * cycleLength, 'days'); } const periodStart = cycleStartDate.clone(); const pmsStart = periodStart.clone().add(cycleLength, 'days').subtract(7, 'days'); if (logDate.isBetween(pmsStart, periodStart.clone().add(cycleLength, 'days').subtract(1, 'day'), null, '[]')) return 'pms'; if (logDate.isBetween(periodStart, periodStart.clone().add(periodLength - 1, 'days'), null, '[]')) return 'period'; return 'other'; }; const processLogs = (categories) => { const counts = {}; Object.entries(userData.logs || {}).forEach(([dateKey, log]) => { const logDate = moment(dateKey, 'YYYY-MM-DD'); if (!logDate.isSameOrAfter(startDate)) return; const currentPhase = getLogPhase(logDate); if (phase === 'all' || currentPhase === phase) { categories.forEach(categoryKey => { if (log[categoryKey]) { const items = Array.isArray(log[categoryKey]) ? log[categoryKey] : [log[categoryKey]]; items.forEach(item => { counts[item] = (counts[item] || 0) + 1; }); } }); } }); return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5); }; const processMetricLogs = (metricKey) => { const metricData = []; Object.entries(userData.logs || {}).forEach(([dateKey, log]) => { const logDate = moment(dateKey, 'YYYY-MM-DD'); if (!logDate.isSameOrAfter(startDate)) return; const currentPhase = getLogPhase(logDate); if ((phase === 'all' || currentPhase === phase) && log[metricKey] !== undefined && log[metricKey] !== '') { metricData.push({ date: logDate, value: parseFloat(log[metricKey]) }); } }); metricData.sort((a, b) => a.date - b.date); return { labels: metricData.map(d => d.date.format('YYYY-MM-DD')), data: metricData.map(d => d.value) }; }; const chartContainer = document.getElementById('analysis-charts'); chartContainer.innerHTML = `<div><h3 class="text-xl font-bold text-gray-800 mb-2">علائم پرتکرار</h3><div class="bg-gray-100 p-4 rounded-lg"><canvas id="symptoms-chart"></canvas></div></div><div><h3 class="text-xl font-bold text-gray-800 mb-2">حالات روحی پرتکرار</h3><div class="bg-gray-100 p-4 rounded-lg"><canvas id="moods-chart"></canvas></div></div><div><h3 class="text-xl font-bold text-gray-800 mb-2">روند تغییرات وزن</h3><div class="bg-gray-100 p-4 rounded-lg"><canvas id="weight-chart"></canvas></div></div><div><h3 class="text-xl font-bold text-gray-800 mb-2">روند نوشیدن آب</h3><div class="bg-gray-100 p-4 rounded-lg"><canvas id="water-chart"></canvas></div></div><div><h3 class="text-xl font-bold text-gray-800 mb-2">روند وضعیت خواب</h3><div class="bg-gray-100 p-4 rounded-lg"><canvas id="sleep-chart"></canvas></div></div>`; createBarChart('symptoms-chart', processLogs(ALL_SYMPTOM_CATEGORIES), 'تعداد روزها'); createBarChart('moods-chart', processLogs(['moods']), 'تعداد روزها'); createLineChart('weight-chart', processMetricLogs('weight'), 'وزن', 'kg'); createLineChart('water-chart', processMetricLogs('water'), 'آب', 'لیوان'); createLineChart('sleep-chart', processMetricLogs('sleep'), 'خواب', 'ساعت'); }; const tabs = document.querySelectorAll('.analysis-tab'); tabs.forEach(tab => { tab.addEventListener('click', () => { if (tab.classList.contains('time-tab')) { document.querySelectorAll('.time-tab').forEach(t => t.classList.remove('active-tab')); currentFilter.months = parseInt(tab.dataset.months); } if (tab.classList.contains('phase-tab')) { document.querySelectorAll('.phase-tab').forEach(t => t.classList.remove('active-tab')); currentFilter.phase = tab.dataset.phase; } tab.classList.add('active-tab'); updateAnalysisCharts(currentFilter.months, currentFilter.phase); }); }); updateAnalysisCharts(currentFilter.months, currentFilter.phase); settingsBtn.classList.add('hidden'); analysisBtn.classList.add('hidden'); backBtn.classList.remove('hidden'); };
+                
+                const renderAnalysis = () => {
+                    render(templates.analysis);
+                    let currentFilter = { months: 1, phase: 'all' };
+                    
+                    const createBarChart = (canvasId, data, label) => {
+                        const container = document.getElementById(canvasId)?.parentElement;
+                        if (!container) return;
+                        if (charts[canvasId]) charts[canvasId].destroy();
+                        container.innerHTML = `<canvas id="${canvasId}"></canvas>`;
+                        const ctx = document.getElementById(canvasId);
+                        if (!ctx || data.length === 0) {
+                            container.innerHTML = `<p class="text-center text-gray-500 p-4">داده‌ای برای نمایش در این بازه زمانی وجود ندارد.</p>`;
+                            return;
+                        }
+                        charts[canvasId] = new Chart(ctx, { type: 'bar', data: { labels: data.map(item => item[0]), datasets: [{ label, data: data.map(item => item[1]), backgroundColor: 'rgba(236, 72, 153, 0.6)', borderColor: 'rgba(236, 72, 153, 1)', borderWidth: 1 }] }, options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { stepSize: 1, callback: (v) => toPersian(v) } } } } });
+                    };
+
+                    const createLineChart = (canvasId, data, label, unit) => {
+                        const container = document.getElementById(canvasId)?.parentElement;
+                        if (!container) return;
+                        if (charts[canvasId]) charts[canvasId].destroy();
+                        container.innerHTML = `<canvas id="${canvasId}"></canvas>`;
+                        const ctx = document.getElementById(canvasId);
+                        if (!ctx || data.labels.length < 2) {
+                            container.innerHTML = `<p class="text-center text-gray-500 p-4">داده کافی برای رسم نمودار خطی وجود ندارد.</p>`;
+                            return;
+                        }
+                        charts[canvasId] = new Chart(ctx, { type: 'line', data: { labels: data.labels.map(l => toPersian(moment(l, 'YYYY-MM-DD').format('jM/jD'))), datasets: [{ label, data: data.data, fill: false, borderColor: 'rgba(236, 72, 153, 1)', backgroundColor: 'rgba(236, 72, 153, 0.6)', tension: 0.1 }] }, options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: false, ticks: { callback: (value) => toPersian(value) + ` ${unit}` } }, x: { ticks: { callback: function(val, index) { return index % Math.ceil(data.labels.length / 7) === 0 ? this.getLabelForValue(val) : ''; } } } } } });
+                    };
+
+                    const updateAnalysisCharts = (months, phase) => {
+                        const startDate = moment().subtract(months, 'months');
+                        const lastPeriod = moment(userData.user.last_period_date, 'YYYY-MM-DD');
+                        
+                        const getLogPhase = (logDate) => {
+                            const cycleLength = parseInt(userData.user.cycle_length);
+                            const periodLength = parseInt(userData.user.period_length);
+                            const diffDays = logDate.diff(lastPeriod, 'days');
+                            let cycleStartDate = lastPeriod.clone();
+                            if (diffDays >= 0) {
+                                const numCycles = Math.floor(diffDays / cycleLength);
+                                cycleStartDate = lastPeriod.clone().add(numCycles * cycleLength, 'days');
+                            } else {
+                                const numCycles = Math.ceil(Math.abs(diffDays) / cycleLength);
+                                cycleStartDate = lastPeriod.clone().subtract(numCycles * cycleLength, 'days');
+                            }
+                            const periodStart = cycleStartDate.clone();
+                            const pmsStart = periodStart.clone().add(cycleLength, 'days').subtract(7, 'days');
+                            if (logDate.isBetween(pmsStart, periodStart.clone().add(cycleLength, 'days').subtract(1, 'day'), null, '[]')) return 'pms';
+                            if (logDate.isBetween(periodStart, periodStart.clone().add(periodLength - 1, 'days'), null, '[]')) return 'period';
+                            return 'other';
+                        };
+
+                        const processLogs = (categories) => {
+                            const counts = {};
+                            Object.entries(userData.logs || {}).forEach(([dateKey, log]) => {
+                                const logDate = moment(dateKey, 'YYYY-MM-DD');
+                                if (!logDate.isSameOrAfter(startDate)) return;
+                                const currentPhase = getLogPhase(logDate);
+                                if (phase === 'all' || currentPhase === phase) {
+                                    categories.forEach(categoryKey => {
+                                        if (log[categoryKey]) {
+                                            const items = Array.isArray(log[categoryKey]) ? log[categoryKey] : [log[categoryKey]];
+                                            items.forEach(item => { counts[item] = (counts[item] || 0) + 1; });
+                                        }
+                                    });
+                                }
+                            });
+                            return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+                        };
+
+                        const processMetricLogs = (metricKey) => {
+                            const metricData = [];
+                            Object.entries(userData.logs || {}).forEach(([dateKey, log]) => {
+                                const logDate = moment(dateKey, 'YYYY-MM-DD');
+                                if (!logDate.isSameOrAfter(startDate)) return;
+                                const currentPhase = getLogPhase(logDate);
+                                if ((phase === 'all' || currentPhase === phase) && log[metricKey] !== undefined && log[metricKey] !== '') {
+                                    metricData.push({ date: logDate, value: parseFloat(log[metricKey]) });
+                                }
+                            });
+                            metricData.sort((a, b) => a.date - b.date);
+                            return { labels: metricData.map(d => d.date.format('YYYY-MM-DD')), data: metricData.map(d => d.value) };
+                        };
+                        
+                        const chartContainer = document.getElementById('analysis-charts');
+                        chartContainer.innerHTML = `
+                            <div><h3 class="text-xl font-bold text-gray-800 mb-2">علائم پرتکرار</h3><div class="bg-gray-100 p-4 rounded-lg"><canvas id="symptoms-chart"></canvas></div></div>
+                            <div><h3 class="text-xl font-bold text-gray-800 mb-2">حالات روحی پرتکرار</h3><div class="bg-gray-100 p-4 rounded-lg"><canvas id="moods-chart"></canvas></div></div>
+                            <div><h3 class="text-xl font-bold text-gray-800 mb-2">روند تغییرات وزن</h3><div class="bg-gray-100 p-4 rounded-lg"><canvas id="weight-chart"></canvas></div></div>
+                            <div><h3 class="text-xl font-bold text-gray-800 mb-2">روند نوشیدن آب</h3><div class="bg-gray-100 p-4 rounded-lg"><canvas id="water-chart"></canvas></div></div>
+                            <div><h3 class="text-xl font-bold text-gray-800 mb-2">روند وضعیت خواب</h3><div class="bg-gray-100 p-4 rounded-lg"><canvas id="sleep-chart"></canvas></div></div>
+                        `;
+                        
+                        createBarChart('symptoms-chart', processLogs(ALL_SYMPTOM_CATEGORIES), 'تعداد روزها');
+                        createBarChart('moods-chart', processLogs(['moods']), 'تعداد روزها');
+                        createLineChart('weight-chart', processMetricLogs('weight'), 'وزن', 'kg');
+                        createLineChart('water-chart', processMetricLogs('water'), 'آب', 'لیوان');
+                        createLineChart('sleep-chart', processMetricLogs('sleep'), 'خواب', 'ساعت');
+                    };
+
+                    const tabs = document.querySelectorAll('.analysis-tab');
+                    tabs.forEach(tab => {
+                        tab.addEventListener('click', () => {
+                            if (tab.classList.contains('time-tab')) {
+                                document.querySelectorAll('.time-tab').forEach(t => t.classList.remove('active-tab'));
+                                currentFilter.months = parseInt(tab.dataset.months);
+                            }
+                            if (tab.classList.contains('phase-tab')) {
+                                document.querySelectorAll('.phase-tab').forEach(t => t.classList.remove('active-tab'));
+                                currentFilter.phase = tab.dataset.phase;
+                            }
+                            tab.classList.add('active-tab');
+                            updateAnalysisCharts(currentFilter.months, currentFilter.phase);
+                        });
+                    });
+
+                    updateAnalysisCharts(currentFilter.months, currentFilter.phase);
+                    settingsBtn.classList.add('hidden');
+                    analysisBtn.classList.add('hidden');
+                    backBtn.classList.remove('hidden');
+                };
 
                 // --- APP LOGIC ---
                 window.app = {
