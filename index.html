@@ -40,6 +40,7 @@
         .phase-tab.active-tab { background-color: #ec4899; color: white; }
 
         /* Date Picker Styles */
+        #datepicker-modal { z-index: 60; } /* FIX: Ensure datepicker is on top */
         #datepicker-modal-content { padding: 1rem; width: 90%; max-width: 22rem; }
         .datepicker-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
         .datepicker-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
@@ -134,7 +135,7 @@
                     flow: { title: 'شدت خونریزی', single: true, items: { 'کم': '🩸', 'متوسط': '🩸🩸', 'شدید': '🩸🩸🩸' } },
                     hair: { title: 'مو', single: false, items: { 'موهای سالم': '💇‍♀️', 'موهای شکننده': '🍂', 'موی خشک': '🌵', 'ریزش مو': '👴', 'موی چرب': '✨', 'موخوره': '✂️' } },
                     nails: { title: 'ناخن', single: false, items: { 'ناخن سالم': '💅', 'ناخن شکننده': '💅', 'تغییر فرم ناخن': '⚠️', 'لکه‌های سفید ناخن': '⚪' } },
-                    skin: { title: 'پوست', single: false, items: { 'پوست سالم': '😊', 'پوست خشک': '🌵', 'پوست چرب': '✨', 'آکنه پوست': '✨', 'پوست لکه‌دار': '🐞' } },
+                    skin: { title: 'پوست', single: false, items: { 'پوست سالم': '😊', 'پوست خشک': '�', 'پوست چرب': '✨', 'آکنه پوست': '✨', 'پوست لکه‌دار': '🐞' } },
                     other: { title: 'سایر', single: false, items: { 'مسافرت': '✈️', 'فشار شدید': '🤯', 'بیماری یا آسیب‌دیدگی': '🤒', 'مصرف الکل': '🍷' } },
                 };
                 const ALL_SYMPTOM_CATEGORIES = ['symptoms', 'libido', 'breasts', 'skin', 'hair', 'nails', 'discharge', 'other'];
