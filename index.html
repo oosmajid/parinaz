@@ -43,28 +43,17 @@
         }
         .modal-overlay.visible .modal-content { transform: scale(1); }
 
-        .modal-body {
-            overflow-y: auto;
-            padding: 1.5rem;
-            flex-grow: 1;
-        }
-        .modal-footer {
-            padding: 1rem 1.5rem;
-            border-top: 1px solid #e5e7eb; /* gray-200 */
-            background-color: white;
-            flex-shrink: 0;
-        }
+        .modal-body { overflow-y: auto; padding: 1.5rem; flex-grow: 1; }
+        .modal-footer { padding: 1rem 1.5rem; border-top: 1px solid #e5e7eb; background-color: white; flex-shrink: 0; }
 
         .symptom-chip { cursor: pointer; border: 1px solid #e5e7eb; padding: 0.5rem 1rem; border-radius: 9999px; transition: all 0.2s; }
         .symptom-chip.selected { background-color: #ec4899; color: white; border-color: #ec4899; }
         
-        /* Analysis Tab Styles */
         .time-tab { color: #6b7280; border-bottom: 2px solid transparent; transition: all 0.2s; }
         .time-tab.active-tab { color: #ec4899; border-bottom-color: #ec4899; }
         .phase-tab { transition: all 0.2s; }
         .phase-tab.active-tab { background-color: #ec4899; color: white; }
 
-        /* Date Picker Styles */
         #datepicker-modal { z-index: 60; } 
         #datepicker-modal-content { padding: 1rem; width: 90%; max-width: 22rem; }
         .datepicker-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
@@ -75,20 +64,19 @@
         .datepicker-day.selected { background-color: #ec4899; color: white; }
         .datepicker-day.today { border: 2px solid #ec4899; }
 
-        /* New Cycle Chart Styles */
         .cycle-chart-path { fill: none; stroke-width: 16; }
-        .cycle-chart-bg { stroke: #f3f4f6; } /* gray-100 */
-        .cycle-chart-pms { stroke: #facc15; } /* amber-400 */
-        .cycle-chart-period { stroke: #f87171; } /* red-400 */
-        .cycle-chart-fertile { stroke: #4ade80; } /* green-400 */
+        .cycle-chart-bg { stroke: #f3f4f6; }
+        .cycle-chart-pms { stroke: #facc15; }
+        .cycle-chart-period { stroke: #f87171; }
+        .cycle-chart-fertile { stroke: #4ade80; }
         
         .cycle-chart-label { font-size: 11px; font-weight: bold; text-anchor: middle; dominant-baseline: central; }
-        .label-pms { fill: #ca8a04; font-size: 10px; font-weight: 200;} /* amber-600 */
-        .label-period { fill: #dc2626; font-size: 10px; font-weight: 200;} /* red-600 */
-        .label-fertile { fill: #16a34a; font-size: 10px; font-weight: 200;} /* green-600 */
+        .label-pms { fill: #ca8a04; font-size: 10px; font-weight: 200;}
+        .label-period { fill: #dc2626; font-size: 10px; font-weight: 200;}
+        .label-fertile { fill: #16a34a; font-size: 10px; font-weight: 200;}
 
-        .today-indicator-circle { fill: #f7f7f7; stroke-width: 1; } /* silver */
-        .today-indicator-text { fill: #1f2937; font-weight: 100; text-anchor: middle; } /* gray-800 */
+        .today-indicator-circle { fill: #f7f7f7; stroke-width: 2; }
+        .today-indicator-text { fill: #1f2937; font-weight: 100; text-anchor: middle; }
     </style>
 </head>
 <body class="bg-gray-50 flex items-center justify-center min-h-screen py-8">
@@ -208,7 +196,7 @@
                             </div>
                             <div class="flex items-center justify-center gap-2 mt-2">
                                 <button onclick="window.app.logToday()" class="text-xs text-white bg-pink-500 hover:bg-pink-600 px-3 py-1.5 rounded-full font-semibold">ثبت وضعیت امروز</button>
-                                <button onclick="window.app.openEditPeriodModal()" class="text-xs text-pink-500 hover:bg-pink-200 bg-pink-100 px-3 py-1.5 rounded-full font-semibold">ویرایش زمان پریود</button>
+                                <button onclick="window.app.openEditPeriodModal()" class="text-xs text-pink-500 hover:bg-pink-200 bg-pink-100 px-3 py-1.5 rounded-full font-semibold">ثبت رکورد پریود</button>
                             </div>
                             <div class="flex items-center justify-center gap-2 mt-4 text-lg">
                                 <span class="text-gray-600">تاریخ پریود بعدی:</span>
@@ -228,10 +216,10 @@
                             <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: #fef08a;"></span><span>روزهای PMS</span></div>
                             <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: #fecdd3;"></span><span>روزهای پریود</span></div>
                             <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: #dcfce7;"></span><span>بازه باروری</span></div>
-                            <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: #dcfce7; border: dashed #3bb265;"></span><span>تخمک‌گذاری</span></div>
+                            <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: #dcfce7; border: 2px dashed #3bb265;"></span><span>تخمک‌گذاری</span></div>
                         </div>
                     </div>`; },
-                    settings() { return `<div class="page-enter space-y-6"><div><label class="block text-gray-600 mb-2">طول سیکل پریود</label><select id="settings-cycle-length" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div><div><label class="block text-gray-600 mb-2">طول دوره پریود</label><select id="settings-period-length" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div><div><label class="block text-gray-600 mb-2">تاریخ آخرین پریود</label><input type="text" id="settings-date-input" readonly class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg cursor-pointer" onclick="window.app.openDatePicker('settings-date-input')"></div><div><label class="block text-gray-600 mb-2">سال تولد</label><select id="settings-birth-year" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div><button onclick="window.app.saveSettings()" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg mt-8">ذخیره تغییرات</button></div>`; },
+                    settings() { return `<div class="page-enter space-y-6"><div><label class="block text-gray-600 mb-2">طول سیکل پریود (دستی)</label><select id="settings-cycle-length" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div><div><label class="block text-gray-600 mb-2">طول دوره پریود (دستی)</label><select id="settings-period-length" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div><div><label class="block text-gray-600 mb-2">تاریخ آخرین پریود</label><input type="text" id="settings-date-input" readonly class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg cursor-pointer" onclick="window.app.openDatePicker('settings-date-input')"></div><div><label class="block text-gray-600 mb-2">سال تولد</label><select id="settings-birth-year" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div><button onclick="window.app.saveSettings()" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg mt-8">ذخیره تغییرات</button></div>`; },
                     analysis() { return `<div class="page-enter space-y-6">
                         <div class="flex justify-center border-b">
                             <button data-months="1" class="analysis-tab time-tab active-tab px-4 py-2 font-semibold">۱ ماه</button>
@@ -249,6 +237,47 @@
                         <div id="analysis-charts" class="space-y-6"></div>
                     </div>`;}
                 };
+                
+                // --- NEW: UNIFIED PHASE LOGIC ---
+                // This function calculates the phase for any given date based on user's cycle data.
+                const getPhaseInfoForDate = (date, user) => {
+                    const cycleLength = user.avg_cycle_length ? Math.round(user.avg_cycle_length) : parseInt(user.cycle_length);
+                    const periodLength = user.avg_period_length ? Math.round(user.avg_period_length) : parseInt(user.period_length);
+                    const lastPeriod = moment(user.last_period_date, 'YYYY-MM-DD');
+
+                    let cycleStartDate;
+                    if (date.isSameOrAfter(lastPeriod, 'day')) {
+                        const diffDays = date.diff(lastPeriod, 'days');
+                        const numCycles = Math.floor(diffDays / cycleLength);
+                        cycleStartDate = lastPeriod.clone().add(numCycles * cycleLength, 'days');
+                    } else {
+                        const diffDays = lastPeriod.diff(date, 'days');
+                        const numCycles = Math.ceil(diffDays / cycleLength);
+                        cycleStartDate = lastPeriod.clone().subtract(numCycles * cycleLength, 'days');
+                    }
+
+                    const dayOfCycle = date.diff(cycleStartDate, 'days') + 1;
+
+                    const periodEndDay = periodLength;
+                    const ovulationDay = cycleLength - 14;
+                    const fertileStartDay = Math.max(1, ovulationDay - 5);
+                    const fertileEndDay = ovulationDay + 2;
+                    const pmsStartDay = cycleLength - 4;
+
+                    if (dayOfCycle >= 1 && dayOfCycle <= periodEndDay) {
+                        return { class: 'period-day' };
+                    }
+                    if (dayOfCycle >= fertileStartDay && dayOfCycle <= fertileEndDay) {
+                        if (dayOfCycle === ovulationDay) return { class: 'ovulation-day' };
+                        return { class: 'fertile-day' };
+                    }
+                    if (dayOfCycle >= pmsStartDay && dayOfCycle <= cycleLength) {
+                        return { class: 'pms-day' };
+                    }
+                    
+                    return { class: 'normal-day' };
+                };
+
 
                 // --- RENDER FUNCTIONS ---
                 const render = (template, ...args) => { appContent.innerHTML = template(...args); };
@@ -256,9 +285,11 @@
                     if (!userData.user) { return; }
                     render(templates.home);
                     const today = moment();
+                    
+                    // Use calculated averages if available, otherwise fallback to user settings
+                    const cycleLength = userData.user.avg_cycle_length ? Math.round(userData.user.avg_cycle_length) : parseInt(userData.user.cycle_length);
+                    const periodLength = userData.user.avg_period_length ? Math.round(userData.user.avg_period_length) : parseInt(userData.user.period_length);
                     const lastPeriod = moment(userData.user.last_period_date, 'YYYY-MM-DD');
-                    const cycleLength = parseInt(userData.user.cycle_length);
-                    const periodLength = parseInt(userData.user.period_length);
                     
                     const cyclesSince = Math.floor(today.diff(lastPeriod, 'days') / cycleLength);
                     const currentCycleStart = lastPeriod.clone().add(cyclesSince * cycleLength, 'days');
@@ -278,12 +309,12 @@
                     } else {
                         daysLeftEl.textContent = toPersian(daysToPeriod);
                         daysUnitEl.textContent = 'روز تا پریود بعدی';
-                        const pmsStartDay = cycleLength - 4; // PMS is 5 days
+                        const pmsStartDay = cycleLength - 4;
                         if (dayOfCycle > pmsStartDay) {
                             pmsCountdownEl.textContent = 'شما در دوره PMS هستید';
                         } else {
-                            const daysToPms = pmsStartDay - dayOfCycle + 1;
-                            pmsCountdownEl.textContent = `${toPersian(daysToPms)} روز تا PMS`;
+                            const daysToPms = pmsStartDay - dayOfCycle;
+                            if(daysToPms > 0) pmsCountdownEl.textContent = `${toPersian(daysToPms)} روز تا PMS`;
                         }
                     }
                     document.getElementById('next-period-date').textContent = toPersian(nextPeriodStart.format('dddd، jD jMMMM'));
@@ -301,37 +332,19 @@
                     if (!svg) return;
                     svg.innerHTML = ''; 
 
-                    const center = 100;
-                    const radius = 75;
-                    const strokeWidth = 15;
+                    const center = 100, radius = 75;
                     const degreesPerDay = 360 / cycleLength;
-
                     const ovulationDay = cycleLength - 14;
                     const phases = {
-                        period: { start: 1, end: periodLength, class: 'cycle-chart-period', label: 'پریود', labelClass: 'label-period' },
-                        fertile: { start: ovulationDay - 5, end: ovulationDay + 2, class: 'cycle-chart-fertile', label: 'باروری', labelClass: 'label-fertile' },
-                        pms: { start: cycleLength - 4, end: cycleLength, class: 'cycle-chart-pms', label: 'PMS', labelClass: 'label-pms' }
+                        period: { start: 1, end: periodLength, class: 'cycle-chart-period' },
+                        fertile: { start: Math.max(1, ovulationDay - 5), end: ovulationDay + 2, class: 'cycle-chart-fertile' },
+                        pms: { start: cycleLength - 4, end: cycleLength, class: 'cycle-chart-pms' }
                     };
                     
-                    const phaseColorMap = {
-                        'cycle-chart-period': '#f87171',
-                        'cycle-chart-fertile': '#4ade80',
-                        'cycle-chart-pms': '#facc15',
-                        'cycle-chart-bg': '#e5e7eb'
-                    };
-
-                    const getPhaseForDay = (day) => {
-                        if (day >= phases.period.start && day <= phases.period.end) return 'cycle-chart-period';
-                        if (day >= phases.fertile.start && day <= phases.fertile.end) return 'cycle-chart-fertile';
-                        if (day >= phases.pms.start && day <= phases.pms.end) return 'cycle-chart-pms';
-                        return 'cycle-chart-bg';
-                    };
-
                     const polarToCartesian = (centerX, centerY, r, angleInDegrees) => {
                         const angleInRadians = (angleInDegrees - 90) * Math.PI / 180.0;
                         return { x: centerX + (r * Math.cos(angleInRadians)), y: centerY + (r * Math.sin(angleInRadians)) };
                     };
-
                     const describeArc = (x, y, r, startAngle, endAngle) => {
                         const start = polarToCartesian(x, y, r, endAngle);
                         const end = polarToCartesian(x, y, r, startAngle);
@@ -339,54 +352,29 @@
                         return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArcFlag} 0 ${end.x} ${end.y}`;
                     };
 
-                    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-                    const filter = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
-                    filter.setAttribute('id', 'shadow');
-                    filter.innerHTML = `<feDropShadow dx="0" dy="1" stdDeviation="1" flood-color="#000000" flood-opacity="0.2"/>`;
-                    defs.appendChild(filter);
-                    svg.appendChild(defs);
-
+                    svg.innerHTML = `<defs><filter id="shadow"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-color="#000000" flood-opacity="0.2"/></filter></defs>`;
                     const bgCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                    bgCircle.setAttribute('cx', center);
-                    bgCircle.setAttribute('cy', center);
-                    bgCircle.setAttribute('r', radius);
+                    bgCircle.setAttribute('cx', center); bgCircle.setAttribute('cy', center); bgCircle.setAttribute('r', radius);
                     bgCircle.setAttribute('class', 'cycle-chart-path cycle-chart-bg');
                     svg.appendChild(bgCircle);
 
                     Object.values(phases).forEach(phase => {
                         const startAngle = (phase.start - 1) * degreesPerDay;
                         const endAngle = phase.end * degreesPerDay;
-                        
                         const arcPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                         arcPath.setAttribute('d', describeArc(center, center, radius, startAngle, endAngle));
                         arcPath.setAttribute('class', `cycle-chart-path ${phase.class}`);
                         svg.appendChild(arcPath);
-
-                        const textRadius = radius + (strokeWidth / 2) + 8;
-                        const midAngle = startAngle + (endAngle - startAngle) / 2;
-                        const pos = polarToCartesian(center, center, textRadius, midAngle);
-                        
-                        let rotation = midAngle;
-                        if (midAngle > 90 && midAngle < 270) {
-                            rotation += 180;
-                        }
-
-                        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                        text.setAttribute('x', pos.x);
-                        text.setAttribute('y', pos.y);
-                        text.setAttribute('transform', `rotate(${rotation}, ${pos.x}, ${pos.y})`);
-                        text.setAttribute('class', `cycle-chart-label ${phase.labelClass}`);
-                        text.textContent = phase.label;
-                        svg.appendChild(text);
                     });
 
+                    // --- ADDED: Add small white dots for each day ---
                     for (let i = 1; i <= cycleLength; i++) {
                         const angle = (i - 0.5) * degreesPerDay;
                         const pos = polarToCartesian(center, center, radius, angle);
                         const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                         dot.setAttribute('cx', pos.x);
                         dot.setAttribute('cy', pos.y);
-                        dot.setAttribute('r', 1.2);
+                        dot.setAttribute('r', 1.2); // Small radius
                         dot.setAttribute('fill', 'white');
                         svg.appendChild(dot);
                     }
@@ -401,29 +389,15 @@
                     indicatorCircle.setAttribute('cy', indicatorPos.y);
                     indicatorCircle.setAttribute('r', 12);
                     indicatorCircle.setAttribute('class', 'today-indicator-circle');
-                    const currentPhaseClass = getPhaseForDay(dayOfCycle);
-                    indicatorCircle.style.stroke = phaseColorMap[currentPhaseClass];
+                    
+                    const todayPhaseInfo = getPhaseInfoForDate(moment(), userData.user);
+                    const phaseColorMap = { 'period-day': '#f87171', 'fertile-day': '#4ade80', 'ovulation-day': '#4ade80', 'pms-day': '#facc15', 'normal-day': '#e5e7eb' };
+                    indicatorCircle.style.stroke = phaseColorMap[todayPhaseInfo.class];
                     
                     const indicatorText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                    indicatorText.setAttribute('x', indicatorPos.x);
-                    indicatorText.setAttribute('y', indicatorPos.y);
+                    indicatorText.setAttribute('x', indicatorPos.x); indicatorText.setAttribute('y', indicatorPos.y);
                     indicatorText.setAttribute('class', 'today-indicator-text');
-
-                    const tspan1 = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-                    tspan1.setAttribute('x', indicatorPos.x);
-                    tspan1.setAttribute('dy', '-0.4em');
-                    tspan1.style.fontSize = '7px';
-                    tspan1.textContent = 'روز';
-
-                    const tspan2 = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-                    tspan2.setAttribute('x', indicatorPos.x);
-                    tspan2.setAttribute('dy', '1.1em');
-                    tspan2.style.fontSize = '9px';
-                    tspan2.style.fontWeight = 'bold';
-                    tspan2.textContent = toPersian(dayOfCycle);
-
-                    indicatorText.appendChild(tspan1);
-                    indicatorText.appendChild(tspan2);
+                    indicatorText.innerHTML = `<tspan x="${indicatorPos.x}" dy="-0.4em" style="font-size: 7px;">روز</tspan><tspan x="${indicatorPos.x}" dy="1.1em" style="font-size: 9px; font-weight: bold;">${toPersian(dayOfCycle)}</tspan>`;
                     
                     indicatorGroup.appendChild(indicatorCircle);
                     indicatorGroup.appendChild(indicatorText);
@@ -437,48 +411,19 @@
                     calendarGrid.innerHTML = '';
                     const monthStart = calendarDate.clone().startOf('jMonth');
                     const monthEnd = calendarDate.clone().endOf('jMonth');
-                    const lastPeriod = moment(userData.user.last_period_date, 'YYYY-MM-DD');
-                    let cycleStartDate = lastPeriod.clone();
-                    while (cycleStartDate.clone().add(userData.user.cycle_length, 'days').isBefore(monthStart)) {
-                        cycleStartDate.add(userData.user.cycle_length, 'days');
-                    }
-                    while (cycleStartDate.isAfter(monthStart)) {
-                        cycleStartDate.subtract(userData.user.cycle_length, 'days');
-                    }
-                    const specialDays = new Map();
-                    for (let d = cycleStartDate.clone(); d.isBefore(monthEnd.clone().add(1, 'month')); d.add(userData.user.cycle_length, 'days')) {
-                        const periodStart = d.clone();
-                        const cycleLength = parseInt(userData.user.cycle_length);
-                        const periodLength = parseInt(userData.user.period_length);
-                        const ovulationDay = periodStart.clone().add(cycleLength - 14, 'days');
-                        
-                        // Corrected fertile and PMS days
-                        const fertileStart = ovulationDay.clone().subtract(5, 'days');
-                        const fertileEnd = ovulationDay.clone().add(2, 'days');
-                        const pmsStart = periodStart.clone().add(cycleLength - 5, 'days');
-                        const pmsEnd = periodStart.clone().add(cycleLength - 1, 'days');
 
-                        for (let pms = pmsStart.clone(); pms.isSameOrBefore(pmsEnd); pms.add(1, 'days')) {
-                            specialDays.set(pms.format('YYYY-MM-DD'), 'pms-day');
-                        }
-                        for (let f = fertileStart.clone(); f.isSameOrBefore(fertileEnd); f.add(1, 'days')) {
-                            specialDays.set(f.format('YYYY-MM-DD'), 'fertile-day');
-                        }
-                        specialDays.set(ovulationDay.format('YYYY-MM-DD'), 'ovulation-day');
-                        for (let p = 0; p < periodLength; p++) {
-                            specialDays.set(periodStart.clone().add(p, 'days').format('YYYY-MM-DD'), 'period-day');
-                        }
-                    }
-                    for (let i = 0; i < monthStart.jDay(); i++) {
-                        calendarGrid.innerHTML += '<div></div>';
-                    }
+                    for (let i = 0; i < monthStart.jDay(); i++) { calendarGrid.innerHTML += '<div></div>'; }
+                    
                     for (let day = monthStart.clone(); day.isSameOrBefore(monthEnd); day.add(1, 'days')) {
                         const dayKey = day.format('YYYY-MM-DD');
                         const canLog = day.isSameOrBefore(moment(), 'day');
-                        let classes = 'calendar-day ';
-                        if (specialDays.has(dayKey)) classes += specialDays.get(dayKey);
+                        
+                        const phaseInfo = getPhaseInfoForDate(day, userData.user);
+                        let classes = `calendar-day ${phaseInfo.class} `;
+                        
                         if (day.isSame(moment(), 'day')) classes += ' today';
                         if (!canLog) classes += ' disabled';
+                        
                         const logData = userData.logs?.[dayKey];
                         const hasLog = logData && Object.values(logData).some(v => (Array.isArray(v) && v.length > 0) || (typeof v === 'string' && v) || (typeof v === 'number' && v !== ''));
                         const logIndicator = hasLog ? '<div class="log-indicator"></div>' : '';
@@ -486,6 +431,7 @@
                         calendarGrid.innerHTML += `<div class="${classes}" ${clickHandler}><span>${toPersian(day.jDate())}</span>${logIndicator}</div>`;
                     }
                 };
+                
                 const renderSettings = () => { render(templates.settings); const populateSelect=(id,s,e,u='')=>{const el=document.getElementById(id);el.innerHTML='';for(let i=s;i>=e;i--)el.innerHTML+=`<option value="${i}">${toPersian(i)}${u}</option>`;}; const y=parseInt(new Intl.DateTimeFormat('fa-IR-u-nu-latn',{year:'numeric'}).format(new Date())); populateSelect('settings-cycle-length',60,21,' روز'); populateSelect('settings-period-length',12,3,' روز'); populateSelect('settings-birth-year',1396,1350); const s=id=>document.getElementById('settings-'+id); const dateInput = document.getElementById('settings-date-input'); const lastPeriodDate = moment(userData.user.last_period_date, 'YYYY-MM-DD'); dateInput.value = toPersian(lastPeriodDate.format('jYYYY/jM/jD')); dateInput.dataset.value = lastPeriodDate.format('YYYY-MM-DD'); s('cycle-length').value=userData.user.cycle_length; s('period-length').value=userData.user.period_length; s('birth-year').value=userData.user.birth_year; settingsBtn.classList.add('hidden'); analysisBtn.classList.add('hidden'); backBtn.classList.remove('hidden'); };
                 
                 const renderAnalysis = () => {
@@ -523,22 +469,10 @@
                         const lastPeriod = moment(userData.user.last_period_date, 'YYYY-MM-DD');
                         
                         const getLogPhase = (logDate) => {
-                            const cycleLength = parseInt(userData.user.cycle_length);
-                            const periodLength = parseInt(userData.user.period_length);
-                            const diffDays = logDate.diff(lastPeriod, 'days');
-                            let cycleStartDate = lastPeriod.clone();
-                            if (diffDays >= 0) {
-                                const numCycles = Math.floor(diffDays / cycleLength);
-                                cycleStartDate = lastPeriod.clone().add(numCycles * cycleLength, 'days');
-                            } else {
-                                const numCycles = Math.ceil(Math.abs(diffDays) / cycleLength);
-                                cycleStartDate = lastPeriod.clone().subtract(numCycles * cycleLength, 'days');
-                            }
-                            const periodStart = cycleStartDate.clone();
-                            const pmsStart = periodStart.clone().add(cycleLength, 'days').subtract(7, 'days');
-                            if (logDate.isBetween(pmsStart, periodStart.clone().add(cycleLength, 'days').subtract(1, 'day'), null, '[]')) return 'pms';
-                            if (logDate.isBetween(periodStart, periodStart.clone().add(periodLength - 1, 'days'), null, '[]')) return 'period';
-                            return 'other';
+                             const phaseInfo = getPhaseInfoForDate(logDate, userData.user);
+                             if (phaseInfo.class === 'period-day') return 'period';
+                             if (phaseInfo.class === 'pms-day') return 'pms';
+                             return 'other';
                         };
 
                         const processLogs = (categories) => {
@@ -643,7 +577,7 @@
                                 });
                                 
                                 const data = await response.json();
-                                if (!response.ok && response.status !== 200) {
+                                if (!response.ok && response.status !== 201) {
                                     throw new Error(data.error || 'خطا در ثبت‌نام');
                                 }
                                 showToast(data.message);
@@ -798,29 +732,29 @@
                         const notes = document.getElementById('log-notes').value;
                         if (notes) newLog.notes = notes;
 
-                        if (Object.values(newLog).some(v => v !== null && v !== '' && (!Array.isArray(v) || v.length > 0))) {
-                            const payload = {
-                                user_id: userData.user.id,
-                                log_date: selectedLogDate,
-                                ...newLog
-                            };
-                            try {
-                                const response = await fetch(`${API_BASE_URL}/logs`, {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify(payload)
-                                });
-                                const data = await response.json();
-                                if (!response.ok) throw new Error(data.error || 'خطا در ذخیره گزارش');
-                                
+                        const payload = {
+                            user_id: userData.user.id,
+                            log_date: selectedLogDate,
+                            ...newLog
+                        };
+                        try {
+                            const response = await fetch(`${API_BASE_URL}/logs`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(payload)
+                            });
+                            const data = await response.json();
+                            if (!response.ok) throw new Error(data.error || 'خطا در ذخیره گزارش');
+                            
+                            if (data.log) {
                                 userData.logs[selectedLogDate] = data.log;
-                                showToast(data.message);
-                            } catch (error) {
-                                 console.error('Failed to save log:', error);
-                                 showToast(error.message, true);
+                            } else {
+                                delete userData.logs[selectedLogDate];
                             }
-                        } else {
-                           await this.deleteLog();
+                            showToast(data.message);
+                        } catch (error) {
+                             console.error('Failed to save log:', error);
+                             showToast(error.message, true);
                         }
 
                         logModal.classList.remove('visible');
@@ -853,7 +787,6 @@
                         renderCalendar();
                     },
 
-                    // --- DATE PICKER LOGIC ---
                     openDatePicker(targetInputId) {
                         const targetInput = document.getElementById(targetInputId);
                         const initialDate = targetInput.dataset.value ? moment(targetInput.dataset.value, 'YYYY-MM-DD') : moment();
@@ -916,46 +849,55 @@
                         datepickerModal.classList.remove('visible');
                     },
 
-                    // --- NEW MODAL LOGIC ---
                     openEditPeriodModal() {
                         const modalBody = `
-                            <div class="space-y-4">
+                            <div class="space-y-6">
                                 <div>
-                                    <label class="block text-gray-600 mb-2">تاریخ شروع آخرین خون‌ریزی</label>
+                                    <label class="block text-gray-600 mb-2">تاریخ شروع خون‌ریزی</label>
                                     <input type="text" id="edit-period-date-input" readonly class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg cursor-pointer" onclick="window.app.openDatePicker('edit-period-date-input')">
                                 </div>
                                 <div>
-                                    <label class="block text-gray-600 mb-2">طول دوره پریود (خون‌ریزی)</label>
-                                    <select id="edit-period-length" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select>
+                                    <div class="flex justify-between items-center mb-2">
+                                        <label class="text-gray-600">طول دوره پریود (خون‌ریزی)</label>
+                                        <span id="edit-period-length-value" class="font-semibold text-pink-500"></span>
+                                    </div>
+                                    <input type="range" id="edit-period-length" min="2" max="12" step="1" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
                                 </div>
                             </div>
                         `;
 
                         const modalFooter = `
                             <div class="flex gap-4">
-                                <button onclick="window.app.savePeriodUpdate()" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg">ذخیره</button>
+                                <button onclick="window.app.savePeriodUpdate()" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg">ذخیره و تحلیل</button>
                                 <button onclick="document.getElementById('edit-period-modal').classList.remove('visible')" class="w-full bg-gray-200 text-gray-700 font-bold py-3 rounded-lg">انصراف</button>
                             </div>
                         `;
 
                         editPeriodModalContent.innerHTML = `
                             <div class="modal-body">
-                                <h3 class="text-xl font-bold text-center mb-4">ویرایش زمان پریود</h3>
+                                <h3 class="text-xl font-bold text-center mb-6">ثبت رکورد پریود</h3>
                                 ${modalBody}
                             </div>
                             <div class="modal-footer">${modalFooter}</div>
                         `;
 
                         const dateInput = document.getElementById('edit-period-date-input');
-                        const lastPeriodDate = moment(userData.user.last_period_date, 'YYYY-MM-DD');
-                        dateInput.value = toPersian(lastPeriodDate.format('jYYYY/jM/jD'));
-                        dateInput.dataset.value = lastPeriodDate.format('YYYY-MM-DD');
+                        const today = moment();
+                        dateInput.value = toPersian(today.format('jYYYY/jM/jD'));
+                        dateInput.dataset.value = today.format('YYYY-MM-DD');
 
-                        const lengthSelect = document.getElementById('edit-period-length');
-                        for (let i = 12; i >= 2; i--) {
-                            lengthSelect.innerHTML += `<option value="${i}">${toPersian(i)} روز</option>`;
-                        }
-                        lengthSelect.value = userData.user.period_length;
+                        const lengthSlider = document.getElementById('edit-period-length');
+                        const lengthValueSpan = document.getElementById('edit-period-length-value');
+                        
+                        const currentPeriodLength = userData.user.avg_period_length ? Math.round(userData.user.avg_period_length) : userData.user.period_length;
+                        lengthSlider.value = currentPeriodLength;
+                        
+                        const updateSliderValue = () => {
+                            lengthValueSpan.textContent = `${toPersian(lengthSlider.value)} روز`;
+                        };
+                        
+                        lengthSlider.addEventListener('input', updateSliderValue);
+                        updateSliderValue();
 
                         editPeriodModal.classList.add('visible');
                     },
@@ -963,21 +905,20 @@
                     async savePeriodUpdate() {
                         const dateInput = document.getElementById('edit-period-date-input');
                         const periodUpdateData = {
-                            last_period_date: dateInput.dataset.value,
-                            period_length: document.getElementById('edit-period-length').value,
+                            start_date: dateInput.dataset.value,
+                            duration: document.getElementById('edit-period-length').value,
                         };
 
                         try {
                             const response = await fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}/period`, {
-                                method: 'PATCH',
+                                method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify(periodUpdateData)
                             });
                             const data = await response.json();
-                            if (!response.ok) throw new Error(data.error || 'خطا در به‌روزرسانی اطلاعات');
+                            if (!response.ok) throw new Error(data.error || 'خطا در ثبت اطلاعات');
                             
-                            userData.user.last_period_date = data.user.last_period_date;
-                            userData.user.period_length = data.user.period_length;
+                            userData.user = data.user;
                             
                             showToast(data.message);
                             editPeriodModal.classList.remove('visible');
