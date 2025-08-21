@@ -90,6 +90,10 @@
         <div id="datepicker-modal-content" class="modal-content"></div>
     </div>
 
+    <div id="edit-period-modal" class="modal-overlay">
+        <div id="edit-period-modal-content" class="modal-content"></div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/jalali-moment/dist/jalali-moment.browser.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
@@ -130,7 +134,7 @@
                     flow: { title: 'شدت خونریزی', single: true, items: { 'کم': '🩸', 'متوسط': '🩸🩸', 'شدید': '🩸🩸🩸' } },
                     hair: { title: 'مو', single: false, items: { 'موهای سالم': '💇‍♀️', 'موهای شکننده': '🍂', 'موی خشک': '🌵', 'ریزش مو': '👴', 'موی چرب': '✨', 'موخوره': '✂️' } },
                     nails: { title: 'ناخن', single: false, items: { 'ناخن سالم': '💅', 'ناخن شکننده': '💅', 'تغییر فرم ناخن': '⚠️', 'لکه‌های سفید ناخن': '⚪' } },
-                    skin: { title: 'پوست', single: false, items: { 'پوست سالم': '😊', 'پوست خشک': '�', 'پوست چرب': '✨', 'آکنه پوست': '✨', 'پوست لکه‌دار': '🐞' } },
+                    skin: { title: 'پوست', single: false, items: { 'پوست سالم': '😊', 'پوست خشک': '🌵', 'پوست چرب': '✨', 'آکنه پوست': '✨', 'پوست لکه‌دار': '🐞' } },
                     other: { title: 'سایر', single: false, items: { 'مسافرت': '✈️', 'فشار شدید': '🤯', 'بیماری یا آسیب‌دیدگی': '🤒', 'مصرف الکل': '🍷' } },
                 };
                 const ALL_SYMPTOM_CATEGORIES = ['symptoms', 'libido', 'breasts', 'skin', 'hair', 'nails', 'discharge', 'other'];
@@ -144,6 +148,8 @@
                 const logModalContent = document.getElementById('log-modal-content');
                 const datepickerModal = document.getElementById('datepicker-modal');
                 const datepickerModalContent = document.getElementById('datepicker-modal-content');
+                const editPeriodModal = document.getElementById('edit-period-modal');
+                const editPeriodModalContent = document.getElementById('edit-period-modal-content');
 
                 // --- TOAST NOTIFICATION ---
                 const toast = document.createElement('div');
@@ -174,7 +180,7 @@
                                     <p id="pms-countdown" class="text-sm text-amber-600 mt-1"></p>
                                 </div>
                             </div>
-                            <button onclick="window.app.goToSettings()" class="text-xs text-pink-500 hover:bg-pink-200 -mt-2 bg-pink-100 px-3 py-1.5 rounded-full font-semibold">ویرایش زمان پریود</button>
+                            <button onclick="window.app.openEditPeriodModal()" class="text-xs text-pink-500 hover:bg-pink-200 -mt-2 bg-pink-100 px-3 py-1.5 rounded-full font-semibold">ویرایش زمان پریود</button>
                             <div class="flex items-center justify-center gap-2 mt-4 text-lg">
                                 <span class="text-gray-600">تاریخ پریود بعدی:</span>
                                 <p id="next-period-date" class="font-semibold text-gray-800"></p>
@@ -308,7 +314,6 @@
                         arcPath.setAttribute('class', `cycle-chart-path ${phase.class}`);
                         svg.appendChild(arcPath);
 
-                        // --- New Label Logic ---
                         const textRadius = radius + (strokeWidth / 2) + 6;
                         const midAngle = startAngle + (endAngle - startAngle) / 2;
                         const pos = polarToCartesian(center, center, textRadius, midAngle);
@@ -766,6 +771,69 @@
                         datepickerModal.classList.remove('visible');
                     },
 
+                    // --- NEW MODAL LOGIC ---
+                    openEditPeriodModal() {
+                        let modalHTML = `
+                            <h3 class="text-xl font-bold text-center mb-4">ویرایش زمان پریود</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-gray-600 mb-2">تاریخ شروع آخرین خون‌ریزی</label>
+                                    <input type="text" id="edit-period-date-input" readonly class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg cursor-pointer" onclick="window.app.openDatePicker('edit-period-date-input')">
+                                </div>
+                                <div>
+                                    <label class="block text-gray-600 mb-2">طول دوره پریود (خون‌ریزی)</label>
+                                    <select id="edit-period-length" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select>
+                                </div>
+                            </div>
+                            <div class="flex gap-4 mt-6">
+                                <button onclick="window.app.savePeriodUpdate()" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg">ذخیره</button>
+                                <button onclick="document.getElementById('edit-period-modal').classList.remove('visible')" class="w-full bg-gray-200 text-gray-700 font-bold py-3 rounded-lg">انصراف</button>
+                            </div>
+                        `;
+                        editPeriodModalContent.innerHTML = modalHTML;
+
+                        const dateInput = document.getElementById('edit-period-date-input');
+                        const lastPeriodDate = moment(userData.user.last_period_date, 'YYYY-MM-DD');
+                        dateInput.value = toPersian(lastPeriodDate.format('jYYYY/jM/jD'));
+                        dateInput.dataset.value = lastPeriodDate.format('YYYY-MM-DD');
+
+                        const lengthSelect = document.getElementById('edit-period-length');
+                        for (let i = 12; i >= 2; i--) {
+                            lengthSelect.innerHTML += `<option value="${i}">${toPersian(i)} روز</option>`;
+                        }
+                        lengthSelect.value = userData.user.period_length;
+
+                        editPeriodModal.classList.add('visible');
+                    },
+
+                    async savePeriodUpdate() {
+                        const dateInput = document.getElementById('edit-period-date-input');
+                        const periodUpdateData = {
+                            last_period_date: dateInput.dataset.value,
+                            period_length: document.getElementById('edit-period-length').value,
+                        };
+
+                        try {
+                            const response = await fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}/period`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(periodUpdateData)
+                            });
+                            const data = await response.json();
+                            if (!response.ok) throw new Error(data.error || 'خطا در به‌روزرسانی اطلاعات');
+                            
+                            userData.user.last_period_date = data.user.last_period_date;
+                            userData.user.period_length = data.user.period_length;
+                            
+                            showToast(data.message);
+                            editPeriodModal.classList.remove('visible');
+                            renderDashboard();
+                        } catch (error) {
+                            console.error('Failed to update period data:', error);
+                            showToast(error.message, true);
+                        }
+                    },
+
                     async init() {
                         moment.locale('fa');
                         try {
@@ -813,6 +881,12 @@
                 datepickerModal.addEventListener('click', (e) => {
                     if (e.target.classList.contains('modal-overlay')) {
                         datepickerModal.classList.remove('visible');
+                    }
+                });
+
+                editPeriodModal.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('modal-overlay')) {
+                        editPeriodModal.classList.remove('visible');
                     }
                 });
 

@@ -60,7 +60,6 @@ app.post('/api/onboarding', async (req, res) => {
     if (isNaN(period) || period < 2 || period > 12) {
         return res.status(400).json({ error: 'طول دوره پریود باید عددی بین ۲ تا ۱۲ باشد.' });
     }
-    // Note: This range for birth year should be updated periodically
     if (isNaN(year) || year < 1350 || year > 1404) { 
         return res.status(400).json({ error: 'سال تولد نامعتبر است.' });
     }
@@ -120,7 +119,6 @@ app.post('/api/logs', async (req, res) => {
             return res.status(400).json({ error: 'شناسه کاربری و تاریخ گزارش ضروری است.' });
         }
 
-        // --- اعتبارسنجی داده‌های گزارش ---
         if (logData.notes && logData.notes.length > 500) {
             return res.status(400).json({ error: 'یادداشت نمی‌تواند بیشتر از ۵۰۰ کاراکتر باشد.' });
         }
@@ -172,15 +170,13 @@ app.delete('/api/logs', async (req, res) => {
     }
 });
 
-
-// مسیر به‌روزرسانی تنظیمات کاربر
+// مسیر به‌روزرسانی تنظیمات کامل کاربر
 app.put('/api/user/:telegram_id', async (req, res) => {
     try {
         const { telegram_id } = req.params;
         const { cycle_length, period_length, last_period_date, birth_year } = req.body;
 
-        // --- اعتبارسنجی داده‌های ورودی ---
-        const today = new Date().toLocaleDateString('en-CA'); // Gets 'YYYY-MM-DD' format
+        const today = new Date().toLocaleDateString('en-CA');
         if (last_period_date > today) {
             return res.status(400).json({ error: 'تاریخ آخرین پریود نمی‌تواند در آینده باشد.' });
         }
@@ -195,7 +191,6 @@ app.put('/api/user/:telegram_id', async (req, res) => {
         if (isNaN(period) || period < 2 || period > 12) {
             return res.status(400).json({ error: 'طول دوره پریود باید عددی بین ۲ تا ۱۲ باشد.' });
         }
-        // Note: This range for birth year should be updated periodically
         if (isNaN(year) || year < 1350 || year > 1404) {
             return res.status(400).json({ error: 'سال تولد نامعتبر است.' });
         }
@@ -216,6 +211,48 @@ app.put('/api/user/:telegram_id', async (req, res) => {
         res.status(200).json({ message: 'تنظیمات با موفقیت به‌روزرسانی شد', user: result.rows[0] });
     } catch (error) {
         console.error('خطا در به‌روزرسانی تنظیمات:', error);
+        res.status(500).json({ error: 'خطای داخلی سرور' });
+    }
+});
+
+// --- NEW --- مسیر به‌روزرسانی سریع اطلاعات پریود
+app.patch('/api/user/:telegram_id/period', async (req, res) => {
+    try {
+        const { telegram_id } = req.params;
+        const { last_period_date, period_length } = req.body;
+
+        // --- اعتبارسنجی ---
+        if (!last_period_date || !period_length) {
+            return res.status(400).json({ error: 'تاریخ و طول دوره پریود ضروری است.' });
+        }
+
+        const today = new Date().toLocaleDateString('en-CA');
+        if (last_period_date > today) {
+            return res.status(400).json({ error: 'تاریخ شروع پریود نمی‌تواند در آینده باشد.' });
+        }
+
+        const period = parseInt(period_length, 10);
+        if (isNaN(period) || period < 2 || period > 12) {
+            return res.status(400).json({ error: 'طول دوره پریود باید عددی بین ۲ تا ۱۲ باشد.' });
+        }
+
+        const query = `
+            UPDATE users
+            SET last_period_date = $1, period_length = $2
+            WHERE telegram_id = $3
+            RETURNING *;
+        `;
+        const values = [last_period_date, period, telegram_id];
+        const result = await pool.query(query, values);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'کاربر برای به‌روزرسانی یافت نشد.' });
+        }
+
+        res.status(200).json({ message: 'اطلاعات پریود با موفقیت به‌روزرسانی شد', user: result.rows[0] });
+
+    } catch (error) {
+        console.error('خطا در به‌روزرسانی اطلاعات پریود:', error);
         res.status(500).json({ error: 'خطای داخلی سرور' });
     }
 });
