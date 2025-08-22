@@ -25,6 +25,17 @@ body {
     animation: heartbeat 2s infinite ease-in-out;
 }
 
+/* --- NEW --- Animation for drawing the circle paths */
+@keyframes draw-circle {
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+.animate-draw {
+    animation: draw-circle 0.8s 0.3s ease-out forwards; /* 1.5s duration, 0.3s delay */
+}
+
+
 /* Main Calendar Styles */
 #calendar-grid { 
     gap: 4px; 
@@ -242,7 +253,6 @@ body {
     font-size: 10px; 
     font-weight: 200;
 }
-/* --- NEW --- Style for the delay label */
 .label-delay { 
     fill: #4b5563; /* gray-600 */
     font-size: 10px; 

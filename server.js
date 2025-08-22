@@ -301,7 +301,7 @@ app.post('/api/user/:telegram_id/period', async (req, res) => {
 
     } catch (error) {
         await client.query('ROLLBACK');
-        console.error('خطا در ویرایش زمان پریود:', error);
+        console.error('خطا در ثبت زمان پریود:', error);
         res.status(500).json({ error: 'خطای داخلی سرور' });
     } finally {
         client.release();

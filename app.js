@@ -356,7 +356,7 @@ document.addEventListener('DOMContentLoaded', function() {
             openEditPeriodModal() {
                 const modalBody = `<div class="space-y-6"><div><label class="block text-gray-600 mb-2">تاریخ شروع خون‌ریزی</label><input type="text" id="edit-period-date-input" readonly class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg cursor-pointer" onclick="window.app.openDatePicker('edit-period-date-input')"></div><div><div class="flex justify-between items-center mb-2"><label class="text-gray-600">طول دوره پریود (خون‌ریزی)</label><span id="edit-period-length-value" class="font-semibold text-pink-500"></span></div><input type="range" id="edit-period-length" min="2" max="12" step="1" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"></div></div>`;
                 const modalFooter = `<div class="flex gap-4"><button onclick="window.app.savePeriodUpdate()" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg">ذخیره و تحلیل</button><button onclick="document.getElementById('edit-period-modal').classList.remove('visible')" class="w-full bg-gray-200 text-gray-700 font-bold py-3 rounded-lg">انصراف</button></div>`;
-                editPeriodModalContent.innerHTML = `<div class="modal-body"><h3 class="text-xl font-bold text-center mb-6">ویرایش زمان پریود</h3>${modalBody}</div><div class="modal-footer">${modalFooter}</div>`;
+                editPeriodModalContent.innerHTML = `<div class="modal-body"><h3 class="text-xl font-bold text-center mb-6">ثبت زمان پریود</h3>${modalBody}</div><div class="modal-footer">${modalFooter}</div>`;
 
                 const dateInput = document.getElementById('edit-period-date-input');
                 const today = moment();

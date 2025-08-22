@@ -7,6 +7,9 @@
  */
 window.toPersian = num => num.toString().replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
 
+// --- NEW: Flag to control the initial animation ---
+let isFirstRender = true;
+
 // --- TEMPLATES for different pages ---
 const templates = {
     onboardingStep(step) { 
@@ -32,7 +35,7 @@ const templates = {
                         </div>
                         <div class="flex flex-col sm:flex-row items-center justify-center gap-3 mt-2 w-full">
                             <button onclick="window.app.logToday()" class="text-base w-full sm:w-auto text-white bg-pink-500 hover:bg-pink-600 px-5 py-2.5 rounded-full font-semibold">ثبت علائم امروز</button>
-                            <button id="edit-period-btn" onclick="window.app.openEditPeriodModal()" class="text-base w-full sm:w-auto text-pink-500 hover:bg-pink-200 bg-pink-100 px-5 py-2.5 rounded-full font-semibold">ویرایش زمان پریود</button>
+                            <button id="edit-period-btn" onclick="window.app.openEditPeriodModal()" class="text-base w-full sm:w-auto text-pink-500 hover:bg-pink-200 bg-pink-100 px-5 py-2.5 rounded-full font-semibold">ثبت زمان پریود</button>
                         </div>
                         <div class="flex items-center justify-center gap-2 mt-4 text-lg">
                             <span class="text-gray-600">تاریخ پریود بعدی:</span>
@@ -214,15 +217,16 @@ const renderDashboard = (userData) => {
         if (dayOfCycle > pmsStartDay) {
             pmsCountdownEl.textContent = 'شما در دوره PMS هستید';
         } else {
-            const daysToPms = pmsStartDay - dayOfCycle;
-            if(daysToPms > 0) pmsCountdownEl.textContent = `${toPersian(daysToPms)} روز تا PMS`;
+            pmsCountdownEl.textContent = '';
         }
         editPeriodBtn.classList.remove('animate-heartbeat');
     }
     
     document.getElementById('next-period-date').textContent = toPersian(displayNextPeriodDate.format('dddd، jD jMMMM'));
 
-    renderCycleChart(finalDayForChart, cycleLength, periodLength, userData, delayForChart);
+    renderCycleChart(finalDayForChart, cycleLength, periodLength, userData, delayForChart, isFirstRender);
+    isFirstRender = false;
+
     window.app.renderCalendar(moment());
     
     document.getElementById('settings-btn').classList.remove('hidden');
@@ -237,8 +241,9 @@ const renderDashboard = (userData) => {
  * @param {number} periodLength - The user's average period length.
  * @param {object} userData - The complete user data object.
  * @param {number} daysDelayed - The number of days the period is late.
+ * @param {boolean} isInitialAnimation - Flag to trigger the drawing animation.
  */
-const renderCycleChart = (dayOfCycle, cycleLength, periodLength, userData, daysDelayed = 0) => {
+const renderCycleChart = (dayOfCycle, cycleLength, periodLength, userData, daysDelayed = 0, isInitialAnimation = false) => {
     const svg = document.getElementById('cycle-chart');
     if (!svg) return;
     svg.innerHTML = ''; 
@@ -272,6 +277,16 @@ const renderCycleChart = (dayOfCycle, cycleLength, periodLength, userData, daysD
     bgCircle.setAttribute('class', 'cycle-chart-path cycle-chart-bg');
     svg.appendChild(bgCircle);
 
+    // --- NEW: Helper function to apply animation ---
+    const applyAnimation = (element) => {
+        if (isInitialAnimation) {
+            const length = element.getTotalLength();
+            element.style.strokeDasharray = length;
+            element.style.strokeDashoffset = length;
+            element.classList.add('animate-draw');
+        }
+    };
+
     Object.values(phases).forEach(phase => {
         const startAngle = (phase.start - 1) * degreesPerDay;
         const endAngle = phase.end * degreesPerDay;
@@ -279,8 +294,10 @@ const renderCycleChart = (dayOfCycle, cycleLength, periodLength, userData, daysD
         arcPath.setAttribute('d', describeArc(center, center, radius, startAngle, endAngle));
         arcPath.setAttribute('class', `cycle-chart-path ${phase.class}`);
         svg.appendChild(arcPath);
+        
+        // Apply animation to each colored segment
+        applyAnimation(arcPath);
 
-        // --- CHANGE: Show labels even when delayed, but adjust positioning ---
         const textRadius = radius + 16;
         const midAngle = startAngle + (endAngle - startAngle) / 2;
         const pos = polarToCartesian(center, center, textRadius, midAngle);
@@ -301,11 +318,12 @@ const renderCycleChart = (dayOfCycle, cycleLength, periodLength, userData, daysD
         delayArc.setAttribute('d', describeArc(center, center, radius, startAngle, endAngle));
         delayArc.setAttribute('class', 'cycle-chart-path cycle-chart-delay');
         svg.appendChild(delayArc);
+        
+        // Apply animation to the delay segment
+        applyAnimation(delayArc);
 
-        // --- NEW: Add delay label ---
         const textRadius = radius + 16;
         const midAngle = startAngle + (endAngle - startAngle) / 2;
-        // Ensure midAngle is not too close to 360 to avoid label flipping
         const adjustedMidAngle = midAngle >= 359 ? 359 : midAngle;
         const pos = polarToCartesian(center, center, textRadius, adjustedMidAngle);
         let rotation = adjustedMidAngle;
