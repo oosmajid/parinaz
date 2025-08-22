@@ -25,7 +25,7 @@ CREATE TABLE users (
 CREATE TABLE period_history (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- اتصال به کاربر (اگر کاربر حذف شد، رکوردهای اینجا هم حذف شود)
-    start_date DATE NOT NULL,                   -- تاریخ شروع پریود
+    start_date DATE,                   -- تاریخ شروع پریود
     duration INT NOT NULL,                      -- مدت زمان این پریود خاص (به روز)
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (user_id, start_date)                -- هر کاربر نمی‌تواند دو پریود با تاریخ شروع یکسان داشته باشد

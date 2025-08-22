@@ -37,7 +37,7 @@ const templates = {
                             <button onclick="window.app.logToday()" class="text-base w-full sm:w-auto text-white bg-pink-500 hover:bg-pink-600 px-5 py-2.5 rounded-full font-semibold">ثبت علائم امروز</button>
                             <button id="edit-period-btn" onclick="window.app.openEditPeriodModal()" class="text-base w-full sm:w-auto text-pink-500 hover:bg-pink-200 bg-pink-100 px-5 py-2.5 rounded-full font-semibold">ثبت زمان پریود</button>
                         </div>
-                        <div class="flex items-center justify-center gap-2 mt-4 text-lg">
+                        <div id="next-period-container" class="flex items-center justify-center gap-2 mt-4 text-lg">
                             <span class="text-gray-600">تاریخ پریود بعدی:</span>
                             <p id="next-period-date" class="font-semibold text-gray-800"></p>
                         </div>
@@ -89,6 +89,9 @@ const templates = {
 
 // --- PHASE CALCULATION LOGIC ---
 const getPhaseInfoForDate = (date, user) => {
+    // --- MODIFIED --- Handle null last_period_date
+    if (!user.last_period_date) return { class: 'normal-day' };
+    
     const cycleLength = user.avg_cycle_length ? Math.round(user.avg_cycle_length) : parseInt(user.cycle_length);
     const periodLength = user.avg_period_length ? Math.round(user.avg_period_length) : parseInt(user.period_length);
     const lastPeriod = moment(user.last_period_date, 'YYYY-MM-DD');
@@ -167,11 +170,39 @@ const render = (html) => {
  * Renders the main dashboard view with corrected logic for period delay.
  * @param {object} userData - The complete user data object.
  */
+// --- MODIFIED --- Added handling for the "no data" state
 const renderDashboard = (userData) => {
-    if (!userData.user) return;
+    if (!userData || !userData.user) return;
     render(templates.home());
+
+    const daysLeftEl = document.getElementById('days-left');
+    const daysUnitEl = document.getElementById('days-unit');
+    const pmsCountdownEl = document.getElementById('pms-countdown');
+    const editPeriodBtn = document.getElementById('edit-period-btn');
+    const nextPeriodContainer = document.getElementById('next-period-container');
+
+    // --- NEW --- Handle state where there is no period history
+    if (!userData.user.last_period_date) {
+        daysLeftEl.textContent = '—';
+        daysUnitEl.innerHTML = 'زمان پریودت رو ثبت کن';
+        daysUnitEl.classList.add('!text-base');
+        pmsCountdownEl.textContent = '';
+        nextPeriodContainer.classList.add('hidden');
+        editPeriodBtn.classList.add('animate-heartbeat');
+        
+        // Render an empty gray chart
+        renderCycleChart(0, 0, 0, userData, 0, isFirstRender);
+        isFirstRender = false;
+
+        window.app.renderCalendar(moment());
+        document.getElementById('settings-btn').classList.remove('hidden');
+        document.getElementById('analysis-btn').classList.remove('hidden');
+        document.getElementById('back-btn').classList.add('hidden');
+        return;
+    }
+
+    // Existing logic for when data is present
     const today = moment().startOf('day');
-    
     const cycleLength = userData.user.avg_cycle_length ? Math.round(userData.user.avg_cycle_length) : parseInt(userData.user.cycle_length);
     const periodLength = userData.user.avg_period_length ? Math.round(userData.user.avg_period_length) : parseInt(userData.user.period_length);
     const lastPeriodStart = moment(userData.user.last_period_date, 'YYYY-MM-DD');
@@ -180,7 +211,6 @@ const renderDashboard = (userData) => {
 
     let dayOfCycle;
     let daysDelayed = 0;
-    let displayNextPeriodDate = expectedNextPeriodStart;
 
     if (today.isAfter(expectedNextPeriodStart, 'day')) {
         daysDelayed = today.diff(expectedNextPeriodStart, 'days');
@@ -188,11 +218,6 @@ const renderDashboard = (userData) => {
     } else {
         dayOfCycle = today.diff(lastPeriodStart, 'days') + 1;
     }
-
-    const daysLeftEl = document.getElementById('days-left');
-    const daysUnitEl = document.getElementById('days-unit');
-    const pmsCountdownEl = document.getElementById('pms-countdown');
-    const editPeriodBtn = document.getElementById('edit-period-btn');
     
     let finalDayForChart = dayOfCycle;
     let delayForChart = daysDelayed;
@@ -222,7 +247,7 @@ const renderDashboard = (userData) => {
         editPeriodBtn.classList.remove('animate-heartbeat');
     }
     
-    document.getElementById('next-period-date').textContent = toPersian(displayNextPeriodDate.format('dddd، jD jMMMM'));
+    document.getElementById('next-period-date').textContent = toPersian(expectedNextPeriodStart.format('dddd، jD jMMMM'));
 
     renderCycleChart(finalDayForChart, cycleLength, periodLength, userData, delayForChart, isFirstRender);
     isFirstRender = false;
@@ -243,15 +268,28 @@ const renderDashboard = (userData) => {
  * @param {number} daysDelayed - The number of days the period is late.
  * @param {boolean} isInitialAnimation - Flag to trigger the drawing animation.
  */
+// --- MODIFIED --- Added handling for empty/no-data state
 const renderCycleChart = (dayOfCycle, cycleLength, periodLength, userData, daysDelayed = 0, isInitialAnimation = false) => {
     const svg = document.getElementById('cycle-chart');
     if (!svg) return;
     svg.innerHTML = ''; 
 
+    const center = 100, radius = 75;
+
+    // Draw background circle first
+    const bgCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    bgCircle.setAttribute('cx', center); bgCircle.setAttribute('cy', center); bgCircle.setAttribute('r', radius);
+    bgCircle.setAttribute('class', 'cycle-chart-path cycle-chart-bg');
+    svg.appendChild(bgCircle);
+
+    // --- NEW --- If there's no cycle length, it's the "no data" state. Just show the gray circle and stop.
+    if (!cycleLength || cycleLength <= 0) {
+        return;
+    }
+
     const chartTotalDays = cycleLength + daysDelayed;
     const degreesPerDay = 360 / chartTotalDays;
 
-    const center = 100, radius = 75;
     const ovulationDay = cycleLength - 14;
     const phases = {
         period: { start: 1, end: periodLength, class: 'cycle-chart-period', label: 'پریود', labelClass: 'label-period' },
@@ -272,10 +310,7 @@ const renderCycleChart = (dayOfCycle, cycleLength, periodLength, userData, daysD
     };
 
     svg.innerHTML = `<defs><filter id="shadow"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-color="#000000" flood-opacity="0.2"/></filter></defs>`;
-    const bgCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    bgCircle.setAttribute('cx', center); bgCircle.setAttribute('cy', center); bgCircle.setAttribute('r', radius);
-    bgCircle.setAttribute('class', 'cycle-chart-path cycle-chart-bg');
-    svg.appendChild(bgCircle);
+    svg.appendChild(bgCircle); // Re-append after clearing innerHTML
 
     // --- NEW: Helper function to apply animation ---
     const applyAnimation = (element) => {
@@ -295,7 +330,6 @@ const renderCycleChart = (dayOfCycle, cycleLength, periodLength, userData, daysD
         arcPath.setAttribute('class', `cycle-chart-path ${phase.class}`);
         svg.appendChild(arcPath);
         
-        // Apply animation to each colored segment
         applyAnimation(arcPath);
 
         const textRadius = radius + 16;
@@ -319,7 +353,6 @@ const renderCycleChart = (dayOfCycle, cycleLength, periodLength, userData, daysD
         delayArc.setAttribute('class', 'cycle-chart-path cycle-chart-delay');
         svg.appendChild(delayArc);
         
-        // Apply animation to the delay segment
         applyAnimation(delayArc);
 
         const textRadius = radius + 16;

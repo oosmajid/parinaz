@@ -1,3 +1,5 @@
+// app.js
+
 document.addEventListener('DOMContentLoaded', function() {
     try {
         // --- STATE & DOM ELEMENTS ---
@@ -18,6 +20,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const datepickerModalContent = document.getElementById('datepicker-modal-content');
         const editPeriodModal = document.getElementById('edit-period-modal');
         const editPeriodModalContent = document.getElementById('edit-period-modal-content');
+        const confirmationModal = document.getElementById('confirmation-modal');
 
         // --- TOAST NOTIFICATION ---
         const toast = document.createElement('div');
@@ -34,6 +37,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 toast.style.bottom = '-100px';
             }, 3000);
         };
+        
+        // --- MODIFIED --- This function is now corrected to avoid the TypeError.
+        const showConfirmationModal = (title, message, onConfirm) => {
+            document.getElementById('confirmation-title').textContent = title;
+            document.getElementById('confirmation-message').textContent = message;
+            
+            let currentConfirmBtn = document.getElementById('confirm-action-btn');
+            const newConfirmBtn = currentConfirmBtn.cloneNode(true);
+            
+            // Replace the old button with the clone to safely remove previous event listeners.
+            currentConfirmBtn.parentNode.replaceChild(newConfirmBtn, currentConfirmBtn);
+            
+            newConfirmBtn.onclick = () => {
+                onConfirm();
+                confirmationModal.classList.remove('visible');
+            };
+
+            confirmationModal.classList.add('visible');
+        };
+
 
         // --- MAIN APP LOGIC OBJECT ---
         window.app = {
@@ -251,6 +274,34 @@ document.addEventListener('DOMContentLoaded', function() {
                     showToast(error.message, true);
                 }
             },
+            
+            // --- Deletes all period history
+            async deletePeriodHistory() {
+                 showConfirmationModal(
+                    'حذف تمام سوابق پریود',
+                    'آیا مطمئن هستید؟ با این کار تمام تاریخچه پریود شما حذف شده و محاسبات از نو انجام خواهد شد. این عمل غیرقابل بازگشت است.',
+                    async () => {
+                        try {
+                            const response = await fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}/period`, {
+                                method: 'DELETE'
+                            });
+                            const data = await response.json();
+                            if (!response.ok) throw new Error(data.error || 'خطا در حذف سوابق');
+
+                            // Update local state to reflect the deletion
+                            userData.user = data.user;
+                            userData.period_history = [];
+                            
+                            showToast(data.message);
+                            editPeriodModal.classList.remove('visible');
+                            renderDashboard(userData);
+                        } catch (error) {
+                            console.error('Failed to delete period history:', error);
+                            showToast(error.message, true);
+                        }
+                    }
+                );
+            },
 
             // --- UI Interaction Methods ---
             goToSettings() { renderSettings(userData); },
@@ -353,10 +404,30 @@ document.addEventListener('DOMContentLoaded', function() {
                 datepickerModal.classList.remove('visible');
             },
 
+            // --- MODIFIED --- The button is now more compact to fit on mobile screens with its text.
             openEditPeriodModal() {
+                // Conditionally create the delete button with new, more compact styles.
+                const deleteButton = userData.user.last_period_date
+                    ? `<button id="delete-history-btn" class="flex items-center gap-1 text-xs bg-red-100 text-red-700 font-semibold px-2 py-1 rounded-md hover:bg-red-200 transition-colors">
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                              <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                          </svg>
+                          <span>حذف</span>
+                      </button>`
+                    : '';
+
+                // A robust flex layout that works on all screen sizes.
+                const modalHeader = `
+                    <div class="flex items-center mb-6">
+                        <div class="flex-1 flex justify-start">${deleteButton}</div>
+                        <div class="flex-shrink-0"><h3 class="text-xl font-bold">ثبت زمان پریود</h3></div>
+                        <div class="flex-1"></div>
+                    </div>
+                `;
+                
                 const modalBody = `<div class="space-y-6"><div><label class="block text-gray-600 mb-2">تاریخ شروع خون‌ریزی</label><input type="text" id="edit-period-date-input" readonly class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg cursor-pointer" onclick="window.app.openDatePicker('edit-period-date-input')"></div><div><div class="flex justify-between items-center mb-2"><label class="text-gray-600">طول دوره پریود (خون‌ریزی)</label><span id="edit-period-length-value" class="font-semibold text-pink-500"></span></div><input type="range" id="edit-period-length" min="2" max="12" step="1" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"></div></div>`;
                 const modalFooter = `<div class="flex gap-4"><button onclick="window.app.savePeriodUpdate()" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg">ذخیره و تحلیل</button><button onclick="document.getElementById('edit-period-modal').classList.remove('visible')" class="w-full bg-gray-200 text-gray-700 font-bold py-3 rounded-lg">انصراف</button></div>`;
-                editPeriodModalContent.innerHTML = `<div class="modal-body"><h3 class="text-xl font-bold text-center mb-6">ثبت زمان پریود</h3>${modalBody}</div><div class="modal-footer">${modalFooter}</div>`;
+                editPeriodModalContent.innerHTML = `<div class="modal-body">${modalHeader}${modalBody}</div><div class="modal-footer">${modalFooter}</div>`;
 
                 const dateInput = document.getElementById('edit-period-date-input');
                 const today = moment();
@@ -399,9 +470,20 @@ document.addEventListener('DOMContentLoaded', function() {
         datepickerModal.addEventListener('click', (e) => {
             if (e.target.classList.contains('modal-overlay')) datepickerModal.classList.remove('visible');
         });
-
+        
         editPeriodModal.addEventListener('click', (e) => {
-            if (e.target.classList.contains('modal-overlay')) editPeriodModal.classList.remove('visible');
+            if (e.target.closest('#delete-history-btn')) { // Use closest to handle clicks on svg/span inside the button
+                window.app.deletePeriodHistory();
+            }
+            if (e.target.classList.contains('modal-overlay')) {
+                editPeriodModal.classList.remove('visible');
+            }
+        });
+        
+        confirmationModal.addEventListener('click', (e) => {
+             if (e.target.classList.contains('modal-overlay') || e.target.id === 'cancel-action-btn') {
+                confirmationModal.classList.remove('visible');
+            }
         });
 
         // --- START APP ---

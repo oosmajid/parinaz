@@ -16,7 +16,7 @@
         
         <div class="flex justify-between items-center mb-8">
             <div class="w-16 flex justify-start">
-                <button id="back-btn" class="text-gray-400 hover:text-pink-500 transition hidden p-2"> <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg> </button>
+                <button id="back-btn" class="text-gray-400 hover:text-pink-500 transition hidden p-2"> <svg xmlns="http://www.w.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg> </button>
             </div>
             <h1 class="text-center text-3xl font-bold text-pink-500 flex-grow">پریناز</h1>
             <div class="w-16 flex justify-end items-center gap-2">
@@ -35,6 +35,17 @@
     </div>
     <div id="edit-period-modal" class="modal-overlay">
         <div id="edit-period-modal-content" class="modal-content"></div>
+    </div>
+
+    <div id="confirmation-modal" class="modal-overlay" style="z-index: 70;">
+        <div class="modal-content !w-full !max-w-sm p-6 text-center">
+            <h3 id="confirmation-title" class="text-lg font-bold text-gray-800 mb-2"></h3>
+            <p id="confirmation-message" class="text-gray-600 mb-6"></p>
+            <div class="flex gap-4">
+                <button id="confirm-action-btn" class="w-full bg-red-500 text-white font-bold py-2.5 rounded-lg">تأیید</button>
+                <button id="cancel-action-btn" class="w-full bg-gray-200 text-gray-700 font-bold py-2.5 rounded-lg">انصراف</button>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/jalali-moment/dist/jalali-moment.browser.js"></script>
