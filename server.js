@@ -156,7 +156,6 @@ app.get('/api/user/:telegram_id', async (req, res) => {
             return acc;
         }, {});
 
-        // --- CHANGE: اضافه کردن تاریخچه پریود به پاسخ ---
         const historyQuery = 'SELECT start_date, duration FROM period_history WHERE user_id = $1';
         const historyResult = await pool.query(historyQuery, [user.id]);
         const period_history = historyResult.rows;
@@ -218,25 +217,29 @@ app.delete('/api/logs', async (req, res) => {
 app.put('/api/user/:telegram_id', async (req, res) => {
     try {
         const { telegram_id } = req.params;
-        // --- CHANGE: حذف last_period_date از این مسیر ---
         const { cycle_length, period_length, birth_year } = req.body;
 
         const cycle = parseInt(cycle_length, 10);
         const period = parseInt(period_length, 10);
         const year = parseInt(birth_year, 10);
 
+        // --- FIX START ---
+        // The query now uses separate parameters for each column to avoid type conflicts.
         const query = `
             UPDATE users
             SET 
                 cycle_length = $1, 
                 period_length = $2, 
                 birth_year = $3,
-                avg_cycle_length = $1::NUMERIC,
-                avg_period_length = $2::NUMERIC
-            WHERE telegram_id = $4
+                avg_cycle_length = $4,
+                avg_period_length = $5
+            WHERE telegram_id = $6
             RETURNING *;
         `;
-        const values = [cycle, period, year, telegram_id];
+        // The values array now provides a value for each parameter.
+        const values = [cycle, period, year, cycle, period, telegram_id];
+        // --- FIX END ---
+        
         const result = await pool.query(query, values);
 
         if (result.rows.length === 0) {
