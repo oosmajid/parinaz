@@ -12,7 +12,7 @@ body {
     to { opacity: 1; transform: translateY(0); } 
 }
 
-/* --- NEW --- Heartbeat animation */
+/* Heartbeat animation */
 @keyframes heartbeat {
   0% { transform: scale(1); }
   10% { transform: scale(1.05); }
@@ -218,7 +218,6 @@ body {
 .cycle-chart-fertile { 
     stroke: #4ade80; /* green-400 */
 }
-/* --- NEW --- Style for the delay arc */
 .cycle-chart-delay {
     stroke: #4b5563; /* gray-600 */
 }
@@ -240,6 +239,12 @@ body {
 }
 .label-fertile { 
     fill: #16a34a; /* green-600 */
+    font-size: 10px; 
+    font-weight: 200;
+}
+/* --- NEW --- Style for the delay label */
+.label-delay { 
+    fill: #4b5563; /* gray-600 */
     font-size: 10px; 
     font-weight: 200;
 }

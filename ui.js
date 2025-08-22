@@ -173,27 +173,18 @@ const renderDashboard = (userData) => {
     const periodLength = userData.user.avg_period_length ? Math.round(userData.user.avg_period_length) : parseInt(userData.user.period_length);
     const lastPeriodStart = moment(userData.user.last_period_date, 'YYYY-MM-DD');
     
-    // --- NEW LOGIC START ---
-    
-    // 1. Calculate the single, most important date: when the next period was expected.
     const expectedNextPeriodStart = lastPeriodStart.clone().add(cycleLength, 'days');
 
-    // 2. Declare variables that will be determined by the logic.
     let dayOfCycle;
     let daysDelayed = 0;
     let displayNextPeriodDate = expectedNextPeriodStart;
 
-    // 3. Check if today is past the expected date. This is the only check needed for delay.
     if (today.isAfter(expectedNextPeriodStart, 'day')) {
-        // Period is officially delayed.
         daysDelayed = today.diff(expectedNextPeriodStart, 'days');
         dayOfCycle = cycleLength + daysDelayed;
     } else {
-        // We are in a normal, on-time cycle based on the last recorded period.
         dayOfCycle = today.diff(lastPeriodStart, 'days') + 1;
     }
-
-    // --- NEW LOGIC END ---
 
     const daysLeftEl = document.getElementById('days-left');
     const daysUnitEl = document.getElementById('days-unit');
@@ -289,19 +280,18 @@ const renderCycleChart = (dayOfCycle, cycleLength, periodLength, userData, daysD
         arcPath.setAttribute('class', `cycle-chart-path ${phase.class}`);
         svg.appendChild(arcPath);
 
-        if (daysDelayed === 0) { // Only show labels if not in delay mode
-            const textRadius = radius + 16;
-            const midAngle = startAngle + (endAngle - startAngle) / 2;
-            const pos = polarToCartesian(center, center, textRadius, midAngle);
-            let rotation = midAngle;
-            if (midAngle > 90 && midAngle < 270) rotation += 180;
-            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-            text.setAttribute('x', pos.x); text.setAttribute('y', pos.y);
-            text.setAttribute('transform', `rotate(${rotation}, ${pos.x}, ${pos.y})`);
-            text.setAttribute('class', `cycle-chart-label ${phase.labelClass}`);
-            text.textContent = phase.label;
-            svg.appendChild(text);
-        }
+        // --- CHANGE: Show labels even when delayed, but adjust positioning ---
+        const textRadius = radius + 16;
+        const midAngle = startAngle + (endAngle - startAngle) / 2;
+        const pos = polarToCartesian(center, center, textRadius, midAngle);
+        let rotation = midAngle;
+        if (midAngle > 90 && midAngle < 270) rotation += 180;
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', pos.x); text.setAttribute('y', pos.y);
+        text.setAttribute('transform', `rotate(${rotation}, ${pos.x}, ${pos.y})`);
+        text.setAttribute('class', `cycle-chart-label ${phase.labelClass}`);
+        text.textContent = phase.label;
+        svg.appendChild(text);
     });
 
     if (daysDelayed > 0) {
@@ -311,6 +301,33 @@ const renderCycleChart = (dayOfCycle, cycleLength, periodLength, userData, daysD
         delayArc.setAttribute('d', describeArc(center, center, radius, startAngle, endAngle));
         delayArc.setAttribute('class', 'cycle-chart-path cycle-chart-delay');
         svg.appendChild(delayArc);
+
+        // --- NEW: Add delay label ---
+        const textRadius = radius + 16;
+        const midAngle = startAngle + (endAngle - startAngle) / 2;
+        // Ensure midAngle is not too close to 360 to avoid label flipping
+        const adjustedMidAngle = midAngle >= 359 ? 359 : midAngle;
+        const pos = polarToCartesian(center, center, textRadius, adjustedMidAngle);
+        let rotation = adjustedMidAngle;
+        if (adjustedMidAngle > 90 && adjustedMidAngle < 270) rotation += 180;
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', pos.x);
+        text.setAttribute('y', pos.y);
+        text.setAttribute('transform', `rotate(${rotation}, ${pos.x}, ${pos.y})`);
+        text.setAttribute('class', 'cycle-chart-label label-delay');
+        text.textContent = 'تأخیر';
+        svg.appendChild(text);
+    }
+
+    for (let i = 1; i <= chartTotalDays; i++) {
+        const angle = (i - 0.5) * degreesPerDay;
+        const pos = polarToCartesian(center, center, radius, angle);
+        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        dot.setAttribute('cx', pos.x);
+        dot.setAttribute('cy', pos.y);
+        dot.setAttribute('r', 1.2);
+        dot.setAttribute('fill', 'white');
+        svg.appendChild(dot);
     }
 
     const todayAngle = (dayOfCycle - 0.5) * degreesPerDay;
