@@ -35,7 +35,7 @@ app.use(cors());
 app.use(express.json());
 
 
-// --- تابع کمکی برای محاسبه میانگین‌ها و حذف داده‌های پرت ---
+// --- الگوریتم هوشمند برای محاسبه میانگین‌ها ---
 const calculateAverages = (history) => {
     // اگر کمتر از ۲ رکورد داریم، نمی‌توان طول سیکل را محاسبه کرد
     if (history.length < 2) {
@@ -43,16 +43,17 @@ const calculateAverages = (history) => {
         return { avgCycleLength: null, avgPeriodLength: avgPeriod };
     }
 
-    // مرتب‌سازی بر اساس تاریخ برای محاسبه طول سیکل‌ها
-    history.sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
+    // مرتب‌سازی بر اساس تاریخ، از جدید به قدیم
+    history.sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
 
+    // محاسبه طول سیکل‌ها (به ترتیب از جدید به قدیم)
     const cycleLengths = [];
-    for (let i = 1; i < history.length; i++) {
+    for (let i = 0; i < history.length - 1; i++) {
         const startDate = new Date(history[i].start_date);
-        const prevStartDate = new Date(history[i-1].start_date);
-        const diffTime = Math.abs(startDate - prevStartDate);
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        // فقط سیکل‌های منطقی را در نظر بگیر (بین ۱۸ تا ۶۵ روز)
+        const prevStartDate = new Date(history[i + 1].start_date);
+        const diffDays = Math.round((startDate - prevStartDate) / (1000 * 60 * 60 * 24));
+        
+        // مرحله اول حذف داده پرت: فیلتر کردن سیکل‌های با طول غیرمنطقی
         if (diffDays >= 18 && diffDays <= 65) {
             cycleLengths.push(diffDays);
         }
@@ -60,22 +61,25 @@ const calculateAverages = (history) => {
 
     const periodLengths = history.map(p => p.duration);
 
-    // تابع داخلی برای حذف داده‌های پرت (outliers) و محاسبه میانگین
-    const calculateFilteredAverage = (arr) => {
+    // تابع محاسبه میانگین وزنی نمایی (مرحله دوم هوشمندسازی)
+    const calculateExponentiallyWeightedAverage = (arr) => {
         if (arr.length === 0) return null;
-        if (arr.length < 3) { // برای حذف داده پرت حداقل ۳ نمونه نیاز است
-            return arr.reduce((sum, val) => sum + val, 0) / arr.length;
-        }
-        arr.sort((a, b) => a - b);
-        // حذف ۲۰٪ از داده‌های کمینه و بیشینه برای کاهش نویز
-        const trimCount = Math.floor(arr.length * 0.2); 
-        const trimmedArr = arr.slice(trimCount, arr.length - trimCount);
-        if (trimmedArr.length === 0) return arr.reduce((sum, val) => sum + val, 0) / arr.length; // Fallback
-        return trimmedArr.reduce((sum, val) => sum + val, 0) / trimmedArr.length;
+        
+        const decayFactor = 0.75; 
+        let weightedSum = 0;
+        let totalWeight = 0;
+
+        arr.forEach((value, index) => {
+            const weight = Math.pow(decayFactor, index);
+            weightedSum += value * weight;
+            totalWeight += weight;
+        });
+
+        return totalWeight > 0 ? (weightedSum / totalWeight) : null;
     };
 
-    const avgCycleLength = calculateFilteredAverage(cycleLengths);
-    const avgPeriodLength = calculateFilteredAverage(periodLengths);
+    const avgCycleLength = calculateExponentiallyWeightedAverage(cycleLengths);
+    const avgPeriodLength = calculateExponentiallyWeightedAverage(periodLengths);
 
     return { avgCycleLength, avgPeriodLength };
 };
@@ -91,30 +95,11 @@ app.post('/api/onboarding', async (req, res) => {
 
     const { telegram_id, cycle_length, period_length, last_period_date, birth_year } = req.body;
     
-    // --- اعتبارسنجی داده‌های ورودی ---
     if (!telegram_id || !last_period_date) {
       return res.status(400).json({ error: 'شناسه تلگرام و تاریخ آخرین پریود ضروری است.' });
     }
-    const today = new Date().toLocaleDateString('en-CA'); // Gets 'YYYY-MM-DD' format
-    if (last_period_date > today) {
-        return res.status(400).json({ error: 'تاریخ آخرین پریود نمی‌تواند در آینده باشد.' });
-    }
     
-    const cycle = parseInt(cycle_length, 10);
-    const period = parseInt(period_length, 10);
-    const year = parseInt(birth_year, 10);
-
-    if (isNaN(cycle) || cycle < 21 || cycle > 60) {
-        return res.status(400).json({ error: 'طول سیکل باید عددی بین ۲۱ تا ۶۰ باشد.' });
-    }
-    if (isNaN(period) || period < 2 || period > 12) {
-        return res.status(400).json({ error: 'طول دوره پریود باید عددی بین ۲ تا ۱۲ باشد.' });
-    }
-    if (isNaN(year) || year < 1350 || year > 1404) { 
-        return res.status(400).json({ error: 'سال تولد نامعتبر است.' });
-    }
-    
-    const values = [telegram_id, cycle, period, last_period_date, year];
+    const values = [telegram_id, cycle_length, period_length, last_period_date, birth_year];
     const userQuery = `
       INSERT INTO users (telegram_id, cycle_length, period_length, last_period_date, birth_year)
       VALUES ($1, $2, $3, $4, $5)
@@ -133,18 +118,17 @@ app.post('/api/onboarding', async (req, res) => {
     } else {
         user = result.rows[0];
         message = 'کاربر با موفقیت ایجاد شد';
-        // اولین رکورد پریود را در تاریخچه ثبت می‌کنیم
         await client.query(
             'INSERT INTO period_history (user_id, start_date, duration) VALUES ($1, $2, $3)',
             [user.id, user.last_period_date, user.period_length]
         );
     }
     
-    await client.query('COMMIT'); // تایید تراکنش
+    await client.query('COMMIT');
     res.status(result.rows.length === 0 ? 200 : 201).json({ message, user });
 
   } catch (error) {
-    await client.query('ROLLBACK'); // بازگردانی در صورت خطا
+    await client.query('ROLLBACK');
     console.error('خطا در ثبت‌نام کاربر:', error);
     res.status(500).json({ error: 'خطای داخلی سرور' });
   } finally {
@@ -152,7 +136,7 @@ app.post('/api/onboarding', async (req, res) => {
   }
 });
 
-// مسیر دریافت اطلاعات کامل کاربر و گزارش‌های او
+// مسیر دریافت اطلاعات کامل کاربر، گزارش‌ها و تاریخچه پریود او
 app.get('/api/user/:telegram_id', async (req, res) => {
     try {
         const { telegram_id } = req.params;
@@ -172,7 +156,12 @@ app.get('/api/user/:telegram_id', async (req, res) => {
             return acc;
         }, {});
 
-        res.status(200).json({ user, logs });
+        // --- CHANGE: اضافه کردن تاریخچه پریود به پاسخ ---
+        const historyQuery = 'SELECT start_date, duration FROM period_history WHERE user_id = $1';
+        const historyResult = await pool.query(historyQuery, [user.id]);
+        const period_history = historyResult.rows;
+
+        res.status(200).json({ user, logs, period_history });
     } catch (error) {
         console.error('خطا در دریافت اطلاعات کاربر:', error);
         res.status(500).json({ error: 'خطای داخلی سرور' });
@@ -186,26 +175,13 @@ app.post('/api/logs', async (req, res) => {
         if (!user_id || !log_date) {
             return res.status(400).json({ error: 'شناسه کاربری و تاریخ گزارش ضروری است.' });
         }
-
-        if (logData.notes && logData.notes.length > 500) {
-            return res.status(400).json({ error: 'یادداشت نمی‌تواند بیشتر از ۵۰۰ کاراکتر باشد.' });
-        }
-        if (logData.weight) {
-            const weight = parseFloat(logData.weight);
-            if (isNaN(weight) || weight < 30 || weight > 250) {
-                return res.status(400).json({ error: 'مقدار وزن باید عددی بین ۳۰ تا ۲۵۰ باشد.' });
-            }
-        }
-
         const allowedColumns = ['weight', 'water', 'sleep', 'sex', 'libido', 'moods', 'symptoms', 'activity', 'breasts', 'discharge', 'blood_color', 'flow', 'hair', 'nails', 'skin', 'other', 'notes'];
         const columns = Object.keys(logData).filter(key => allowedColumns.includes(key));
         const values = columns.map(key => logData[key]);
-        
-        if (columns.length === 0 && !logData.notes) { // Also check for notes
+        if (columns.length === 0 && !logData.notes) {
              await pool.query('DELETE FROM daily_logs WHERE user_id = $1 AND log_date = $2', [user_id, log_date]);
              return res.status(200).json({ message: 'گزارش خالی حذف شد', log: null });
         }
-
         const query = `
             INSERT INTO daily_logs (user_id, log_date, ${columns.join(', ')})
             VALUES ($1, $2, ${columns.map((_, i) => `$${i + 3}`).join(', ')})
@@ -213,10 +189,8 @@ app.post('/api/logs', async (req, res) => {
                 ${columns.map((col, i) => `${col} = $${i + 3}`).join(', ')}
             RETURNING *;
         `;
-
         const result = await pool.query(query, [user_id, log_date, ...values]);
         res.status(200).json({ message: 'گزارش با موفقیت ذخیره شد', log: result.rows[0] });
-
     } catch (error) {
         console.error('خطا در ذخیره گزارش:', error);
         res.status(500).json({ error: 'خطای داخلی سرور' });
@@ -244,34 +218,25 @@ app.delete('/api/logs', async (req, res) => {
 app.put('/api/user/:telegram_id', async (req, res) => {
     try {
         const { telegram_id } = req.params;
-        const { cycle_length, period_length, last_period_date, birth_year } = req.body;
+        // --- CHANGE: حذف last_period_date از این مسیر ---
+        const { cycle_length, period_length, birth_year } = req.body;
 
-        const today = new Date().toLocaleDateString('en-CA');
-        if (last_period_date > today) {
-            return res.status(400).json({ error: 'تاریخ آخرین پریود نمی‌تواند در آینده باشد.' });
-        }
-        
         const cycle = parseInt(cycle_length, 10);
         const period = parseInt(period_length, 10);
         const year = parseInt(birth_year, 10);
 
-        if (isNaN(cycle) || cycle < 21 || cycle > 60) {
-            return res.status(400).json({ error: 'طول سیکل باید عددی بین ۲۱ تا ۶۰ باشد.' });
-        }
-        if (isNaN(period) || period < 2 || period > 12) {
-            return res.status(400).json({ error: 'طول دوره پریود باید عددی بین ۲ تا ۱۲ باشد.' });
-        }
-        if (isNaN(year) || year < 1350 || year > 1404) {
-            return res.status(400).json({ error: 'سال تولد نامعتبر است.' });
-        }
-
         const query = `
             UPDATE users
-            SET cycle_length = $1, period_length = $2, last_period_date = $3, birth_year = $4
-            WHERE telegram_id = $5
+            SET 
+                cycle_length = $1, 
+                period_length = $2, 
+                birth_year = $3,
+                avg_cycle_length = $1::NUMERIC,
+                avg_period_length = $2::NUMERIC
+            WHERE telegram_id = $4
             RETURNING *;
         `;
-        const values = [cycle, period, last_period_date, year, telegram_id];
+        const values = [cycle, period, year, telegram_id];
         const result = await pool.query(query, values);
 
         if (result.rows.length === 0) {
@@ -285,36 +250,23 @@ app.put('/api/user/:telegram_id', async (req, res) => {
     }
 });
 
-// --- NEW --- مسیر ثبت رکورد جدید پریود و یادگیری سیستم
+// مسیر ثبت رکورد جدید پریود و یادگیری سیستم
 app.post('/api/user/:telegram_id/period', async (req, res) => {
     const client = await pool.connect();
     try {
-        await client.query('BEGIN'); // شروع تراکنش
+        await client.query('BEGIN');
 
         const { telegram_id } = req.params;
         const { start_date, duration } = req.body;
 
-        // --- اعتبارسنجی ---
-        if (!start_date || !duration) {
-            return res.status(400).json({ error: 'تاریخ شروع و طول دوره پریود ضروری است.' });
-        }
-        const today = new Date().toLocaleDateString('en-CA');
-        if (start_date > today) {
-            return res.status(400).json({ error: 'تاریخ شروع پریود نمی‌تواند در آینده باشد.' });
-        }
         const period = parseInt(duration, 10);
-        if (isNaN(period) || period < 2 || period > 12) {
-            return res.status(400).json({ error: 'طول دوره پریود باید عددی بین ۲ تا ۱۲ باشد.' });
-        }
 
-        // دریافت شناسه کاربر
         const userRes = await client.query('SELECT id FROM users WHERE telegram_id = $1', [telegram_id]);
         if (userRes.rows.length === 0) {
             return res.status(404).json({ error: 'کاربر یافت نشد.' });
         }
         const userId = userRes.rows[0].id;
 
-        // 1. رکورد جدید پریود را در تاریخچه وارد یا آپدیت کن
         const insertQuery = `
             INSERT INTO period_history (user_id, start_date, duration)
             VALUES ($1, $2, $3)
@@ -322,13 +274,13 @@ app.post('/api/user/:telegram_id/period', async (req, res) => {
         `;
         await client.query(insertQuery, [userId, start_date, period]);
 
-        // 2. تمام تاریخچه پریودهای کاربر را بگیر
         const historyRes = await client.query('SELECT start_date, duration FROM period_history WHERE user_id = $1', [userId]);
         
-        // 3. میانگین‌های جدید را محاسبه کن
         const { avgCycleLength, avgPeriodLength } = calculateAverages(historyRes.rows);
 
-        // 4. جدول users را با میانگین‌های جدید و آخرین تاریخ پریود آپدیت کن
+        // پیدا کردن جدیدترین تاریخ پریود از تاریخچه برای آپدیت جدول اصلی
+        const latestPeriodDate = historyRes.rows.sort((a,b) => new Date(b.start_date) - new Date(a.start_date))[0].start_date;
+
         const updateQuery = `
             UPDATE users
             SET 
@@ -338,14 +290,14 @@ app.post('/api/user/:telegram_id/period', async (req, res) => {
             WHERE id = $4
             RETURNING *;
         `;
-        const updatedUserRes = await client.query(updateQuery, [start_date, avgCycleLength, avgPeriodLength, userId]);
+        const updatedUserRes = await client.query(updateQuery, [latestPeriodDate, avgCycleLength, avgPeriodLength, userId]);
 
-        await client.query('COMMIT'); // تایید تراکنش
+        await client.query('COMMIT');
 
         res.status(200).json({ message: 'اطلاعات پریود ثبت و تحلیل شد', user: updatedUserRes.rows[0] });
 
     } catch (error) {
-        await client.query('ROLLBACK'); // بازگردانی در صورت خطا
+        await client.query('ROLLBACK');
         console.error('خطا در ثبت رکورد پریود:', error);
         res.status(500).json({ error: 'خطای داخلی سرور' });
     } finally {

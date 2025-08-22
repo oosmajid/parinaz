@@ -22,7 +22,7 @@
         /* Color Styles */
         .pms-day { background-color: #fef08a; color: #a16207; }
         .period-day { background-color: #fecdd3; color: #be123c; }
-        .ovulation-day { background-color: #dcfce7; color: #15803d; border: 2px dashed #3bb265; }
+        .ovulation-day { background-color: #dcfce7; color: #0369a1; border: 2px dashed #3bb265; }
         .fertile-day { background-color: #dcfce7; color: #15803d; }
         .today { box-shadow: 0 0 0 2px #ec4899; }
 
@@ -117,19 +117,14 @@
         document.addEventListener('DOMContentLoaded', function() {
             try {
                 // --- STATE & CONSTANTS ---
-                let userData = { user: null, logs: {} };
+                let userData = { user: null, logs: {}, period_history: [] };
                 let calendarDate = moment();
                 let selectedLogDate = null;
                 let charts = {};
                 const API_BASE_URL = 'http://localhost:3001/api';
                 const TELEGRAM_ID = 123456789; 
 
-                // --- DATE PICKER STATE ---
-                let datepickerState = {
-                    visible: false,
-                    targetInputId: null,
-                    currentDate: moment()
-                };
+                let datepickerState = { visible: false, targetInputId: null, currentDate: moment() };
 
                 const LOG_CONFIG = {
                     metrics: { title: 'مقادیر روزانه', items: {
@@ -145,7 +140,7 @@
                     breasts: { title: 'پستان', single: false, items: { 'پستان سالم': '👍', 'تورم پستان': '🍈', 'توده پستان': '●', 'درد پستان': '😖', 'قرمزی پوست پستان': '🔴', 'نوک پستان ترک‌خورده': '🩹', 'ترشح غیرطبیعی پستان': '⚠️', 'سینه‌های حساس': '😣' } },
                     discharge: { title: 'ترشحات واژن', single: true, items: { 'واژن بدون ترشح': '🚫', 'لکه‌بینی': '💧', 'ترشح چسبناک واژن': '🍯', 'ترشح خامه‌ای واژن': '🍦', 'ترشح سفیده‌تخم‌مرغی واژن': '🥚', 'ترشح آبکی واژن': '💧', 'ترشح غیرمعمول واژن': '❓' } },
                     bloodColor: { title: 'رنگ خون پریود', single: true, items: { 'صورتی': '🌸', 'قرمز روشن': '🩸', 'قرمز تیره': '🍷', 'قهوه‌ای': '🍫' } },
-                    flow: { title: 'شدت خونریزی', single: true, items: { 'کم': '🩸', 'متوسط': '🩸🩸', 'شدید': '🩸🩸🩸' } },
+                    flow: { title: 'شدت خونریزی', single: true, items: { 'کم': '🩸', 'متوسط': '🩸🩸', 'شدید': '�🩸🩸' } },
                     hair: { title: 'مو', single: false, items: { 'موهای سالم': '💇‍♀️', 'موهای شکننده': '🍂', 'موی خشک': '🌵', 'ریزش مو': '👴', 'موی چرب': '✨', 'موخوره': '✂️' } },
                     nails: { title: 'ناخن', single: false, items: { 'ناخن سالم': '💅', 'ناخن شکننده': '💅', 'تغییر فرم ناخن': '⚠️', 'لکه‌های سفید ناخن': '⚪' } },
                     skin: { title: 'پوست', single: false, items: { 'پوست سالم': '😊', 'پوست خشک': '🌵', 'پوست چرب': '✨', 'آکنه پوست': '✨', 'پوست لکه‌دار': '🐞' } },
@@ -219,7 +214,7 @@
                             <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: #dcfce7; border: 2px dashed #3bb265;"></span><span>تخمک‌گذاری</span></div>
                         </div>
                     </div>`; },
-                    settings() { return `<div class="page-enter space-y-6"><div><label class="block text-gray-600 mb-2">طول سیکل پریود (دستی)</label><select id="settings-cycle-length" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div><div><label class="block text-gray-600 mb-2">طول دوره پریود (دستی)</label><select id="settings-period-length" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div><div><label class="block text-gray-600 mb-2">تاریخ آخرین پریود</label><input type="text" id="settings-date-input" readonly class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg cursor-pointer" onclick="window.app.openDatePicker('settings-date-input')"></div><div><label class="block text-gray-600 mb-2">سال تولد</label><select id="settings-birth-year" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div><button onclick="window.app.saveSettings()" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg mt-8">ذخیره تغییرات</button></div>`; },
+                    settings() { return `<div class="page-enter space-y-6"><div><label class="block text-gray-600 mb-2">طول سیکل پریود (دستی)</label><select id="settings-cycle-length" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div><div><label class="block text-gray-600 mb-2">طول دوره پریود (دستی)</label><select id="settings-period-length" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div><div><label class="block text-gray-600 mb-2">سال تولد</label><select id="settings-birth-year" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div><button onclick="window.app.saveSettings()" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg mt-8">ذخیره تغییرات</button></div>`; },
                     analysis() { return `<div class="page-enter space-y-6">
                         <div class="flex justify-center border-b">
                             <button data-months="1" class="analysis-tab time-tab active-tab px-4 py-2 font-semibold">۱ ماه</button>
@@ -238,8 +233,7 @@
                     </div>`;}
                 };
                 
-                // --- NEW: UNIFIED PHASE LOGIC ---
-                // This function calculates the phase for any given date based on user's cycle data.
+                // --- UNIFIED PHASE LOGIC (for prediction) ---
                 const getPhaseInfoForDate = (date, user) => {
                     const cycleLength = user.avg_cycle_length ? Math.round(user.avg_cycle_length) : parseInt(user.cycle_length);
                     const periodLength = user.avg_period_length ? Math.round(user.avg_period_length) : parseInt(user.period_length);
@@ -278,15 +272,59 @@
                     return { class: 'normal-day' };
                 };
 
+                // --- NEW: Logic for calculating past phases based on history ---
+                const getPhaseInfoForPastDate = (date, history) => {
+                    const sortedHistory = [...history].sort((a,b) => new Date(a.start_date) - new Date(b.start_date));
+
+                    let cycleStartDate, cycleLength, periodLength;
+
+                    for (let i = 0; i < sortedHistory.length; i++) {
+                        const currentPeriodStart = moment(sortedHistory[i].start_date);
+                        const nextPeriodStart = i + 1 < sortedHistory.length ? moment(sortedHistory[i+1].start_date) : null;
+
+                        if (date.isSameOrAfter(currentPeriodStart) && (!nextPeriodStart || date.isBefore(nextPeriodStart))) {
+                            cycleStartDate = currentPeriodStart;
+                            periodLength = sortedHistory[i].duration;
+                            cycleLength = nextPeriodStart ? nextPeriodStart.diff(currentPeriodStart, 'days') : (userData.user.avg_cycle_length || userData.user.cycle_length);
+                            break;
+                        }
+                    }
+
+                    if (!cycleStartDate) {
+                        return { class: 'normal-day' };
+                    }
+
+                    const dayOfCycle = date.diff(cycleStartDate, 'days') + 1;
+
+                    const periodEndDay = periodLength;
+                    const ovulationDay = cycleLength - 14;
+                    const fertileStartDay = Math.max(1, ovulationDay - 5);
+                    const fertileEndDay = ovulationDay + 2;
+                    const pmsStartDay = cycleLength - 4;
+                    
+                    if (dayOfCycle >= 1 && dayOfCycle <= periodEndDay) {
+                        return { class: 'period-day' };
+                    }
+                    if (dayOfCycle >= fertileStartDay && dayOfCycle <= fertileEndDay) {
+                        if (dayOfCycle === ovulationDay) return { class: 'ovulation-day' };
+                        return { class: 'fertile-day' };
+                    }
+                    if (dayOfCycle >= pmsStartDay && dayOfCycle <= cycleLength) {
+                        return { class: 'pms-day' };
+                    }
+                    
+                    return { class: 'normal-day' };
+                };
+
 
                 // --- RENDER FUNCTIONS ---
-                const render = (template, ...args) => { appContent.innerHTML = template(...args); };
+                const render = (html) => { appContent.innerHTML = html; };
+
                 const renderDashboard = () => {
                     if (!userData.user) { return; }
-                    render(templates.home);
+                    render(templates.home());
                     const today = moment();
                     
-                    // Use calculated averages if available, otherwise fallback to user settings
                     const cycleLength = userData.user.avg_cycle_length ? Math.round(userData.user.avg_cycle_length) : parseInt(userData.user.cycle_length);
                     const periodLength = userData.user.avg_period_length ? Math.round(userData.user.avg_period_length) : parseInt(userData.user.period_length);
                     const lastPeriod = moment(userData.user.last_period_date, 'YYYY-MM-DD');
@@ -332,13 +370,13 @@
                     if (!svg) return;
                     svg.innerHTML = ''; 
 
-                    const center = 100, radius = 75;
+                    const center = 100, radius = 75, strokeWidth = 15;
                     const degreesPerDay = 360 / cycleLength;
                     const ovulationDay = cycleLength - 14;
                     const phases = {
-                        period: { start: 1, end: periodLength, class: 'cycle-chart-period' },
-                        fertile: { start: Math.max(1, ovulationDay - 5), end: ovulationDay + 2, class: 'cycle-chart-fertile' },
-                        pms: { start: cycleLength - 4, end: cycleLength, class: 'cycle-chart-pms' }
+                        period: { start: 1, end: periodLength, class: 'cycle-chart-period', label: 'پریود', labelClass: 'label-period' },
+                        fertile: { start: Math.max(1, ovulationDay - 5), end: ovulationDay + 2, class: 'cycle-chart-fertile', label: 'باروری', labelClass: 'label-fertile' },
+                        pms: { start: cycleLength - 4, end: cycleLength, class: 'cycle-chart-pms', label: 'PMS', labelClass: 'label-pms' }
                     };
                     
                     const polarToCartesian = (centerX, centerY, r, angleInDegrees) => {
@@ -365,16 +403,32 @@
                         arcPath.setAttribute('d', describeArc(center, center, radius, startAngle, endAngle));
                         arcPath.setAttribute('class', `cycle-chart-path ${phase.class}`);
                         svg.appendChild(arcPath);
+
+                        const textRadius = radius + (strokeWidth / 2) + 8;
+                        const midAngle = startAngle + (endAngle - startAngle) / 2;
+                        const pos = polarToCartesian(center, center, textRadius, midAngle);
+                        
+                        let rotation = midAngle;
+                        if (midAngle > 90 && midAngle < 270) {
+                            rotation += 180;
+                        }
+
+                        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                        text.setAttribute('x', pos.x);
+                        text.setAttribute('y', pos.y);
+                        text.setAttribute('transform', `rotate(${rotation}, ${pos.x}, ${pos.y})`);
+                        text.setAttribute('class', `cycle-chart-label ${phase.labelClass}`);
+                        text.textContent = phase.label;
+                        svg.appendChild(text);
                     });
 
-                    // --- ADDED: Add small white dots for each day ---
                     for (let i = 1; i <= cycleLength; i++) {
                         const angle = (i - 0.5) * degreesPerDay;
                         const pos = polarToCartesian(center, center, radius, angle);
                         const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                         dot.setAttribute('cx', pos.x);
                         dot.setAttribute('cy', pos.y);
-                        dot.setAttribute('r', 1.2); // Small radius
+                        dot.setAttribute('r', 1.2);
                         dot.setAttribute('fill', 'white');
                         svg.appendChild(dot);
                     }
@@ -411,14 +465,40 @@
                     calendarGrid.innerHTML = '';
                     const monthStart = calendarDate.clone().startOf('jMonth');
                     const monthEnd = calendarDate.clone().endOf('jMonth');
+                    
+                    const recordedPeriodDays = new Set();
+                    if (userData.period_history) {
+                        userData.period_history.forEach(record => {
+                            const start = moment(record.start_date, 'YYYY-MM-DD');
+                            for (let i = 0; i < record.duration; i++) {
+                                recordedPeriodDays.add(start.clone().add(i, 'days').format('YYYY-MM-DD'));
+                            }
+                        });
+                    }
 
+                    const isPastMonth = monthEnd.isBefore(moment(), 'startOf', 'month');
+                    const hasRecordInMonth = userData.period_history && userData.period_history.some(record => {
+                        const recordStart = moment(record.start_date, 'YYYY-MM-DD');
+                        const recordEnd = recordStart.clone().add(record.duration - 1, 'days');
+                        return recordStart.isSameOrBefore(monthEnd) && recordEnd.isSameOrAfter(monthStart);
+                    });
+                    
                     for (let i = 0; i < monthStart.jDay(); i++) { calendarGrid.innerHTML += '<div></div>'; }
                     
                     for (let day = monthStart.clone(); day.isSameOrBefore(monthEnd); day.add(1, 'days')) {
                         const dayKey = day.format('YYYY-MM-DD');
                         const canLog = day.isSameOrBefore(moment(), 'day');
                         
-                        const phaseInfo = getPhaseInfoForDate(day, userData.user);
+                        let phaseInfo = { class: 'normal-day' };
+                        
+                        if (recordedPeriodDays.has(dayKey)) {
+                            phaseInfo = { class: 'period-day' };
+                        } else if (isPastMonth && hasRecordInMonth) {
+                            phaseInfo = getPhaseInfoForPastDate(day, userData.period_history);
+                        } else if (!isPastMonth) {
+                            phaseInfo = getPhaseInfoForDate(day, userData.user);
+                        }
+
                         let classes = `calendar-day ${phaseInfo.class} `;
                         
                         if (day.isSame(moment(), 'day')) classes += ' today';
@@ -432,10 +512,23 @@
                     }
                 };
                 
-                const renderSettings = () => { render(templates.settings); const populateSelect=(id,s,e,u='')=>{const el=document.getElementById(id);el.innerHTML='';for(let i=s;i>=e;i--)el.innerHTML+=`<option value="${i}">${toPersian(i)}${u}</option>`;}; const y=parseInt(new Intl.DateTimeFormat('fa-IR-u-nu-latn',{year:'numeric'}).format(new Date())); populateSelect('settings-cycle-length',60,21,' روز'); populateSelect('settings-period-length',12,3,' روز'); populateSelect('settings-birth-year',1396,1350); const s=id=>document.getElementById('settings-'+id); const dateInput = document.getElementById('settings-date-input'); const lastPeriodDate = moment(userData.user.last_period_date, 'YYYY-MM-DD'); dateInput.value = toPersian(lastPeriodDate.format('jYYYY/jM/jD')); dateInput.dataset.value = lastPeriodDate.format('YYYY-MM-DD'); s('cycle-length').value=userData.user.cycle_length; s('period-length').value=userData.user.period_length; s('birth-year').value=userData.user.birth_year; settingsBtn.classList.add('hidden'); analysisBtn.classList.add('hidden'); backBtn.classList.remove('hidden'); };
+                const renderSettings = () => {
+                    render(templates.settings());
+                    const populateSelect=(id,s,e,u='')=>{const el=document.getElementById(id);el.innerHTML='';for(let i=s;i>=e;i--)el.innerHTML+=`<option value="${i}">${toPersian(i)}${u}</option>`;};
+                    populateSelect('settings-cycle-length',60,21,' روز');
+                    populateSelect('settings-period-length',12,3,' روز');
+                    populateSelect('settings-birth-year',1396,1350);
+                    const s=id=>document.getElementById('settings-'+id);
+                    s('cycle-length').value=userData.user.cycle_length;
+                    s('period-length').value=userData.user.period_length;
+                    s('birth-year').value=userData.user.birth_year;
+                    settingsBtn.classList.add('hidden');
+                    analysisBtn.classList.add('hidden');
+                    backBtn.classList.remove('hidden');
+                };
                 
                 const renderAnalysis = () => {
-                    render(templates.analysis);
+                    render(templates.analysis());
                     let currentFilter = { months: 1, phase: 'all' };
                     
                     const createBarChart = (canvasId, data, label) => {
@@ -466,13 +559,44 @@
 
                     const updateAnalysisCharts = (months, phase) => {
                         const startDate = moment().subtract(months, 'months');
-                        const lastPeriod = moment(userData.user.last_period_date, 'YYYY-MM-DD');
                         
+                        const recordedPeriodDays = new Set();
+                        const periodHistorySorted = [...(userData.period_history || [])].sort((a,b) => new Date(a.start_date) - new Date(b.start_date));
+                        
+                        periodHistorySorted.forEach(record => {
+                            const start = moment(record.start_date, 'YYYY-MM-DD');
+                            for (let i = 0; i < record.duration; i++) {
+                                recordedPeriodDays.add(start.clone().add(i, 'days').format('YYYY-MM-DD'));
+                            }
+                        });
+
                         const getLogPhase = (logDate) => {
-                             const phaseInfo = getPhaseInfoForDate(logDate, userData.user);
-                             if (phaseInfo.class === 'period-day') return 'period';
-                             if (phaseInfo.class === 'pms-day') return 'pms';
-                             return 'other';
+                            const dateStr = logDate.format('YYYY-MM-DD');
+                            if (recordedPeriodDays.has(dateStr)) {
+                                return 'period';
+                            }
+                            
+                            let relevantCycleStart, cycleLength;
+                            for (let i = 0; i < periodHistorySorted.length; i++) {
+                                const currentPeriodStart = moment(periodHistorySorted[i].start_date);
+                                const nextPeriodStart = i + 1 < periodHistorySorted.length ? moment(periodHistorySorted[i+1].start_date) : null;
+                                
+                                if (logDate.isSameOrAfter(currentPeriodStart) && (!nextPeriodStart || logDate.isBefore(nextPeriodStart))) {
+                                    relevantCycleStart = currentPeriodStart;
+                                    cycleLength = nextPeriodStart ? nextPeriodStart.diff(currentPeriodStart, 'days') : (userData.user.avg_cycle_length || userData.user.cycle_length);
+                                    break;
+                                }
+                            }
+                            
+                            if (relevantCycleStart) {
+                                const pmsStartDay = cycleLength - 4;
+                                const dayOfCycle = logDate.diff(relevantCycleStart, 'days') + 1;
+                                if (dayOfCycle >= pmsStartDay && dayOfCycle <= cycleLength) {
+                                    return 'pms';
+                                }
+                            }
+                            
+                            return 'other';
                         };
 
                         const processLogs = (categories) => {
@@ -589,7 +713,7 @@
                             }
 
                         } else {
-                            render(templates.onboardingStep, step);
+                            render(templates.onboardingStep(step));
                             if (step === 1 || step === 2 || step === 4) {
                                 const populateSelectsForStep = (elId, start, end, unit = '') => { const el = document.getElementById(elId); el.innerHTML = ''; for (let i = start; i >= end; i--) el.innerHTML += `<option value="${i}">${toPersian(i)}${unit}</option>`; };
                                 const config = { 1: ['cycle-length', 60, 21, ' روز'], 2: ['period-length', 12, 3, ' روز'], 4: ['birth-year', 1396, 1350] };
@@ -604,11 +728,9 @@
                     },
                     
                     async saveSettings() {
-                        const dateInput = document.getElementById('settings-date-input');
                         const settingsData = {
                             cycle_length: document.getElementById('settings-cycle-length').value,
                             period_length: document.getElementById('settings-period-length').value,
-                            last_period_date: dateInput.dataset.value,
                             birth_year: document.getElementById('settings-birth-year').value,
                         };
                         try {
@@ -919,6 +1041,7 @@
                             if (!response.ok) throw new Error(data.error || 'خطا در ثبت اطلاعات');
                             
                             userData.user = data.user;
+                            await this.init(true);
                             
                             showToast(data.message);
                             editPeriodModal.classList.remove('visible');
@@ -934,32 +1057,34 @@
                         this.openLogModal(todayStr);
                     },
 
-                    async init() {
+                    async init(refreshOnly = false) {
                         moment.locale('fa');
                         try {
                             const response = await fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}`);
                             if (response.status === 404) {
-                                this.nextStep(1);
+                                if (!refreshOnly) this.nextStep(1);
                             } else if (response.ok) {
                                 const data = await response.json();
                                 userData = data;
-                                renderDashboard();
+                                if (!refreshOnly) renderDashboard();
                             } else {
                                 const err = await response.json();
                                 throw new Error(err.error || 'خطا در دریافت اطلاعات کاربر');
                             }
                         } catch (error) {
                             console.error('Initialization failed:', error);
-                            appContent.innerHTML = `<div class="text-center text-red-500 p-8">ارتباط با سرور برقرار نشد. لطفاً از روشن بودن سرور اطمینان حاصل کرده و صفحه را رفرش کنید.</div>`;
+                            if (!refreshOnly) {
+                                appContent.innerHTML = `<div class="text-center text-red-500 p-8">ارتباط با سرور برقرار نشد. لطفاً از روشن بودن سرور اطمینان حاصل کرده و صفحه را رفرش کنید.</div>`;
+                            }
                             showToast(error.message, true);
                         }
                     }
                 };
                 
-                // Event Listeners
                 settingsBtn.addEventListener('click', () => app.goToSettings());
                 analysisBtn.addEventListener('click', () => renderAnalysis());
                 backBtn.addEventListener('click', () => renderDashboard());
+                
                 logModal.addEventListener('click', (e) => {
                     if (e.target.id === 'save-log-btn') window.app.saveLog();
                     if (e.target.id === 'delete-log-btn') window.app.deleteLog();
