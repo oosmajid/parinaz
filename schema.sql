@@ -21,6 +21,9 @@ CREATE TABLE users (
     -- تنظیمات اعلان‌ها
     reminder_logs BOOLEAN NOT NULL DEFAULT TRUE,
     reminder_cycle BOOLEAN NOT NULL DEFAULT TRUE,
+    
+    -- تنظیمات اعلان همراه (کلیدی)
+    companion_notify_daily_symptoms BOOLEAN NOT NULL DEFAULT FALSE,
 
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW() -- تاریخ و زمان ایجاد حساب کاربری
 );
@@ -33,6 +36,17 @@ CREATE TABLE period_history (
     duration INT NOT NULL,                      -- مدت زمان این پریود خاص (به روز)
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (user_id, start_date)                -- هر کاربر نمی‌تواند دو پریود با تاریخ شروع یکسان داشته باشد
+);
+
+-- جدول همراهان
+CREATE TABLE companions (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    companion_telegram_id BIGINT NOT NULL,
+    name TEXT, -- Optional, for display purposes
+    notify_daily_symptoms BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (user_id, companion_telegram_id) -- A user can't add the same companion twice
 );
 
 

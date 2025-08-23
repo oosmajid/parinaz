@@ -160,7 +160,11 @@ app.get('/api/user/:telegram_id', async (req, res) => {
         const historyResult = await pool.query(historyQuery, [user.id]);
         const period_history = historyResult.rows;
 
-        res.status(200).json({ user, logs, period_history });
+        const companionsQuery = 'SELECT * FROM companions WHERE user_id = $1';
+        const companionsResult = await pool.query(companionsQuery, [user.id]);
+        const companions = companionsResult.rows;
+
+        res.status(200).json({ user, logs, period_history, companions });
     } catch (error) {
         console.error('خطا در دریافت اطلاعات کاربر:', error);
         res.status(500).json({ error: 'خطای داخلی سرور' });
@@ -217,7 +221,7 @@ app.delete('/api/logs', async (req, res) => {
 app.put('/api/user/:telegram_id', async (req, res) => {
     try {
         const { telegram_id } = req.params;
-        const { cycle_length, period_length, birth_year, reminder_logs, reminder_cycle } = req.body;
+        const { cycle_length, period_length, birth_year, reminder_logs, reminder_cycle, companion_notify_daily_symptoms } = req.body;
 
         const query = `
             UPDATE users
@@ -226,11 +230,12 @@ app.put('/api/user/:telegram_id', async (req, res) => {
                 period_length = $2, 
                 birth_year = $3,
                 reminder_logs = $4,
-                reminder_cycle = $5
-            WHERE telegram_id = $6
+                reminder_cycle = $5,
+                companion_notify_daily_symptoms = $6
+            WHERE telegram_id = $7
             RETURNING *;
         `;
-        const values = [cycle_length, period_length, birth_year, reminder_logs, reminder_cycle, telegram_id];
+        const values = [cycle_length, period_length, birth_year, reminder_logs, reminder_cycle, companion_notify_daily_symptoms, telegram_id];
         
         const result = await pool.query(query, values);
 
@@ -355,6 +360,61 @@ app.delete('/api/user/:telegram_id', async (req, res) => {
         res.status(200).json({ message: 'حساب کاربری و تمام اطلاعات شما با موفقیت حذف شد.' });
     } catch (error) {
         console.error('خطا در حذف حساب کاربری:', error);
+        res.status(500).json({ error: 'خطای داخلی سرور' });
+    }
+});
+
+// --- NEW --- مسیر افزودن همراه جدید
+app.post('/api/user/:telegram_id/companions', async (req, res) => {
+    try {
+        const { telegram_id } = req.params;
+        const { companion_telegram_id } = req.body;
+
+        if (!companion_telegram_id) {
+            return res.status(400).json({ error: 'شناسه تلگرام همراه ضروری است.' });
+        }
+
+        const userRes = await pool.query('SELECT id FROM users WHERE telegram_id = $1', [telegram_id]);
+        if (userRes.rows.length === 0) {
+            return res.status(404).json({ error: 'کاربر یافت نشد.' });
+        }
+        const userId = userRes.rows[0].id;
+
+        const query = `
+            INSERT INTO companions (user_id, companion_telegram_id)
+            VALUES ($1, $2)
+            ON CONFLICT (user_id, companion_telegram_id) DO NOTHING
+            RETURNING *;
+        `;
+        const result = await pool.query(query, [userId, companion_telegram_id]);
+        
+        if (result.rows.length === 0) {
+            return res.status(200).json({ message: 'این همراه از قبل ثبت شده است.' });
+        }
+
+        res.status(201).json({ message: 'همراه جدید با موفقیت ثبت شد.', companion: result.rows[0] });
+    } catch (error) {
+        console.error('خطا در افزودن همراه:', error);
+        res.status(500).json({ error: 'خطای داخلی سرور' });
+    }
+});
+
+// --- NEW --- مسیر حذف همه همراهان
+app.delete('/api/user/:telegram_id/companions', async (req, res) => {
+    try {
+        const { telegram_id } = req.params;
+        
+        const userRes = await pool.query('SELECT id FROM users WHERE telegram_id = $1', [telegram_id]);
+        if (userRes.rows.length === 0) {
+            return res.status(404).json({ error: 'کاربر یافت نشد.' });
+        }
+        const userId = userRes.rows[0].id;
+
+        await pool.query('DELETE FROM companions WHERE user_id = $1', [userId]);
+
+        res.status(200).json({ message: 'تمام همراهان با موفقیت حذف شدند.' });
+    } catch (error) {
+        console.error('خطا در حذف همراهان:', error);
         res.status(500).json({ error: 'خطای داخلی سرور' });
     }
 });

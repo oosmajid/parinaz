@@ -91,6 +91,25 @@ const templates = {
                         </label>
                     </div>
 
+                    <div class="space-y-4 border-t pt-6 mt-6">
+                        <h3 class="text-lg font-semibold text-gray-700 mb-3">تنظیمات همراه</h3>
+                        <div class="flex gap-3">
+                           <button onclick="window.app.addCompanion()" class="w-full bg-blue-500 text-white font-bold py-2.5 rounded-lg text-sm">+ ثبت همراه جدید</button>
+                           <button onclick="window.app.deleteAllCompanions()" class="w-full bg-red-100 text-red-700 font-bold py-2.5 rounded-lg text-sm">حذف همه</button>
+                        </div>
+                        <div class="space-y-3 pt-2">
+                            <p class="text-sm text-gray-500">بخش اعلانات همراه:</p>
+                            <label class="flex items-center justify-between cursor-not-allowed opacity-70">
+                                <span class="text-gray-600">اعلان چرخه قاعدگی</span>
+                                <input type="checkbox" id="settings-companion-cycle" class="h-5 w-5 rounded border-gray-300 text-pink-500 focus:ring-pink-400" checked disabled>
+                            </label>
+                            <label class="flex items-center justify-between cursor-pointer">
+                                <span class="text-gray-600">اعلان علائم روزانه</span>
+                                <input type="checkbox" id="settings-companion-symptoms" class="h-5 w-5 rounded border-gray-300 text-pink-500 focus:ring-pink-400">
+                            </label>
+                        </div>
+                    </div>
+
                     <button onclick="window.app.saveSettings()" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg mt-8">ذخیره تغییرات</button>
 
                     <div class="border-t pt-6 mt-6">
@@ -525,6 +544,7 @@ const renderSettings = (userData) => {
     s('birth-year').value=userData.user.birth_year;
     s('reminder-logs').checked = userData.user.reminder_logs;
     s('reminder-cycle').checked = userData.user.reminder_cycle;
+    s('companion-symptoms').checked = userData.user.companion_notify_daily_symptoms;
     document.getElementById('settings-btn').classList.add('hidden');
     document.getElementById('analysis-btn').classList.add('hidden');
     document.getElementById('back-btn').classList.remove('hidden');

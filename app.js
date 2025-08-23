@@ -3,7 +3,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     try {
         // --- STATE & DOM ELEMENTS ---
-        let userData = { user: null, logs: {}, period_history: [] };
+        let userData = { user: null, logs: {}, period_history: [], companions: [] };
         let calendarDate = moment();
         let selectedLogDate = null;
         let datepickerState = { visible: false, targetInputId: null, currentDate: moment() };
@@ -149,6 +149,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     birth_year: document.getElementById('settings-birth-year').value,
                     reminder_logs: document.getElementById('settings-reminder-logs').checked,
                     reminder_cycle: document.getElementById('settings-reminder-cycle').checked,
+                    companion_notify_daily_symptoms: document.getElementById('settings-companion-symptoms').checked,
                 };
                 try {
                     const response = await fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}`, {
@@ -324,6 +325,49 @@ document.addEventListener('DOMContentLoaded', function() {
                             }, 1500); // Wait for toast to show
                         } catch (error) {
                             console.error('Failed to delete account:', error);
+                            showToast(error.message, true);
+                        }
+                    }
+                );
+            },
+            
+            async addCompanion() {
+                const companionId = prompt("لطفاً شناسه عددی تلگرام همراه خود را وارد کنید:");
+                if (companionId && !isNaN(companionId)) {
+                    try {
+                        const response = await fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}/companions`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ companion_telegram_id: companionId })
+                        });
+                        const data = await response.json();
+                         if (!response.ok) throw new Error(data.error || 'خطا در افزودن همراه');
+                        showToast(data.message);
+                        await this.init(true); // Refresh user data
+                        this.goToSettings(); // Re-render settings page
+                    } catch(error) {
+                        showToast(error.message, true);
+                    }
+                } else if (companionId) {
+                    showToast("شناسه وارد شده معتبر نیست.", true);
+                }
+            },
+
+            deleteAllCompanions() {
+                showConfirmationModal(
+                    'حذف همه همراهان',
+                    'آیا از حذف تمام همراهان خود مطمئن هستید؟',
+                    async () => {
+                        try {
+                            const response = await fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}/companions`, {
+                                method: 'DELETE'
+                            });
+                            const data = await response.json();
+                            if (!response.ok) throw new Error(data.error || 'خطا در حذف همراهان');
+                            showToast(data.message);
+                            await this.init(true);
+                            this.goToSettings();
+                        } catch (error) {
                             showToast(error.message, true);
                         }
                     }
