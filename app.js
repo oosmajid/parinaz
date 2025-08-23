@@ -374,6 +374,32 @@ document.addEventListener('DOMContentLoaded', function() {
                 );
             },
 
+            toggleCompanionInfo(event) {
+                event.stopPropagation();
+                const popover = document.getElementById('companion-info-popover');
+                const icon = event.currentTarget;
+            
+                const closePopover = () => {
+                    popover.classList.remove('visible');
+                    document.body.removeEventListener('click', closePopover);
+                };
+            
+                if (popover.classList.contains('visible')) {
+                    closePopover();
+                } else {
+                    // Position based on the icon's offset relative to its positioned parent
+                    popover.style.top = `${icon.offsetTop + icon.offsetHeight + 8}px`; // 8px margin below the icon
+                    popover.style.left = `${icon.offsetLeft + (icon.offsetWidth / 2) - (popover.offsetWidth / 2)}px`; // Center align with the icon
+                    
+                    popover.classList.add('visible');
+            
+                    // Add a one-time listener to the body to close the popover on the next click
+                    setTimeout(() => { // Use timeout to prevent the listener from firing on the same click that opened it
+                        document.body.addEventListener('click', closePopover, { once: true });
+                    }, 0);
+                }
+            },
+
             // --- UI Interaction Methods ---
             goToSettings() { renderSettings(userData); },
             goToAnalysis() { renderAnalysis(userData, charts); },

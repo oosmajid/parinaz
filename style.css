@@ -212,6 +212,29 @@ body {
     border: 2px solid #ec4899; /* pink-500 */
 }
 
+/* --- NEW: Info Popover Styles --- */
+.info-popover {
+    position: absolute;
+    background-color: #374151; /* gray-700 */
+    color: white;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem; /* rounded-lg */
+    font-size: 0.75rem; /* text-xs */
+    width: 12rem; /* w-48 */
+    z-index: 10;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(4px);
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+.info-popover.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
 /* Cycle Chart SVG Styles */
 .cycle-chart-path { 
     fill: none; 

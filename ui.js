@@ -74,6 +74,9 @@ const templates = {
                         <label class="block text-gray-600 mb-2">طول دوره پریود</label>
                         <select id="settings-period-length" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select>
                     </div>
+                    <div class="p-3 bg-pink-100 text-xs text-pink-800 rounded-lg mt-2">
+                        پریناز اولش بر اساس اطلاعاتی که وارد کردی، زمان پریودت رو حدس می‌زنه. اما به مرور که پریودهات رو منظم ثبت کنی، عملکرد چرخه پریودت رو یاد می‌گیره و ممکنه پیش‌بینی‌هاش با مقادیری که اینجا وارد می‌کنی، متفاوت باشه.
+                    </div>
                     <div>
                         <label class="block text-gray-600 mb-2">سال تولد</label>
                         <select id="settings-birth-year" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select>
@@ -92,19 +95,27 @@ const templates = {
                     </div>
 
                     <div class="space-y-4 border-t pt-6 mt-6">
-                        <h3 class="text-lg font-semibold text-gray-700 mb-3">تنظیمات همراه</h3>
+                        <div class="flex items-center gap-2 mb-3 relative">
+                            <h3 class="text-lg font-semibold text-gray-700">تنظیمات همراه</h3>
+                            <button id="info-icon-btn" onclick="window.app.toggleCompanionInfo(event)" class="text-gray-400 hover:text-gray-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" /></svg>
+                            </button>
+                            <div id="companion-info-popover" class="info-popover">
+                                می‌تونی پارتنر یا خانواده یا دوستت رو به پریناز دعوت کنی تا از تغییرات چرخه پریودت باخبر بشه.
+                            </div>
+                        </div>
                         <div class="flex gap-3">
                            <button onclick="window.app.addCompanion()" class="w-full bg-blue-500 text-white font-bold py-2.5 rounded-lg text-sm">+ ثبت همراه جدید</button>
                            <button onclick="window.app.deleteAllCompanions()" class="w-full bg-red-100 text-red-700 font-bold py-2.5 rounded-lg text-sm">حذف همه</button>
                         </div>
                         <div class="space-y-3 pt-2">
-                            <p class="text-sm text-gray-500">بخش اعلانات همراه:</p>
+                            <p class="text-sm text-gray-500">به همراه چه اعلان‌هایی را بفرستیم:</p>
                             <label class="flex items-center justify-between cursor-not-allowed opacity-70">
                                 <span class="text-gray-600">اعلان چرخه قاعدگی</span>
                                 <input type="checkbox" id="settings-companion-cycle" class="h-5 w-5 rounded border-gray-300 text-pink-500 focus:ring-pink-400" checked disabled>
                             </label>
                             <label class="flex items-center justify-between cursor-pointer">
-                                <span class="text-gray-600">اعلان علائم روزانه</span>
+                                <span class="text-gray-600">اعلان حس‌وحال و علائم روزانه</span>
                                 <input type="checkbox" id="settings-companion-symptoms" class="h-5 w-5 rounded border-gray-300 text-pink-500 focus:ring-pink-400">
                             </label>
                         </div>
