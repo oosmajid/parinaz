@@ -377,7 +377,17 @@ document.addEventListener('DOMContentLoaded', function() {
             toggleCompanionInfo(event) {
                 event.stopPropagation();
                 const popover = document.getElementById('companion-info-popover');
-                const icon = event.currentTarget;
+                this._togglePopover(event, popover);
+            },
+            
+            toggleSymptomsInfo(event) {
+                event.stopPropagation();
+                const popover = document.getElementById('symptoms-info-popover');
+                this._togglePopover(event, popover);
+            },
+
+            _togglePopover(event, popover) {
+                 const icon = event.currentTarget;
             
                 const closePopover = () => {
                     popover.classList.remove('visible');
@@ -387,14 +397,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (popover.classList.contains('visible')) {
                     closePopover();
                 } else {
-                    // Position based on the icon's offset relative to its positioned parent
-                    popover.style.top = `${icon.offsetTop + icon.offsetHeight + 8}px`; // 8px margin below the icon
-                    popover.style.left = `${icon.offsetLeft + (icon.offsetWidth / 2) - (popover.offsetWidth / 2)}px`; // Center align with the icon
+                    popover.style.top = `${icon.offsetTop + icon.offsetHeight + 8}px`; 
+                    popover.style.left = `${icon.offsetLeft + (icon.offsetWidth / 2) - (popover.offsetWidth / 2)}px`;
                     
                     popover.classList.add('visible');
             
-                    // Add a one-time listener to the body to close the popover on the next click
-                    setTimeout(() => { // Use timeout to prevent the listener from firing on the same click that opened it
+                    setTimeout(() => {
                         document.body.addEventListener('click', closePopover, { once: true });
                     }, 0);
                 }
@@ -431,12 +439,17 @@ document.addEventListener('DOMContentLoaded', function() {
              */
             openLogModal(dateKey) {
                 selectedLogDate = dateKey;
-                const hasLog = userData.logs[selectedLogDate] && Object.keys(userData.logs[selectedLogDate]).length > 0;
-                
-                let modalBodyHTML = `<div class="flex justify-between items-center mb-4"><button id="delete-log-btn" class="text-red-500 hover:text-red-700 text-sm font-semibold ${hasLog ? '' : 'invisible'}">حذف علائم</button><h3 class="text-xl font-bold text-center">ثبت علائم</h3><div class="w-16"></div></div><p class="text-center text-gray-500 mb-4 -mt-4">${toPersian(moment(dateKey, 'YYYY-MM-DD').format('dddd jD jMMMM'))}</p><div class="space-y-4">`;
                 const currentLog = userData.logs[selectedLogDate] || {};
+                const shouldNotifyCompanion = userData.user.companion_notify_daily_symptoms && userData.companions && userData.companions.length > 0;
+
+                let modalBodyHTML = `<div class="flex justify-between items-center mb-4"><button id="delete-log-btn" class="text-red-500 hover:text-red-700 text-sm font-semibold ${Object.keys(currentLog).length > 0 ? '' : 'invisible'}">حذف علائم</button><h3 class="text-xl font-bold text-center">ثبت علائم</h3><div class="w-16"></div></div><p class="text-center text-gray-500 mb-4 -mt-4">${toPersian(moment(dateKey, 'YYYY-MM-DD').format('dddd jD jMMMM'))}</p><div class="space-y-4">`;
 
                 for (const categoryKey in LOG_CONFIG) {
+                    if (categoryKey === 'moods' && shouldNotifyCompanion) {
+                        modalBodyHTML += `<div class="p-3 pt-4 bg-pink-50 rounded-lg border border-pink-200 space-y-4 relative">
+                                            <span class="absolute top-2 left-3 text-xs text-pink-600 font-semibold">اطلاع‌رسانی به همراه</span>`;
+                    }
+
                     const category = LOG_CONFIG[categoryKey];
                     modalBodyHTML += `<div><h4 class="font-semibold mb-2 text-gray-600">${category.title}</h4>`;
                     if (categoryKey === 'metrics') {
@@ -465,6 +478,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         modalBodyHTML += `</div>`;
                     }
                     modalBodyHTML += `</div>`;
+
+                    if (categoryKey === 'symptoms' && shouldNotifyCompanion) {
+                        modalBodyHTML += `</div>`; // Close the highlight box
+                    }
                 }
                 modalBodyHTML += `<div><div class="flex justify-between items-center mb-2"><h4 class="font-semibold text-gray-600">توضیحات دیگر</h4><span id="notes-char-count" class="text-xs text-gray-400"></span></div><textarea id="log-notes" class="w-full p-2 border rounded-lg bg-gray-50" rows="3" maxlength="500" oninput="document.getElementById('notes-char-count').textContent = toPersian(this.value.length) + ' / ' + toPersian(500)">${currentLog.notes || ''}</textarea></div></div>`;
                 const modalFooterHTML = `<div class="flex gap-4"><button id="save-log-btn" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg">ذخیره</button><button id="close-log-btn" class="w-full bg-gray-200 text-gray-700 font-bold py-3 rounded-lg">انصراف</button></div>`;
