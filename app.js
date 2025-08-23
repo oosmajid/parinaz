@@ -311,6 +311,23 @@ document.addEventListener('DOMContentLoaded', function() {
             renderCalendar(date) { calendarDate = date; renderCalendar(calendarDate, userData); },
             logToday() { const todayStr = moment().format('YYYY-MM-DD'); this.openLogModal(todayStr); },
 
+            goToToday() {
+                calendarDate = moment();
+                this.renderCalendar(calendarDate);
+
+                // Add heartbeat animation to today's element in the calendar
+                setTimeout(() => {
+                    const todayEl = document.querySelector('#calendar-grid .today');
+                    if (todayEl) {
+                        todayEl.classList.add('animate-heartbeat');
+                        // Remove the class after the animation finishes to allow re-triggering
+                        setTimeout(() => {
+                            todayEl.classList.remove('animate-heartbeat');
+                        }, 2000); // Animation duration is 2s
+                    }
+                }, 50); // A small delay to ensure the DOM is updated
+            },
+
             /**
              * Opens the log modal for a specific date.
              * @param {string} dateKey - The date string in 'YYYY-MM-DD' format.

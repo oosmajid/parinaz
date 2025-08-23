@@ -26,11 +26,11 @@ const templates = {
         return `<div class="page-enter">
                     <div class="flex flex-col items-center text-center">
                         <div class="relative my-6 w-72 h-72">
-                            <svg id="cycle-chart" class="w-full h-full" viewBox="0 0 200 200"></svg>
+                            <svg id="cycle-chart" class="w-full h-full" viewBox="0 0 220 220"></svg>
                             <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
                                 <span id="days-left" class="text-5xl font-bold text-pink-500">--</span>
                                 <span id="days-unit" class="text-lg text-gray-600 leading-tight">روز دیگر</span>
-                                <p id="pms-countdown" class="text-sm text-amber-600 mt-1"></p>
+                                <p id="pms-countdown" class="text-sm text-amber-600 mt-2"></p>
                             </div>
                         </div>
                         <div class="flex flex-col sm:flex-row items-center justify-center gap-3 mt-2 w-full">
@@ -45,7 +45,12 @@ const templates = {
                     <div id="calendar-view" class="mt-8">
                         <div class="flex justify-between items-center mb-4">
                             <button onclick="window.app.changeMonth(-1)" class="p-2 rounded-full hover:bg-gray-100">&lt;</button>
-                            <h3 id="calendar-month-year" class="text-lg font-bold"></h3>
+                            <div class="flex items-center gap-2">
+                                <h3 id="calendar-month-year" class="text-lg font-bold"></h3>
+                                <button onclick="window.app.goToToday()" class="text-pink-400 hover:text-pink-600 p-1 rounded-full flex items-center justify-center" title="برو به امروز">
+                                    <span class="material-symbols-outlined">arrow_circle_down</span>
+                                </button>
+                            </div>
                             <button onclick="window.app.changeMonth(1)" class="p-2 rounded-full hover:bg-gray-100">&gt;</button>
                         </div>
                         <div class="grid grid-cols-7 text-center text-xs text-gray-500 mb-2">${['ش','ی','د','س','چ','پ','ج'].map(d=>`<span>${d}</span>`).join('')}</div>
@@ -297,7 +302,7 @@ const renderCycleChart = (dayOfCycle, cycleLength, periodLength, userData, daysD
     if (!svg) return;
     svg.innerHTML = ''; 
 
-    const center = 100, radius = 75;
+    const center = 110, radius = 85;
 
     // Draw background circle first
     const bgCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -355,7 +360,7 @@ const renderCycleChart = (dayOfCycle, cycleLength, periodLength, userData, daysD
         
         applyAnimation(arcPath);
 
-        const textRadius = radius + 16;
+        const textRadius = radius + 20;
         const midAngle = startAngle + (endAngle - startAngle) / 2;
         const pos = polarToCartesian(center, center, textRadius, midAngle);
         let rotation = midAngle;
@@ -378,7 +383,7 @@ const renderCycleChart = (dayOfCycle, cycleLength, periodLength, userData, daysD
         
         applyAnimation(delayArc);
 
-        const textRadius = radius + 16;
+        const textRadius = radius + 20;
         const midAngle = startAngle + (endAngle - startAngle) / 2;
         const adjustedMidAngle = midAngle >= 359 ? 359 : midAngle;
         const pos = polarToCartesian(center, center, textRadius, adjustedMidAngle);
