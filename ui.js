@@ -240,9 +240,10 @@ const renderDashboard = (userData) => {
         
         const pmsStartDay = cycleLength - 4;
         if (dayOfCycle > pmsStartDay) {
-            pmsCountdownEl.textContent = 'شما در دوره PMS هستید';
-        } else {
             pmsCountdownEl.textContent = '';
+        } else {
+            const daysToPms = pmsStartDay - dayOfCycle;
+            pmsCountdownEl.textContent = `${toPersian(daysToPms)} روز تا PMS`;
         }
         editPeriodBtn.classList.remove('animate-heartbeat');
     }
