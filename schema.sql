@@ -18,6 +18,10 @@ CREATE TABLE users (
     avg_cycle_length NUMERIC(5, 2),
     avg_period_length NUMERIC(5, 2),
 
+    -- تنظیمات اعلان‌ها
+    reminder_logs BOOLEAN NOT NULL DEFAULT TRUE,
+    reminder_cycle BOOLEAN NOT NULL DEFAULT TRUE,
+
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW() -- تاریخ و زمان ایجاد حساب کاربری
 );
 

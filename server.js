@@ -217,28 +217,20 @@ app.delete('/api/logs', async (req, res) => {
 app.put('/api/user/:telegram_id', async (req, res) => {
     try {
         const { telegram_id } = req.params;
-        const { cycle_length, period_length, birth_year } = req.body;
+        const { cycle_length, period_length, birth_year, reminder_logs, reminder_cycle } = req.body;
 
-        const cycle = parseInt(cycle_length, 10);
-        const period = parseInt(period_length, 10);
-        const year = parseInt(birth_year, 10);
-
-        // --- FIX START ---
-        // The query now uses separate parameters for each column to avoid type conflicts.
         const query = `
             UPDATE users
             SET 
                 cycle_length = $1, 
                 period_length = $2, 
                 birth_year = $3,
-                avg_cycle_length = $4,
-                avg_period_length = $5
+                reminder_logs = $4,
+                reminder_cycle = $5
             WHERE telegram_id = $6
             RETURNING *;
         `;
-        // The values array now provides a value for each parameter.
-        const values = [cycle, period, year, cycle, period, telegram_id];
-        // --- FIX END ---
+        const values = [cycle_length, period_length, birth_year, reminder_logs, reminder_cycle, telegram_id];
         
         const result = await pool.query(query, values);
 
@@ -308,7 +300,7 @@ app.post('/api/user/:telegram_id/period', async (req, res) => {
     }
 });
 
-// --- NEW --- مسیر حذف کامل سوابق پریود کاربر
+// مسیر حذف کامل سوابق پریود کاربر
 app.delete('/api/user/:telegram_id/period', async (req, res) => {
     const client = await pool.connect();
     try {
@@ -347,6 +339,23 @@ app.delete('/api/user/:telegram_id/period', async (req, res) => {
         res.status(500).json({ error: 'خطای داخلی سرور' });
     } finally {
         client.release();
+    }
+});
+
+// --- NEW --- مسیر حذف کامل حساب کاربری
+app.delete('/api/user/:telegram_id', async (req, res) => {
+    try {
+        const { telegram_id } = req.params;
+        const result = await pool.query('DELETE FROM users WHERE telegram_id = $1', [telegram_id]);
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: 'کاربر برای حذف یافت نشد.' });
+        }
+
+        res.status(200).json({ message: 'حساب کاربری و تمام اطلاعات شما با موفقیت حذف شد.' });
+    } catch (error) {
+        console.error('خطا در حذف حساب کاربری:', error);
+        res.status(500).json({ error: 'خطای داخلی سرور' });
     }
 });
 

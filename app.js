@@ -147,6 +147,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     cycle_length: document.getElementById('settings-cycle-length').value,
                     period_length: document.getElementById('settings-period-length').value,
                     birth_year: document.getElementById('settings-birth-year').value,
+                    reminder_logs: document.getElementById('settings-reminder-logs').checked,
+                    reminder_cycle: document.getElementById('settings-reminder-cycle').checked,
                 };
                 try {
                     const response = await fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}`, {
@@ -297,6 +299,31 @@ document.addEventListener('DOMContentLoaded', function() {
                             renderDashboard(userData);
                         } catch (error) {
                             console.error('Failed to delete period history:', error);
+                            showToast(error.message, true);
+                        }
+                    }
+                );
+            },
+
+            deleteAccount() {
+                showConfirmationModal(
+                    'حذف حساب کاربری',
+                    'آیا مطمئن هستید؟ تمام اطلاعات شما، شامل سوابق پریود و علائم، برای همیشه پاک خواهد شد. این عمل غیرقابل بازگشت است.',
+                    async () => {
+                        try {
+                            const response = await fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}`, {
+                                method: 'DELETE'
+                            });
+                            const data = await response.json();
+                            if (!response.ok) {
+                                throw new Error(data.error || 'خطا در حذف حساب');
+                            }
+                            showToast(data.message);
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 1500); // Wait for toast to show
+                        } catch (error) {
+                            console.error('Failed to delete account:', error);
                             showToast(error.message, true);
                         }
                     }

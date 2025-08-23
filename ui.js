@@ -66,10 +66,36 @@ const templates = {
     },
     settings() { 
         return `<div class="page-enter space-y-6">
-                    <div><label class="block text-gray-600 mb-2">طول سیکل پریود</label><select id="settings-cycle-length" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div>
-                    <div><label class="block text-gray-600 mb-2">طول دوره پریود</label><select id="settings-period-length" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div>
-                    <div><label class="block text-gray-600 mb-2">سال تولد</label><select id="settings-birth-year" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select></div>
+                    <div>
+                        <label class="block text-gray-600 mb-2">طول سیکل پریود</label>
+                        <select id="settings-cycle-length" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select>
+                    </div>
+                    <div>
+                        <label class="block text-gray-600 mb-2">طول دوره پریود</label>
+                        <select id="settings-period-length" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select>
+                    </div>
+                    <div>
+                        <label class="block text-gray-600 mb-2">سال تولد</label>
+                        <select id="settings-birth-year" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select>
+                    </div>
+
+                    <div class="space-y-4 border-t pt-6 mt-6">
+                        <h3 class="text-lg font-semibold text-gray-700 mb-2">تنظیمات اعلان</h3>
+                        <label class="flex items-center justify-between cursor-pointer">
+                            <span class="text-gray-600">یادآور ثبت علائم</span>
+                            <input type="checkbox" id="settings-reminder-logs" class="h-5 w-5 rounded border-gray-300 text-pink-500 focus:ring-pink-400">
+                        </label>
+                        <label class="flex items-center justify-between cursor-pointer">
+                            <span class="text-gray-600">اعلان چرخه قاعدگی</span>
+                            <input type="checkbox" id="settings-reminder-cycle" class="h-5 w-5 rounded border-gray-300 text-pink-500 focus:ring-pink-400">
+                        </label>
+                    </div>
+
                     <button onclick="window.app.saveSettings()" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg mt-8">ذخیره تغییرات</button>
+
+                    <div class="border-t pt-6 mt-6">
+                        <button onclick="window.app.deleteAccount()" class="w-full bg-red-100 text-red-700 font-bold py-3 rounded-lg hover:bg-red-200">حذف حساب کاربری</button>
+                    </div>
                 </div>`; 
     },
     analysis() { 
@@ -497,6 +523,8 @@ const renderSettings = (userData) => {
     s('cycle-length').value=userData.user.cycle_length;
     s('period-length').value=userData.user.period_length;
     s('birth-year').value=userData.user.birth_year;
+    s('reminder-logs').checked = userData.user.reminder_logs;
+    s('reminder-cycle').checked = userData.user.reminder_cycle;
     document.getElementById('settings-btn').classList.add('hidden');
     document.getElementById('analysis-btn').classList.add('hidden');
     document.getElementById('back-btn').classList.remove('hidden');
