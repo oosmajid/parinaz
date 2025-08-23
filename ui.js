@@ -125,19 +125,40 @@ const getPhaseInfoForDate = (date, user) => {
     return { class: 'normal-day' };
 };
 
+// --- FIX START ---
 const getPhaseInfoForPastDate = (date, history, userData) => {
+    if (!history || history.length === 0) return { class: 'normal-day' };
+
     const sortedHistory = [...history].sort((a,b) => new Date(a.start_date) - new Date(b.start_date));
     let cycleStartDate, cycleLength, periodLength;
 
-    for (let i = 0; i < sortedHistory.length; i++) {
-        const currentPeriodStart = moment(sortedHistory[i].start_date);
-        const nextPeriodStart = i + 1 < sortedHistory.length ? moment(sortedHistory[i+1].start_date) : null;
+    const firstPeriodStart = moment(sortedHistory[0].start_date);
 
-        if (date.isSameOrAfter(currentPeriodStart) && (!nextPeriodStart || date.isBefore(nextPeriodStart))) {
-            cycleStartDate = currentPeriodStart;
-            periodLength = sortedHistory[i].duration;
-            cycleLength = nextPeriodStart ? nextPeriodStart.diff(currentPeriodStart, 'days') : (userData.user.avg_cycle_length || userData.user.cycle_length);
-            break;
+    if (date.isBefore(firstPeriodStart)) {
+        // Estimate cycle length for the cycle before the very first recorded period
+        const estimatedCycleLength = sortedHistory.length > 1
+            ? moment(sortedHistory[1].start_date).diff(firstPeriodStart, 'days')
+            : (userData.user.avg_cycle_length || userData.user.cycle_length);
+        
+        const estimatedCycleStart = firstPeriodStart.clone().subtract(estimatedCycleLength, 'days');
+
+        if (date.isSameOrAfter(estimatedCycleStart)) {
+            cycleStartDate = estimatedCycleStart;
+            cycleLength = estimatedCycleLength;
+            periodLength = 0; // Not in a recorded period
+        }
+    } else {
+        // Original logic for dates after the first period started
+        for (let i = 0; i < sortedHistory.length; i++) {
+            const currentPeriodStart = moment(sortedHistory[i].start_date);
+            const nextPeriodStart = i + 1 < sortedHistory.length ? moment(sortedHistory[i+1].start_date) : null;
+
+            if (date.isSameOrAfter(currentPeriodStart) && (!nextPeriodStart || date.isBefore(nextPeriodStart))) {
+                cycleStartDate = currentPeriodStart;
+                periodLength = sortedHistory[i].duration;
+                cycleLength = nextPeriodStart ? nextPeriodStart.diff(currentPeriodStart, 'days') : (userData.user.avg_cycle_length || userData.user.cycle_length);
+                break;
+            }
         }
     }
 
@@ -145,12 +166,12 @@ const getPhaseInfoForPastDate = (date, history, userData) => {
 
     const dayOfCycle = date.diff(cycleStartDate, 'days') + 1;
     const periodEndDay = periodLength;
-    const ovulationDay = cycleLength - 14;
+    const ovulationDay = Math.round(cycleLength - 14);
     const fertileStartDay = Math.max(1, ovulationDay - 5);
     const fertileEndDay = ovulationDay + 2;
-    const pmsStartDay = cycleLength - 4;
+    const pmsStartDay = Math.round(cycleLength - 4);
     
-    if (dayOfCycle >= 1 && dayOfCycle <= periodEndDay) return { class: 'period-day' };
+    if (periodLength > 0 && dayOfCycle >= 1 && dayOfCycle <= periodEndDay) return { class: 'period-day' };
     if (dayOfCycle >= fertileStartDay && dayOfCycle <= fertileEndDay) {
         if (dayOfCycle === ovulationDay) return { class: 'ovulation-day' };
         return { class: 'fertile-day' };
@@ -159,6 +180,7 @@ const getPhaseInfoForPastDate = (date, history, userData) => {
     
     return { class: 'normal-day' };
 };
+// --- FIX END ---
 
 
 // --- RENDER FUNCTIONS ---
