@@ -1,5 +1,8 @@
 // server.js
 
+// --- NEW --- Load environment variables from .env file
+require('dotenv').config();
+
 // 1. فراخوانی ابزارهای مورد نیاز
 const express = require('express');
 const cors = require('cors');
@@ -13,12 +16,13 @@ const app = express();
 const PORT = 3001;
 
 // 3. تنظیمات اتصال به دیتابیس
+// --- MODIFIED --- Use environment variables for security
 const pool = new Pool({
-  user: 'oosmajid',
-  host: 'localhost',
-  database: 'parinaz_db',
-  password: '',
-  port: 5432,
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_DATABASE,
+  password: process.env.DB_PASSWORD,
+  port: process.env.DB_PORT,
 });
 
 // تست اتصال به دیتابیس
