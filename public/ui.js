@@ -499,7 +499,8 @@ const renderCycleChart = (dayOfCycle, cycleLength, periodLength, userData, daysD
     const indicatorText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     indicatorText.setAttribute('x', indicatorPos.x); indicatorText.setAttribute('y', indicatorPos.y);
     indicatorText.setAttribute('class', 'today-indicator-text');
-    indicatorText.innerHTML = `<tspan x="${indicatorPos.x}" dy="-0.4em" style="font-size: 7px;">روز</tspan><tspan x="${indicatorPos.x}" dy="1.1em" style="font-size: 9px; font-weight: bold;">${toPersian(dayOfCycle)}</tspan>`;
+    
+    indicatorText.innerHTML = `<tspan dy="-0.4em" style="font-size: 6px;">روز</tspan><tspan x="${indicatorPos.x}" dy="1.2em" style="font-size: 8px; font-weight: bold;">${toPersian(dayOfCycle)}</tspan>`;
     
     indicatorGroup.appendChild(indicatorCircle);
     indicatorGroup.appendChild(indicatorText);

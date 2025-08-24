@@ -34,7 +34,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // --- TOAST NOTIFICATION ---
         const toast = document.createElement('div');
-        toast.style.cssText = 'position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 8px; color: white; font-weight: 500; transition: bottom 0.5s ease-in-out; z-index: 100;';
+        toast.style.cssText = 'position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 8px; color: white; font-weight: 500; transition: bottom 0.5s ease-in-out; z-index: 100; text-align: center; font-size: 14px;';
         document.body.appendChild(toast);
         let toastTimeout;
 
