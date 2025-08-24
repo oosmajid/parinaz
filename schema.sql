@@ -11,7 +11,7 @@ CREATE TABLE users (
     period_length INT NOT NULL DEFAULT 7,       -- طول دوره پریود (پیش‌فرض ۷ روز)
     
     -- آخرین تاریخ پریود ثبت شده برای دسترسی سریع
-    last_period_date DATE NOT NULL,
+    last_period_date DATE NULL,
     birth_year INT,                             -- سال تولد کاربر
     
     -- میانگین‌های محاسبه‌شده بر اساس تاریخچه برای پیش‌بینی دقیق‌تر

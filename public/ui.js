@@ -714,24 +714,51 @@ const renderAnalysis = (userData, charts) => {
         const getLogPhase = (logDate) => {
             const dateStr = logDate.format('YYYY-MM-DD');
             if (recordedPeriodDays.has(dateStr)) return 'period';
+
+            // اگر هیچ تاریخچه‌ای نباشد، فازی هم وجود ندارد
+            if (!periodHistorySorted || periodHistorySorted.length === 0) {
+                return 'other';
+            }
+
+            const firstPeriodStart = moment(periodHistorySorted[0].start_date, 'YYYY-MM-DD');
             
-            let relevantCycleStart, cycleLength;
-            for (let i = 0; i < periodHistorySorted.length; i++) {
-                const currentPeriodStart = moment(periodHistorySorted[i].start_date);
-                const nextPeriodStart = i + 1 < periodHistorySorted.length ? moment(periodHistorySorted[i+1].start_date) : null;
+            // --- START: بلوک جدید برای محاسبه سیکل اول ---
+            if (logDate.isBefore(firstPeriodStart)) {
+                const cycleLength = Math.round(userData.user.avg_cycle_length || userData.user.cycle_length);
+                const estimatedCycleStart = firstPeriodStart.clone().subtract(cycleLength, 'days');
+
+                // چک می‌کنیم که تاریخ لاگ در محدوده سیکل تخمینی ما باشد
+                if (logDate.isSameOrAfter(estimatedCycleStart)) {
+                    const pmsStartDay = cycleLength - 4;
+                    const dayOfCycle = logDate.diff(estimatedCycleStart, 'days') + 1;
+                    if (dayOfCycle >= pmsStartDay && dayOfCycle <= cycleLength) {
+                        return 'pms';
+                    }
+                }
+            } 
+            // --- END: بلوک جدید ---
+            
+            // --- منطق قبلی برای سیکل‌های بعدی که به درستی کار می‌کند ---
+            else {
+                let relevantCycleStart, cycleLength;
+                for (let i = 0; i < periodHistorySorted.length; i++) {
+                    const currentPeriodStart = moment(periodHistorySorted[i].start_date);
+                    const nextPeriodStart = i + 1 < periodHistorySorted.length ? moment(periodHistorySorted[i+1].start_date) : null;
+                    
+                    if (logDate.isSameOrAfter(currentPeriodStart) && (!nextPeriodStart || logDate.isBefore(nextPeriodStart))) {
+                        relevantCycleStart = currentPeriodStart;
+                        cycleLength = nextPeriodStart ? nextPeriodStart.diff(currentPeriodStart, 'days') : Math.round(userData.user.avg_cycle_length || userData.user.cycle_length);
+                        break;
+                    }
+                }
                 
-                if (logDate.isSameOrAfter(currentPeriodStart) && (!nextPeriodStart || logDate.isBefore(nextPeriodStart))) {
-                    relevantCycleStart = currentPeriodStart;
-                    cycleLength = nextPeriodStart ? nextPeriodStart.diff(currentPeriodStart, 'days') : (userData.user.avg_cycle_length || userData.user.cycle_length);
-                    break;
+                if (relevantCycleStart) {
+                    const pmsStartDay = cycleLength - 4;
+                    const dayOfCycle = logDate.diff(relevantCycleStart, 'days') + 1;
+                    if (dayOfCycle >= pmsStartDay && dayOfCycle <= cycleLength) return 'pms';
                 }
             }
             
-            if (relevantCycleStart) {
-                const pmsStartDay = cycleLength - 4;
-                const dayOfCycle = logDate.diff(relevantCycleStart, 'days') + 1;
-                if (dayOfCycle >= pmsStartDay && dayOfCycle <= cycleLength) return 'pms';
-            }
             return 'other';
         };
 
