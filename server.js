@@ -350,13 +350,12 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
             console.error(`[ERROR] Font file not found at: ${fontPath}.`);
         }
 
-        // --- FINAL FIX: Using the correct function from the imported module ---
+        // --- THE MOST LIKELY FIX: Call the module directly as a function ---
         const processText = (text) => {
-            // The main export of 'arabic-reshaper' is the reshape function itself in many versions.
-            const reshapedText = arabicReshaper.reshape(text);
+            const reshapedText = arabicReshaper(text); // Using the module as a function
             return bidi.reorder(reshapedText);
         };
-        // --- END FINAL FIX ---
+        // --- END FIX ---
 
         doc.fontSize(25).text(processText('گزارش سلامت پریناز'), { align: 'center' });
         doc.fontSize(16).text(processText(`گزارش برای بازه زمانی: ${months} ماه گذشته`), { align: 'center' });
