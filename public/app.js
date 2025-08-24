@@ -1,21 +1,17 @@
-// app.js
+// app.js (کامل و نهایی)
 
 document.addEventListener('DOMContentLoaded', function() {
     try {
-        // --- START: کدهای جدید برای اتصال به تلگرام ---
         const tg = window.Telegram.WebApp;
         tg.ready();
         tg.expand();
-        const TELEGRAM_ID = tg.initDataUnsafe?.user?.id || '123456789'; 
-
-        // --- STATE & DOM ELEMENTS ---
+        
         let userData = { user: null, logs: {}, period_history: [], companions: [] };
         let calendarDate = moment();
         let selectedLogDate = null;
         let datepickerState = { visible: false, targetInputId: null, currentDate: moment() };
         let charts = {};
 
-        // --- DOM Element References ---
         const appContent = document.getElementById('app-content');
         const settingsBtn = document.getElementById('settings-btn');
         const analysisBtn = document.getElementById('analysis-btn');
@@ -29,7 +25,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const confirmationModal = document.getElementById('confirmation-modal');
         const deleteChoiceModal = document.getElementById('delete-period-choice-modal');
 
-        // --- TOAST NOTIFICATION ---
         const toast = document.createElement('div');
         toast.style.cssText = 'position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 8px; color: white; font-weight: 500; transition: bottom 0.5s ease-in-out; z-index: 100; text-align: center; font-size: 14px;';
         document.body.appendChild(toast);
@@ -58,11 +53,11 @@ document.addEventListener('DOMContentLoaded', function() {
             confirmationModal.classList.add('visible');
         };
 
-        // --- MAIN APP LOGIC OBJECT ---
         window.app = {
             onboardingData: {},
             async init(refreshOnly = false) {
                 moment.locale('fa');
+                const TELEGRAM_ID = tg.initDataUnsafe?.user?.id || '123456789';
                 try {
                     const response = await fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}`);
                     if (response.status === 404) {
@@ -84,6 +79,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
             async nextStep(step) {
+                const TELEGRAM_ID = tg.initDataUnsafe?.user?.id;
+                 if (!TELEGRAM_ID) {
+                    tg.showAlert('اطلاعات کاربری تلگرام شما یافت نشد. لطفاً مینی‌اپ را بسته و دوباره باز کنید.');
+                    return;
+                }
                 if (step === 2) this.onboardingData.cycle_length = document.getElementById('cycle-length').value;
                 if (step === 3) this.onboardingData.period_length = document.getElementById('period-length').value;
                 if (step === 4) {
@@ -129,6 +129,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
             async saveSettings() {
+                const TELEGRAM_ID = tg.initDataUnsafe?.user?.id;
+                if (!TELEGRAM_ID) {
+                    tg.showAlert('اطلاعات کاربری تلگرام شما یافت نشد.');
+                    return;
+                }
                 const settingsData = {
                     cycle_length: document.getElementById('settings-cycle-length').value,
                     period_length: document.getElementById('settings-period-length').value,
@@ -155,29 +160,31 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
             async saveLog() {
-                const newLog = {};
+                const payload = { 
+                    user_id: userData.user.id, 
+                    log_date: selectedLogDate 
+                };
                 for (const itemKey in LOG_CONFIG.metrics.items) {
                     const input = document.getElementById(`log-${itemKey}`);
                     if (!input) continue;
                     if (LOG_CONFIG.metrics.items[itemKey].type === 'slider') {
-                        if (input.dataset.interacted === 'true') newLog[itemKey] = input.value;
+                        if (input.dataset.interacted === 'true') payload[itemKey] = input.value;
                     } else {
-                       if (input.value !== '') newLog[itemKey] = input.value;
+                       if (input.value !== '') payload[itemKey] = input.value;
                     }
                 }
                 document.querySelectorAll('#log-modal .symptom-chip.selected').forEach(el => {
                     const { category, value } = el.dataset;
                     if (LOG_CONFIG[category].single) {
-                        newLog[category] = value;
+                        payload[category] = value;
                     } else {
-                        if (!newLog[category]) newLog[category] = [];
-                        newLog[category].push(value);
+                        if (!payload[category]) payload[category] = [];
+                        payload[category].push(value);
                     }
                 });
                 const notes = document.getElementById('log-notes').value;
-                if (notes) newLog.notes = notes;
+                if (notes) payload.notes = notes;
 
-                const payload = { user_id: userData.user.id, log_date: selectedLogDate, ...newLog };
                 try {
                     const response = await fetch(`${API_BASE_URL}/logs`, {
                         method: 'POST',
@@ -223,6 +230,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 this.renderCalendar(calendarDate);
             },
             async savePeriodUpdate() {
+                const TELEGRAM_ID = tg.initDataUnsafe?.user?.id;
+                if (!TELEGRAM_ID) {
+                    tg.showAlert('اطلاعات کاربری تلگرام شما یافت نشد.');
+                    return;
+                }
                 const dateInput = document.getElementById('edit-period-date-input');
                 const periodUpdateData = {
                     start_date: dateInput.dataset.value,
@@ -251,6 +263,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 deleteChoiceModal.classList.add('visible');
             },
             handleDeletePeriod(scope) {
+                const TELEGRAM_ID = tg.initDataUnsafe?.user?.id;
+                if (!TELEGRAM_ID) {
+                    tg.showAlert('اطلاعات کاربری تلگرام شما یافت نشد.');
+                    return;
+                }
                 deleteChoiceModal.classList.remove('visible'); 
                 const title = (scope === 'last') ? 'حذف آخرین سابقه' : 'حذف تمام سوابق';
                 const message = (scope === 'last') 
@@ -277,6 +294,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
             },
             deleteAccount() {
+                const TELEGRAM_ID = tg.initDataUnsafe?.user?.id;
+                if (!TELEGRAM_ID) {
+                    tg.showAlert('اطلاعات کاربری تلگرام شما یافت نشد.');
+                    return;
+                }
                 showConfirmationModal(
                     'حذف حساب کاربری',
                     'آیا مطمئن هستید؟ تمام اطلاعات شما، شامل سوابق پریود و علائم، برای همیشه پاک خواهد شد. این عمل غیرقابل بازگشت است.',
@@ -301,6 +323,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 );
             },
             async addCompanion() {
+                const TELEGRAM_ID = tg.initDataUnsafe?.user?.id;
+                if (!TELEGRAM_ID) {
+                    tg.showAlert('اطلاعات کاربری تلگرام شما یافت نشد.');
+                    return;
+                }
                 const companionId = prompt("لطفاً شناسه عددی تلگرام همراه خود را وارد کنید:");
                 if (companionId && !isNaN(companionId)) {
                     try {
@@ -322,6 +349,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
             deleteAllCompanions() {
+                 const TELEGRAM_ID = tg.initDataUnsafe?.user?.id;
+                if (!TELEGRAM_ID) {
+                    tg.showAlert('اطلاعات کاربری تلگرام شما یافت نشد.');
+                    return;
+                }
                 showConfirmationModal(
                     'حذف همه همراهان',
                     'آیا از حذف تمام همراهان خود مطمئن هستید؟',
@@ -369,11 +401,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
 
-            // --- START: MODIFIED PDF EXPORT FUNCTION ---
+            // --- START: FINAL PDF EXPORT FUNCTION ---
             async exportToPDF(months) {
                 const spinner = document.getElementById('spinner-overlay');
                 spinner.classList.add('visible');
+                
+                // 1. Get the Telegram ID right when needed.
+                const TELEGRAM_ID = tg.initDataUnsafe?.user?.id;
+
+                // 2. Validate the ID before making a request.
+                if (!TELEGRAM_ID) {
+                    tg.showAlert('اطلاعات کاربری تلگرام شما یافت نشد. لطفاً مینی‌اپ را بسته و دوباره باز کنید.');
+                    spinner.classList.remove('visible');
+                    return;
+                }
+
                 try {
+                    // 3. Make the request with a valid ID.
                     const response = await fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}/report`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -387,19 +431,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     
                     showToast(data.message);
+                    // Optionally, close the mini-app after success
+                    // tg.close();
 
                 } catch (error) {
                     console.error("Failed to request PDF report:", error);
-                    // --- START: Add Telegram Alert on Error ---
-                    // This will show a native popup if the fetch fails (e.g., due to CORS)
-                    tg.showAlert(error.message);
-                    // --- END: Add Telegram Alert on Error ---
+                    tg.showAlert(`خطا در ارتباط با سرور: ${error.message}`);
                     showToast(error.message, true);
                 } finally {
                     spinner.classList.remove('visible');
                 }
             },
-            // --- END: MODIFIED PDF EXPORT FUNCTION ---
+            // --- END: FINAL PDF EXPORT FUNCTION ---
 
             goToSettings() { renderSettings(userData); },
             goToAnalysis() { renderAnalysis(userData, charts); },
@@ -532,7 +575,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 editPeriodModal.classList.add('visible');
             },
         };
-        // --- EVENT LISTENERS ---
+
         settingsBtn.addEventListener('click', () => app.goToSettings());
         analysisBtn.addEventListener('click', () => app.goToAnalysis());
         backBtn.addEventListener('click', () => app.goToDashboard());
@@ -577,7 +620,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 confirmationModal.classList.remove('visible');
             }
         });
-        // --- START APP ---
+        
         window.app.init();
     } catch (error) {
         console.error("An error occurred:", error);
