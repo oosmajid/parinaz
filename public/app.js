@@ -4,11 +4,8 @@ document.addEventListener('DOMContentLoaded', function() {
     try {
         // --- START: کدهای جدید برای اتصال به تلگرام ---
         const tg = window.Telegram.WebApp;
-        tg.ready(); // به تلگرام اطلاع می‌دهد که اپ شما آماده است
-        tg.expand(); // اپ را در حالت تمام صفحه باز می‌کند
-
-        // شناسه واقعی کاربر را از تلگرام می‌خواند
-        // اگر اپ در مرورگر باز شود، از یک شناسه تست استفاده می‌کند تا خطا ندهد
+        tg.ready();
+        tg.expand();
         const TELEGRAM_ID = tg.initDataUnsafe?.user?.id || '123456789'; 
 
         // --- STATE & DOM ELEMENTS ---
@@ -16,7 +13,7 @@ document.addEventListener('DOMContentLoaded', function() {
         let calendarDate = moment();
         let selectedLogDate = null;
         let datepickerState = { visible: false, targetInputId: null, currentDate: moment() };
-        let charts = {}; // To hold chart instances
+        let charts = {};
 
         // --- DOM Element References ---
         const appContent = document.getElementById('app-content');
@@ -30,7 +27,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const editPeriodModal = document.getElementById('edit-period-modal');
         const editPeriodModalContent = document.getElementById('edit-period-modal-content');
         const confirmationModal = document.getElementById('confirmation-modal');
-        const deleteChoiceModal = document.getElementById('delete-period-choice-modal'); // NEW
+        const deleteChoiceModal = document.getElementById('delete-period-choice-modal');
 
         // --- TOAST NOTIFICATION ---
         const toast = document.createElement('div');
@@ -51,25 +48,19 @@ document.addEventListener('DOMContentLoaded', function() {
         const showConfirmationModal = (title, message, onConfirm) => {
             document.getElementById('confirmation-title').textContent = title;
             document.getElementById('confirmation-message').textContent = message;
-            
             let currentConfirmBtn = document.getElementById('confirm-action-btn');
             const newConfirmBtn = currentConfirmBtn.cloneNode(true);
-            
             currentConfirmBtn.parentNode.replaceChild(newConfirmBtn, currentConfirmBtn);
-            
             newConfirmBtn.onclick = () => {
                 onConfirm();
                 confirmationModal.classList.remove('visible');
             };
-
             confirmationModal.classList.add('visible');
         };
-
 
         // --- MAIN APP LOGIC OBJECT ---
         window.app = {
             onboardingData: {},
-
             async init(refreshOnly = false) {
                 moment.locale('fa');
                 try {
@@ -92,7 +83,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     showToast(error.message, true);
                 }
             },
-
             async nextStep(step) {
                 if (step === 2) this.onboardingData.cycle_length = document.getElementById('cycle-length').value;
                 if (step === 3) this.onboardingData.period_length = document.getElementById('period-length').value;
@@ -138,7 +128,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
             },
-            
             async saveSettings() {
                 const settingsData = {
                     cycle_length: document.getElementById('settings-cycle-length').value,
@@ -165,7 +154,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     showToast(error.message, true);
                 }
             },
-
             async saveLog() {
                 const newLog = {};
                 for (const itemKey in LOG_CONFIG.metrics.items) {
@@ -207,11 +195,9 @@ document.addEventListener('DOMContentLoaded', function() {
                      console.error('Failed to save log:', error);
                      showToast(error.message, true);
                 }
-
                 logModal.classList.remove('visible');
                 this.renderCalendar(calendarDate);
             },
-
             async deleteLog() {
                 if (!userData.logs[selectedLogDate]) {
                     logModal.classList.remove('visible');
@@ -233,18 +219,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.error('Failed to delete log:', error);
                     showToast(error.message, true);
                 }
-
                 logModal.classList.remove('visible');
                 this.renderCalendar(calendarDate);
             },
-
             async savePeriodUpdate() {
                 const dateInput = document.getElementById('edit-period-date-input');
                 const periodUpdateData = {
                     start_date: dateInput.dataset.value,
                     duration: document.getElementById('edit-period-length').value,
                 };
-
                 try {
                     const response = await fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}/period`, {
                         method: 'POST',
@@ -254,7 +237,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const data = await response.json();
                     if (!response.ok) throw new Error(data.error || 'خطا در ثبت اطلاعات');
                     
-                    await this.init(true); // Refresh all user data
+                    await this.init(true);
                     showToast(data.message);
                     editPeriodModal.classList.remove('visible');
                     renderDashboard(userData);
@@ -263,17 +246,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     showToast(error.message, true);
                 }
             },
-            
-            // --- NEW --- Function to open the choice modal
             openDeletePeriodChoiceModal() {
                 editPeriodModal.classList.remove('visible');
                 deleteChoiceModal.classList.add('visible');
             },
-
-            // --- NEW --- Function to handle the actual deletion after user confirms
             handleDeletePeriod(scope) {
-                deleteChoiceModal.classList.remove('visible'); // Hide the choice modal first
-
+                deleteChoiceModal.classList.remove('visible'); 
                 const title = (scope === 'last') ? 'حذف آخرین سابقه' : 'حذف تمام سوابق';
                 const message = (scope === 'last') 
                     ? 'آیا از حذف آخرین سابقه پریود خود مطمئن هستید؟ این عمل غیرقابل بازگشت است.'
@@ -284,21 +262,20 @@ document.addEventListener('DOMContentLoaded', function() {
                         const response = await fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}/period`, {
                             method: 'DELETE',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ scope: scope }) // Pass the scope to the backend
+                            body: JSON.stringify({ scope: scope }) 
                         });
                         const data = await response.json();
                         if (!response.ok) throw new Error(data.error || 'خطا در حذف سوابق');
                         
-                        await this.init(true); // Refresh all user data from server
+                        await this.init(true); 
                         showToast(data.message);
-                        renderDashboard(userData); // Re-render dashboard with updated data
+                        renderDashboard(userData); 
                     } catch (error) {
                         console.error('Failed to delete period history:', error);
                         showToast(error.message, true);
                     }
                 });
             },
-
             deleteAccount() {
                 showConfirmationModal(
                     'حذف حساب کاربری',
@@ -323,7 +300,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 );
             },
-            
             async addCompanion() {
                 const companionId = prompt("لطفاً شناسه عددی تلگرام همراه خود را وارد کنید:");
                 if (companionId && !isNaN(companionId)) {
@@ -345,7 +321,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     showToast("شناسه وارد شده معتبر نیست.", true);
                 }
             },
-
             deleteAllCompanions() {
                 showConfirmationModal(
                     'حذف همه همراهان',
@@ -366,288 +341,61 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 );
             },
-
             toggleCompanionInfo(event) {
                 event.stopPropagation();
                 const popover = document.getElementById('companion-info-popover');
                 this._togglePopover(event, popover);
             },
-            
             toggleSymptomsInfo(event) {
                 event.stopPropagation();
                 const popover = document.getElementById('symptoms-info-popover');
                 this._togglePopover(event, popover);
             },
-
             _togglePopover(event, popover) {
                  const icon = event.currentTarget;
-            
                 const closePopover = () => {
                     popover.classList.remove('visible');
                     document.body.removeEventListener('click', closePopover);
                 };
-            
                 if (popover.classList.contains('visible')) {
                     closePopover();
                 } else {
                     popover.style.top = `${icon.offsetTop + icon.offsetHeight + 8}px`; 
                     popover.style.left = `${icon.offsetLeft + (icon.offsetWidth / 2) - (popover.offsetWidth / 2)}px`;
-                    
                     popover.classList.add('visible');
-            
                     setTimeout(() => {
                         document.body.addEventListener('click', closePopover, { once: true });
                     }, 0);
                 }
             },
 
+            // --- START: MODIFIED PDF EXPORT FUNCTION ---
             async exportToPDF(months) {
                 const spinner = document.getElementById('spinner-overlay');
                 spinner.classList.add('visible');
-                await new Promise(resolve => setTimeout(resolve, 50));
-                if (typeof window.jspdf === 'undefined' || typeof window.ArabicReshaper === 'undefined' || typeof window.Chart === 'undefined') {
-                    showToast('یکی از کتابخانه‌های PDF، متن فارسی یا نمودار بارگذاری نشده است.', true);
-                    spinner.classList.remove('visible');
-                    return;
-                }
-                if (typeof window.vazirFont === 'undefined') {
-                    showToast('فونت مورد نیاز برای ساخت PDF بارگذاری نشده است.', true);
-                    spinner.classList.remove('visible');
-                    return;
-                }
                 try {
-                    const processPersianText = (text) => {
-                        if (!text) return '';
-                        const reshapedText = ArabicReshaper.convertArabic(String(text));
-                        return reshapedText.split('').reverse().join('');
-                    };
-                    const { jsPDF } = window.jspdf;
-                    const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-                    doc.addFileToVFS('Vazir-Regular-font.ttf', window.vazirFont);
-                    doc.addFont('Vazir-Regular-font.ttf', 'Vazir', 'normal');
-                    doc.setFont('Vazir');
-                    doc.setR2L(true);
-                    let y = 15;
-                    const pageHeight = doc.internal.pageSize.height;
-                    const pageWidth = doc.internal.pageSize.width;
-                    const margin = 15;
-                    const contentWidth = pageWidth - (2 * margin);
-                    const rightEdge = pageWidth - margin;
-                    const boxColors = ['#fff1f2', '#f0f9ff', '#f0fdf4', '#fefce8'];
-                    const lineHeight = 7;
-                    const checkPageBreak = (neededHeight = 20) => {
-                        if (y + neededHeight > pageHeight - margin) {
-                            doc.addPage();
-                            y = 15;
-                        }
-                    };
-                    const drawSection = (title, contentLines) => {
-                        doc.setFontSize(10);
-                        let totalHeight = 12;
-                        let wrappedContent = [];
-                        contentLines.forEach(line => {
-                            const lines = doc.splitTextToSize(processPersianText(line), contentWidth - 10);
-                            wrappedContent.push(lines);
-                            totalHeight += lines.length * lineHeight;
-                        });
-                        totalHeight += 5;
-                        checkPageBreak(totalHeight);
-                        const startY = y;
-                        const boxColor = boxColors[drawSection.colorIndex % boxColors.length];
-                        drawSection.colorIndex++;
-                        doc.setFillColor(boxColor);
-                        doc.rect(margin, startY, contentWidth, totalHeight, 'F');
-                        doc.setFontSize(14);
-                        doc.setTextColor('#1f2937');
-                        doc.text(processPersianText(title), rightEdge - 5, startY + 10, { align: 'right' });
-                        doc.setFontSize(10);
-                        doc.setTextColor('#374151');
-                        let contentY = startY + 20;
-                        wrappedContent.forEach(lines => {
-                            doc.text(lines, rightEdge - 5, contentY, { align: 'right' });
-                            contentY += lines.length * lineHeight;
-                        });
-                        y = startY + totalHeight + 7;
-                    };
-                    drawSection.colorIndex = 0;
-                    const drawChartSection = (title, chartImage) => {
-                        const chartHeight = (contentWidth - 10) / 2;
-                        const totalHeight = chartHeight + 20;
-                        checkPageBreak(totalHeight);
-                        const startY = y;
-                        const boxColor = boxColors[drawSection.colorIndex % boxColors.length];
-                        drawSection.colorIndex++;
-                        doc.setFillColor(boxColor);
-                        doc.rect(margin, startY, contentWidth, totalHeight, 'F');
-                        doc.setFontSize(14);
-                        doc.setTextColor('#1f2937');
-                        doc.text(processPersianText(title), rightEdge - 5, startY + 10, { align: 'right' });
-                        doc.addImage(chartImage, 'JPEG', margin + 5, startY + 15, contentWidth - 10, chartHeight, undefined, 'FAST');
-                        y = startY + totalHeight + 7;
-                    };
-                    const endDate = moment();
-                    const startDate = moment().subtract(months, 'months');
-                     const periodHistorySorted = [...(userData.period_history || [])]
-                        .map(p => ({...p, start_date: moment(p.start_date)}))
-                        .filter(p => p.start_date.isBetween(startDate, endDate, undefined, '[]'))
-                        .sort((a,b) => a.start_date - b.start_date);
-                    const filteredLogs = Object.entries(userData.logs).filter(([date]) => {
-                        return moment(date).isBetween(startDate, endDate, undefined, '[]');
+                    const response = await fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}/report`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ months: months })
                     });
-                    const getLogPhase = (logDate) => {
-                        const recordedPeriod = periodHistorySorted.find(p => logDate.isBetween(p.start_date, p.start_date.clone().add(p.duration - 1, 'days'), undefined, '[]'));
-                        if (recordedPeriod) return 'period';
-                        let cycleStartDate, cycleLength;
-                        for (let i = 0; i < periodHistorySorted.length; i++) {
-                            if (logDate.isSameOrAfter(periodHistorySorted[i].start_date) && (!periodHistorySorted[i+1] || logDate.isBefore(periodHistorySorted[i+1].start_date))) {
-                                cycleStartDate = periodHistorySorted[i].start_date;
-                                cycleLength = periodHistorySorted[i+1] ? periodHistorySorted[i+1].start_date.diff(cycleStartDate, 'days') : (userData.user.avg_cycle_length || userData.user.cycle_length);
-                                break;
-                            }
-                        }
-                        if (cycleStartDate) {
-                            const pmsStartDay = cycleLength - 4;
-                            const dayOfCycle = logDate.diff(cycleStartDate, 'days') + 1;
-                            if (dayOfCycle >= pmsStartDay && dayOfCycle <= cycleLength) return 'pms';
-                        }
-                        return 'other';
-                    };
-                    const getFrequentSymptoms = (phase, limit) => {
-                        const counts = {};
-                        filteredLogs.forEach(([dateKey, log]) => {
-                            if (phase === 'all' || getLogPhase(moment(dateKey)) === phase) {
-                                ALL_SYMPTOM_CATEGORIES.forEach(cat => {
-                                    if(log[cat]) (Array.isArray(log[cat]) ? log[cat] : [log[cat]]).forEach(item => { counts[item] = (counts[item] || 0) + 1 });
-                                });
-                            }
-                        });
-                        return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, limit);
-                    };
-                    const addChartToPDF = (data, title, unit) => {
-                        return new Promise((resolve, reject) => {
-                            const container = document.createElement('div');
-                            container.style.cssText = 'position: absolute; left: -10000px; top: 0px; width: 800px; height: 400px;';
-                            document.body.appendChild(container);
-                            const canvas = document.createElement('canvas');
-                            container.appendChild(canvas);
-                            const timeout = setTimeout(() => {
-                                 chart.destroy();
-                                 document.body.removeChild(container);
-                                 reject(new Error(`Chart rendering timed out for: ${title}`));
-                            }, 5000);
-                            const background_filler_plugin = {
-                                id: 'canvasBGFiller',
-                                beforeDraw: (chart) => {
-                                    const ctx = chart.ctx;
-                                    ctx.save();
-                                    ctx.globalCompositeOperation = 'destination-over';
-                                    ctx.fillStyle = 'white';
-                                    ctx.fillRect(0, 0, chart.width, chart.height);
-                                    ctx.restore();
-                                }
-                            };
-                            const chart = new Chart(canvas.getContext('2d'), {
-                                type: 'line',
-                                data: { labels: data.labels, datasets: [{ data: data.data, borderColor: '#ec4899', borderWidth: 2, pointBackgroundColor: '#ec4899' }] },
-                                plugins: [background_filler_plugin],
-                                options: {
-                                    animation: { duration: 1, onComplete: () => {
-                                        clearTimeout(timeout);
-                                        setTimeout(() => {
-                                            const imgData = canvas.toDataURL('image/jpeg', 0.8);
-                                            chart.destroy();
-                                            document.body.removeChild(container);
-                                            resolve(imgData);
-                                        }, 100);
-                                    }},
-                                    plugins: { 
-                                        legend: { display: false }, 
-                                        title: { display: true, text: title },
-                                        canvasBGFiller: {}
-                                    },
-                                    scales: { y: { ticks: { callback: v => `${v} ${unit}` } } }
-                                }
-                            });
-                        });
-                    };
-                    doc.setFontSize(18);
-                    doc.text(processPersianText('گزارش جامع سلامت پریناز'), pageWidth / 2, y, { align: 'center'});
-                    y += 8;
-                    doc.setFontSize(11);
-                    const dateRangeText = `بازه زمانی گزارش: از ${toPersian(startDate.format('jYYYY/jM/jD'))} تا ${toPersian(endDate.format('jYYYY/jM/jD'))}`;
-                    doc.text(processPersianText(dateRangeText), pageWidth / 2, y, { align: 'center'});
-                    y += 12;
-                    const cycleSummaryLines = [];
-                    const avgCycle = userData.user.avg_cycle_length ? toPersian(parseFloat(userData.user.avg_cycle_length).toFixed(1)) : '--';
-                    const avgPeriod = userData.user.avg_period_length ? toPersian(parseFloat(userData.user.avg_period_length).toFixed(1)) : '--';
-                    cycleSummaryLines.push(`میانگین طول سیکل: ${avgCycle} روز`);
-                    cycleSummaryLines.push(`میانگین طول پریود: ${avgPeriod} روز`);
-                    cycleSummaryLines.push(" ");
-                    cycleSummaryLines.push(":پریودهای ثبت‌شده");
-                    if (periodHistorySorted.length > 0) periodHistorySorted.forEach(p => cycleSummaryLines.push(`از ${toPersian(p.start_date.format('jYYYY/jM/jD'))} تا ${toPersian(p.start_date.clone().add(p.duration - 1, 'days').format('jYYYY/jM/jD'))} به مدت ${toPersian(p.duration)} روز -`));
-                    else cycleSummaryLines.push("موردی ثبت نشده است.");
-                    cycleSummaryLines.push(" ");
-                    cycleSummaryLines.push(":طول سیکل‌های ثبت‌شده");
-                    if (periodHistorySorted.length > 1) {
-                        for (let i = 1; i < periodHistorySorted.length; i++) {
-                            const len = periodHistorySorted[i].start_date.diff(periodHistorySorted[i-1].start_date, 'days');
-                            cycleSummaryLines.push(`سیکل شروع‌شده در ${toPersian(periodHistorySorted[i-1].start_date.format('jYY/jM/jD'))} به مدت ${toPersian(len)} روز -`);
-                        }
-                    } else { cycleSummaryLines.push("داده کافی برای محاسبه وجود ندارد."); }
-                    drawSection('خلاصه سیکل و پریود', cycleSummaryLines);
-                    const formatSymptomList = (phase, limit) => {
-                        const symptoms = getFrequentSymptoms(phase, limit);
-                        return symptoms.length > 0 ? symptoms.map(([symptom, count]) => `${symptom}: ${toPersian(count)} بار -`) : ["موردی ثبت نشده است."];
-                    };
-                    drawSection('پرتکرارترین علائم در مجموع', formatSymptomList('all', 20));
-                    drawSection('علائم پرتکرار در دوره پی‌ام‌اس', formatSymptomList('pms', 10));
-                    drawSection('علائم پرتکرار در دوره پریود', formatSymptomList('period', 10));
-                    const processMetricLogs = (metricKey) => {
-                        const data = filteredLogs.filter(([, log]) => log[metricKey] != null && log[metricKey] !== '').map(([date, log]) => ({ date: moment(date), value: parseFloat(log[metricKey])})).sort((a,b) => a.date - b.date);
-                        return { labels: data.map(d => d.date.format('YYYY-MM-DD')), data: data.map(d => d.value) };
-                    };
-                    const chartConfigs = [
-                        { data: processMetricLogs('weight'), title: 'نمودار وزن', unit: 'kg' },
-                        { data: processMetricLogs('water'), title: 'نمودار نوشیدن آب', unit: 'لیوان' },
-                        { data: processMetricLogs('sleep'), title: 'نمودار ساعات خواب', unit: 'ساعت' }
-                    ];
-                    for (const config of chartConfigs) {
-                        if (config.data.labels.length > 1) {
-                            const chartImage = await addChartToPDF(config.data, config.title, config.unit);
-                            drawChartSection(config.title, chartImage);
-                        } else {
-                            drawSection(config.title, ["داده کافی برای رسم نمودار وجود ندارد."]);
-                        }
+                    
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data.error || 'خطا در درخواست گزارش از سرور.');
                     }
+                    
+                    showToast(data.message);
 
-                    // --- START: FIX for PDF Download ---
-                    const pdfData = doc.output('blob');
-                    const url = URL.createObjectURL(pdfData);
-
-                    // Check if Telegram supports direct file download
-                    if (tg.isVersionAtLeast('6.7') && tg.supports('share_file')) {
-                         tg.shareFile({ url: url, filename: 'Parinaz-Report-Comprehensive.pdf' });
-                    } else {
-                        // Fallback for older Telegram versions or desktop app issues
-                        const link = document.createElement('a');
-                        link.href = url;
-                        link.download = `Parinaz-Report-Comprehensive.pdf`;
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        URL.revokeObjectURL(url);
-                        
-                        showToast('دانلود آغاز شد.', false);
-                    }
-                    // --- END: FIX ---
-
-                } catch (e) {
-                    console.error("Failed to create PDF:", e);
-                    showToast('خطا در ساخت PDF. لطفاً جزئیات خطا را در کنسول بررسی کنید.', true);
+                } catch (error) {
+                    console.error("Failed to request PDF report:", error);
+                    showToast(error.message, true);
                 } finally {
                     spinner.classList.remove('visible');
                 }
             },
+            // --- END: MODIFIED PDF EXPORT FUNCTION ---
 
             goToSettings() { renderSettings(userData); },
             goToAnalysis() { renderAnalysis(userData, charts); },
@@ -655,7 +403,6 @@ document.addEventListener('DOMContentLoaded', function() {
             changeMonth(direction) { calendarDate.add(direction, 'jMonth'); this.renderCalendar(calendarDate); },
             renderCalendar(date) { calendarDate = date; renderCalendar(calendarDate, userData); },
             logToday() { const todayStr = moment().format('YYYY-MM-DD'); this.openLogModal(todayStr); },
-
             goToToday() {
                 calendarDate = moment();
                 this.renderCalendar(calendarDate);
@@ -669,7 +416,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }, 50);
             },
-
             openLogModal(dateKey) {
                 selectedLogDate = dateKey;
                 const currentLog = userData.logs[selectedLogDate] || {};
@@ -717,7 +463,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 logModal.classList.add('visible');
                 document.getElementById('log-notes').dispatchEvent(new Event('input'));
             },
-
             openDatePicker(targetInputId) {
                 const targetInput = document.getElementById(targetInputId);
                 const initialDate = targetInput.dataset.value ? moment(targetInput.dataset.value, 'YYYY-MM-DD') : moment();
@@ -726,7 +471,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 this.renderDatePicker();
                 datepickerModal.classList.add('visible');
             },
-
             renderDatePicker() {
                 const { currentDate, targetInputId } = datepickerState;
                 const targetInput = document.getElementById(targetInputId);
@@ -748,12 +492,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 html += `</div>`;
                 datepickerModalContent.innerHTML = html;
             },
-
             changeDatePickerMonth(direction) {
                 datepickerState.currentDate.add(direction, 'jMonth');
                 this.renderDatePicker();
             },
-
             selectDate(dateStr) {
                 const selectedMoment = moment(dateStr, 'YYYY-MM-DD');
                 const targetInput = document.getElementById(datepickerState.targetInputId);
@@ -761,13 +503,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 targetInput.dataset.value = selectedMoment.format('YYYY-MM-DD');
                 datepickerModal.classList.remove('visible');
             },
-
             openEditPeriodModal() {
                 const deleteButton = userData.user.last_period_date
                     ? `<button id="delete-history-btn" class="flex items-center gap-1 text-xs bg-red-100 text-red-700 font-semibold px-2 py-1 rounded-md hover:bg-red-200 transition-colors">
-                          <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                              <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-                          </svg>
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
                           <span>حذف</span>
                       </button>`
                     : '';
@@ -789,12 +528,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 editPeriodModal.classList.add('visible');
             },
         };
-
         // --- EVENT LISTENERS ---
         settingsBtn.addEventListener('click', () => app.goToSettings());
         analysisBtn.addEventListener('click', () => app.goToAnalysis());
         backBtn.addEventListener('click', () => app.goToDashboard());
-        
         logModal.addEventListener('click', (e) => {
             if (e.target.id === 'save-log-btn') window.app.saveLog();
             if (e.target.id === 'delete-log-btn') window.app.deleteLog();
@@ -811,21 +548,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         });
-
         datepickerModal.addEventListener('click', (e) => {
             if (e.target.classList.contains('modal-overlay')) datepickerModal.classList.remove('visible');
         });
-        
         editPeriodModal.addEventListener('click', (e) => {
             if (e.target.closest('#delete-history-btn')) {
-                window.app.openDeletePeriodChoiceModal(); // MODIFIED
+                window.app.openDeletePeriodChoiceModal(); 
             }
             if (e.target.classList.contains('modal-overlay')) {
                 editPeriodModal.classList.remove('visible');
             }
         });
-        
-        // --- NEW --- Listener for the new choice modal
         deleteChoiceModal.addEventListener('click', (e) => {
             if (e.target.id === 'delete-last-period-btn') {
                 app.handleDeletePeriod('last');
@@ -835,16 +568,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 deleteChoiceModal.classList.remove('visible');
             }
         });
-
         confirmationModal.addEventListener('click', (e) => {
              if (e.target.classList.contains('modal-overlay') || e.target.id === 'cancel-action-btn') {
                 confirmationModal.classList.remove('visible');
             }
         });
-
         // --- START APP ---
         window.app.init();
-
     } catch (error) {
         console.error("An error occurred:", error);
         document.getElementById('app-content').innerHTML = `<div class="text-center text-red-500 p-8">یک خطای غیرمنتظره رخ داد. لطفاً صفحه را رفرش کنید.<br><small class="text-gray-400">${error.message}</small></div>`;
