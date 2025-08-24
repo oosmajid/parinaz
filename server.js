@@ -1,18 +1,4 @@
 // server.js
-
-// DIAGNOSTIC CODE - ADD THIS TO THE VERY TOP OF server.js
-console.log("--- DIAGNOSTIC LOG FOR ARABIC-RESHAPER ---");
-try {
-  const arabicReshaperModule = require('arabic-reshaper');
-  console.log("typeof arabicReshaperModule:", typeof arabicReshaperModule);
-  console.log("arabicReshaperModule content:", arabicReshaperModule);
-  console.log("Object.keys(arabicReshaperModule):", Object.keys(arabicReshaperModule));
-} catch (e) {
-  console.error("ERROR requiring arabic-reshaper:", e);
-}
-console.log("--- END DIAGNOSTIC LOG ---");
-// END DIAGNOSTIC CODE
-// ... etc
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -341,7 +327,7 @@ app.delete('/api/user/:telegram_id/companions', async (req, res) => {
 
 // --- START: NEW PDF REPORT ENDPOINT with DEBUG LOGS ---
 const arabicReshaper = require('arabic-reshaper');
-const bidi = require('bidi-js')();
+const bidi = require('bidi-js')(); 
 
 app.post('/api/user/:telegram_id/report', async (req, res) => {
     const { telegram_id } = req.params;
@@ -363,18 +349,9 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
             console.error(`[ERROR] Font file not found at: ${fontPath}.`);
         }
         
-        // --- THE FINAL FIX: Safely find the reshape function ---
-        let reshape;
-        if (typeof arabicReshaper.reshape === 'function') {
-            reshape = arabicReshaper.reshape;
-        } else if (arabicReshaper.default && typeof arabicReshaper.default.reshape === 'function') {
-            reshape = arabicReshaper.default.reshape;
-        } else {
-            throw new Error('The "reshape" function could not be found in the arabic-reshaper module.');
-        }
-
+        // --- FINAL FIX: Using the correct function name "convertArabic" ---
         const processText = (text) => {
-            const reshapedText = reshape(text);
+            const reshapedText = arabicReshaper.convertArabic(text); // Using the correct function
             return bidi.reorder(reshapedText);
         };
         // --- END FINAL FIX ---
@@ -382,7 +359,7 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
         doc.fontSize(25).text(processText('گزارش سلامت پریناز'), { align: 'center' });
         doc.fontSize(16).text(processText(`گزارش برای بازه زمانی: ${months} ماه گذشته`), { align: 'center' });
         doc.moveDown();
-        doc.fontSize(12).text(processText('این گزارش به صورت خودکار توسط ربات پریناز تولید شده است.'), { align: 'right' });
+        doc.fontSize(12).text(processText('این گزارش به صورت خودکار توسط ربات پریناز تولید شده است.'), {align: 'right'});
 
         doc.end();
 
@@ -391,38 +368,37 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
                 const stats = fs.statSync(filePath);
                 console.log(`[LOG] PDF file created at: ${filePath} with size: ${stats.size} bytes.`);
                 if (stats.size < 100) {
-                    throw new Error('PDF file was created but is likely empty.');
+                     throw new Error('PDF file was created but is likely empty.');
                 }
-
+                
                 const caption = `گزارش شما برای ${months} ماه گذشته آماده است.`;
                 await bot.sendDocument(telegram_id, filePath, { caption });
                 console.log(`[LOG] Document sent successfully to user: ${telegram_id}`);
+                
                 res.status(200).json({ message: 'گزارش شما از طریق ربات ارسال شد.' });
 
             } catch (botError) {
                 console.error('[ERROR] Failed to send document via bot:', botError.message);
                 res.status(500).json({ error: 'خطا در ارسال گزارش از طریق ربات.' });
             } finally {
+                // Clean up the temporary file
                 if (fs.existsSync(filePath)) {
                     fs.unlinkSync(filePath);
+                    console.log(`[LOG] Temporary file deleted: ${filePath}`);
                 }
             }
         });
 
         stream.on('error', (err) => {
-            console.error('[ERROR] Stream Error during PDF creation:', err);
-            res.status(500).json({ error: 'خطا در ایجاد فایل PDF روی سرور.' });
-            if (fs.existsSync(filePath)) {
-                fs.unlinkSync(filePath);
-            }
+             console.error('[ERROR] Stream Error during PDF creation:', err);
+             res.status(500).json({ error: 'خطا در ایجاد فایل PDF روی سرور.' });
+             if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
         });
 
     } catch (error) {
         console.error('[ERROR] General error in report generation:', error);
         res.status(500).json({ error: 'خطای داخلی سرور هنگام ساخت گزارش.' });
-        if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
-        }
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     }
 });
 // --- END: NEW PDF REPORT ENDPOINT ---
