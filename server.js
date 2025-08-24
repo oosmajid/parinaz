@@ -35,7 +35,14 @@ pool.query('SELECT NOW()', (err) => {
   else console.log('Database connection successful.');
 });
 
-app.use(cors());
+// app.use(cors());
+const corsOptions = {
+  origin: '*', // به همه دامنه‌ها اجازه دسترسی می‌دهد
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'], // اجازه استفاده از تمام متدها
+  allowedHeaders: ['Content-Type', 'Authorization'], // اجازه هدرهای رایج
+};
+app.use(cors(corsOptions));
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 // --- END: BOT & DB Initialization ---

@@ -390,6 +390,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 } catch (error) {
                     console.error("Failed to request PDF report:", error);
+                    // --- START: Add Telegram Alert on Error ---
+                    // This will show a native popup if the fetch fails (e.g., due to CORS)
+                    tg.showAlert(error.message);
+                    // --- END: Add Telegram Alert on Error ---
                     showToast(error.message, true);
                 } finally {
                     spinner.classList.remove('visible');
