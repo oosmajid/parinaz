@@ -631,7 +631,7 @@ const renderAnalysis = (userData, charts) => {
                         previousPeriod: sortedHistory[i+1]
                     };
                     // Filter cycles that started within the selected time frame
-                    if(cycle.previousPeriod.startDateMoment.isSameOrAfter(startDate)) {
+                    if(cycle.currentPeriod.startDateMoment.isSameOrAfter(startDate)) {
                         completedCycles.push(cycle);
                     }
                 }
