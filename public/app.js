@@ -264,15 +264,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
             
-            // --- NEW --- Function to open the choice modal
             openDeletePeriodChoiceModal() {
                 editPeriodModal.classList.remove('visible');
                 deleteChoiceModal.classList.add('visible');
             },
 
-            // --- NEW --- Function to handle the actual deletion after user confirms
             handleDeletePeriod(scope) {
-                deleteChoiceModal.classList.remove('visible'); // Hide the choice modal first
+                deleteChoiceModal.classList.remove('visible'); 
 
                 const title = (scope === 'last') ? 'حذف آخرین سابقه' : 'حذف تمام سوابق';
                 const message = (scope === 'last') 
@@ -284,14 +282,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         const response = await fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}/period`, {
                             method: 'DELETE',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ scope: scope }) // Pass the scope to the backend
+                            body: JSON.stringify({ scope: scope }) 
                         });
                         const data = await response.json();
                         if (!response.ok) throw new Error(data.error || 'خطا در حذف سوابق');
                         
-                        await this.init(true); // Refresh all user data from server
+                        await this.init(true); 
                         showToast(data.message);
-                        renderDashboard(userData); // Re-render dashboard with updated data
+                        renderDashboard(userData); 
                     } catch (error) {
                         console.error('Failed to delete period history:', error);
                         showToast(error.message, true);
@@ -401,253 +399,55 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
 
+            // --- START: NEW PDF EXPORT FUNCTION ---
             async exportToPDF(months) {
                 const spinner = document.getElementById('spinner-overlay');
                 spinner.classList.add('visible');
                 await new Promise(resolve => setTimeout(resolve, 50));
-                if (typeof window.jspdf === 'undefined' || typeof window.ArabicReshaper === 'undefined' || typeof window.Chart === 'undefined') {
-                    showToast('یکی از کتابخانه‌های PDF، متن فارسی یا نمودار بارگذاری نشده است.', true);
-                    spinner.classList.remove('visible');
-                    return;
-                }
-                if (typeof window.vazirFont === 'undefined') {
-                    showToast('فونت مورد نیاز برای ساخت PDF بارگذاری نشده است.', true);
-                    spinner.classList.remove('visible');
-                    return;
-                }
+
                 try {
-                    const processPersianText = (text) => {
-                        if (!text) return '';
-                        const reshapedText = ArabicReshaper.convertArabic(String(text));
-                        return reshapedText.split('').reverse().join('');
-                    };
+                    // Check for libraries
+                    if (typeof window.jspdf === 'undefined' || typeof window.ArabicReshaper === 'undefined' || typeof window.vazirFont === 'undefined') {
+                        throw new Error('کتابخانه‌های مورد نیاز برای ساخت PDF بارگذاری نشده‌اند.');
+                    }
+            
                     const { jsPDF } = window.jspdf;
                     const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
                     doc.addFileToVFS('Vazir-Regular-font.ttf', window.vazirFont);
                     doc.addFont('Vazir-Regular-font.ttf', 'Vazir', 'normal');
                     doc.setFont('Vazir');
                     doc.setR2L(true);
-                    let y = 15;
-                    const pageHeight = doc.internal.pageSize.height;
-                    const pageWidth = doc.internal.pageSize.width;
-                    const margin = 15;
-                    const contentWidth = pageWidth - (2 * margin);
-                    const rightEdge = pageWidth - margin;
-                    const boxColors = ['#fff1f2', '#f0f9ff', '#f0fdf4', '#fefce8'];
-                    const lineHeight = 7;
-                    const checkPageBreak = (neededHeight = 20) => {
-                        if (y + neededHeight > pageHeight - margin) {
-                            doc.addPage();
-                            y = 15;
-                        }
-                    };
-                    const drawSection = (title, contentLines) => {
-                        doc.setFontSize(10);
-                        let totalHeight = 12;
-                        let wrappedContent = [];
-                        contentLines.forEach(line => {
-                            const lines = doc.splitTextToSize(processPersianText(line), contentWidth - 10);
-                            wrappedContent.push(lines);
-                            totalHeight += lines.length * lineHeight;
-                        });
-                        totalHeight += 5;
-                        checkPageBreak(totalHeight);
-                        const startY = y;
-                        const boxColor = boxColors[drawSection.colorIndex % boxColors.length];
-                        drawSection.colorIndex++;
-                        doc.setFillColor(boxColor);
-                        doc.rect(margin, startY, contentWidth, totalHeight, 'F');
-                        doc.setFontSize(14);
-                        doc.setTextColor('#1f2937');
-                        doc.text(processPersianText(title), rightEdge - 5, startY + 10, { align: 'right' });
-                        doc.setFontSize(10);
-                        doc.setTextColor('#374151');
-                        let contentY = startY + 20;
-                        wrappedContent.forEach(lines => {
-                            doc.text(lines, rightEdge - 5, contentY, { align: 'right' });
-                            contentY += lines.length * lineHeight;
-                        });
-                        y = startY + totalHeight + 7;
-                    };
-                    drawSection.colorIndex = 0;
-                    const drawChartSection = (title, chartImage) => {
-                        const chartHeight = (contentWidth - 10) / 2;
-                        const totalHeight = chartHeight + 20;
-                        checkPageBreak(totalHeight);
-                        const startY = y;
-                        const boxColor = boxColors[drawSection.colorIndex % boxColors.length];
-                        drawSection.colorIndex++;
-                        doc.setFillColor(boxColor);
-                        doc.rect(margin, startY, contentWidth, totalHeight, 'F');
-                        doc.setFontSize(14);
-                        doc.setTextColor('#1f2937');
-                        doc.text(processPersianText(title), rightEdge - 5, startY + 10, { align: 'right' });
-                        doc.addImage(chartImage, 'JPEG', margin + 5, startY + 15, contentWidth - 10, chartHeight, undefined, 'FAST');
-                        y = startY + totalHeight + 7;
-                    };
-                    const endDate = moment();
-                    const startDate = moment().subtract(months, 'months');
-                     const periodHistorySorted = [...(userData.period_history || [])]
-                        .map(p => ({...p, start_date: moment(p.start_date)}))
-                        .filter(p => p.start_date.isBetween(startDate, endDate, undefined, '[]'))
-                        .sort((a,b) => a.start_date - b.start_date);
-                    const filteredLogs = Object.entries(userData.logs).filter(([date]) => {
-                        return moment(date).isBetween(startDate, endDate, undefined, '[]');
-                    });
-                    const getLogPhase = (logDate) => {
-                        const recordedPeriod = periodHistorySorted.find(p => logDate.isBetween(p.start_date, p.start_date.clone().add(p.duration - 1, 'days'), undefined, '[]'));
-                        if (recordedPeriod) return 'period';
-                        let cycleStartDate, cycleLength;
-                        for (let i = 0; i < periodHistorySorted.length; i++) {
-                            if (logDate.isSameOrAfter(periodHistorySorted[i].start_date) && (!periodHistorySorted[i+1] || logDate.isBefore(periodHistorySorted[i+1].start_date))) {
-                                cycleStartDate = periodHistorySorted[i].start_date;
-                                cycleLength = periodHistorySorted[i+1] ? periodHistorySorted[i+1].start_date.diff(cycleStartDate, 'days') : (userData.user.avg_cycle_length || userData.user.cycle_length);
-                                break;
-                            }
-                        }
-                        if (cycleStartDate) {
-                            const pmsStartDay = cycleLength - 4;
-                            const dayOfCycle = logDate.diff(cycleStartDate, 'days') + 1;
-                            if (dayOfCycle >= pmsStartDay && dayOfCycle <= cycleLength) return 'pms';
-                        }
-                        return 'other';
-                    };
-                    const getFrequentSymptoms = (phase, limit) => {
-                        const counts = {};
-                        filteredLogs.forEach(([dateKey, log]) => {
-                            if (phase === 'all' || getLogPhase(moment(dateKey)) === phase) {
-                                ALL_SYMPTOM_CATEGORIES.forEach(cat => {
-                                    if(log[cat]) (Array.isArray(log[cat]) ? log[cat] : [log[cat]]).forEach(item => { counts[item] = (counts[item] || 0) + 1 });
-                                });
-                            }
-                        });
-                        return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, limit);
-                    };
-                    const addChartToPDF = (data, title, unit) => {
-                        return new Promise((resolve, reject) => {
-                            const container = document.createElement('div');
-                            container.style.cssText = 'position: absolute; left: -10000px; top: 0px; width: 800px; height: 400px;';
-                            document.body.appendChild(container);
-                            const canvas = document.createElement('canvas');
-                            container.appendChild(canvas);
-                            const timeout = setTimeout(() => {
-                                 chart.destroy();
-                                 document.body.removeChild(container);
-                                 reject(new Error(`Chart rendering timed out for: ${title}`));
-                            }, 5000);
-                            const background_filler_plugin = {
-                                id: 'canvasBGFiller',
-                                beforeDraw: (chart) => {
-                                    const ctx = chart.ctx;
-                                    ctx.save();
-                                    ctx.globalCompositeOperation = 'destination-over';
-                                    ctx.fillStyle = 'white';
-                                    ctx.fillRect(0, 0, chart.width, chart.height);
-                                    ctx.restore();
-                                }
-                            };
-                            const chart = new Chart(canvas.getContext('2d'), {
-                                type: 'line',
-                                data: { labels: data.labels, datasets: [{ data: data.data, borderColor: '#ec4899', borderWidth: 2, pointBackgroundColor: '#ec4899' }] },
-                                plugins: [background_filler_plugin],
-                                options: {
-                                    animation: { duration: 1, onComplete: () => {
-                                        clearTimeout(timeout);
-                                        setTimeout(() => {
-                                            const imgData = canvas.toDataURL('image/jpeg', 0.8);
-                                            chart.destroy();
-                                            document.body.removeChild(container);
-                                            resolve(imgData);
-                                        }, 100);
-                                    }},
-                                    plugins: { 
-                                        legend: { display: false }, 
-                                        title: { display: true, text: title },
-                                        canvasBGFiller: {}
-                                    },
-                                    scales: { y: { ticks: { callback: v => `${v} ${unit}` } } }
-                                }
-                            });
-                        });
-                    };
-                    doc.setFontSize(18);
-                    doc.text(processPersianText('گزارش جامع سلامت پریناز'), pageWidth / 2, y, { align: 'center'});
-                    y += 8;
-                    doc.setFontSize(11);
-                    const dateRangeText = `بازه زمانی گزارش: از ${toPersian(startDate.format('jYYYY/jM/jD'))} تا ${toPersian(endDate.format('jYYYY/jM/jD'))}`;
-                    doc.text(processPersianText(dateRangeText), pageWidth / 2, y, { align: 'center'});
-                    y += 12;
-                    const cycleSummaryLines = [];
-                    const avgCycle = userData.user.avg_cycle_length ? toPersian(parseFloat(userData.user.avg_cycle_length).toFixed(1)) : '--';
-                    const avgPeriod = userData.user.avg_period_length ? toPersian(parseFloat(userData.user.avg_period_length).toFixed(1)) : '--';
-                    cycleSummaryLines.push(`میانگین طول سیکل: ${avgCycle} روز`);
-                    cycleSummaryLines.push(`میانگین طول پریود: ${avgPeriod} روز`);
-                    cycleSummaryLines.push(" ");
-                    cycleSummaryLines.push(":پریودهای ثبت‌شده");
-                    if (periodHistorySorted.length > 0) periodHistorySorted.forEach(p => cycleSummaryLines.push(`از ${toPersian(p.start_date.format('jYYYY/jM/jD'))} تا ${toPersian(p.start_date.clone().add(p.duration - 1, 'days').format('jYYYY/jM/jD'))} به مدت ${toPersian(p.duration)} روز -`));
-                    else cycleSummaryLines.push("موردی ثبت نشده است.");
-                    cycleSummaryLines.push(" ");
-                    cycleSummaryLines.push(":طول سیکل‌های ثبت‌شده");
-                    if (periodHistorySorted.length > 1) {
-                        for (let i = 1; i < periodHistorySorted.length; i++) {
-                            const len = periodHistorySorted[i].start_date.diff(periodHistorySorted[i-1].start_date, 'days');
-                            cycleSummaryLines.push(`سیکل شروع‌شده در ${toPersian(periodHistorySorted[i-1].start_date.format('jYY/jM/jD'))} به مدت ${toPersian(len)} روز -`);
-                        }
-                    } else { cycleSummaryLines.push("داده کافی برای محاسبه وجود ندارد."); }
-                    drawSection('خلاصه سیکل و پریود', cycleSummaryLines);
-                    const formatSymptomList = (phase, limit) => {
-                        const symptoms = getFrequentSymptoms(phase, limit);
-                        return symptoms.length > 0 ? symptoms.map(([symptom, count]) => `${symptom}: ${toPersian(count)} بار -`) : ["موردی ثبت نشده است."];
-                    };
-                    drawSection('پرتکرارترین علائم در مجموع', formatSymptomList('all', 20));
-                    drawSection('علائم پرتکرار در دوره پی‌ام‌اس', formatSymptomList('pms', 10));
-                    drawSection('علائم پرتکرار در دوره پریود', formatSymptomList('period', 10));
-                    const processMetricLogs = (metricKey) => {
-                        const data = filteredLogs.filter(([, log]) => log[metricKey] != null && log[metricKey] !== '').map(([date, log]) => ({ date: moment(date), value: parseFloat(log[metricKey])})).sort((a,b) => a.date - b.date);
-                        return { labels: data.map(d => d.date.format('YYYY-MM-DD')), data: data.map(d => d.value) };
-                    };
-                    const chartConfigs = [
-                        { data: processMetricLogs('weight'), title: 'نمودار وزن', unit: 'kg' },
-                        { data: processMetricLogs('water'), title: 'نمودار نوشیدن آب', unit: 'لیوان' },
-                        { data: processMetricLogs('sleep'), title: 'نمودار ساعات خواب', unit: 'ساعت' }
-                    ];
-                    for (const config of chartConfigs) {
-                        if (config.data.labels.length > 1) {
-                            const chartImage = await addChartToPDF(config.data, config.title, config.unit);
-                            drawChartSection(config.title, chartImage);
-                        } else {
-                            drawSection(config.title, ["داده کافی برای رسم نمودار وجود ندارد."]);
-                        }
-                    }
 
-                    // --- START: FIX for PDF Download ---
-                    const pdfData = doc.output('blob');
-                    const url = URL.createObjectURL(pdfData);
+                    // --- SIMPLIFIED PDF CONTENT FOR TESTING ---
+                    const processPersianText = (text) => {
+                        if (!text) return '';
+                        const reshapedText = ArabicReshaper.convertArabic(String(text));
+                        return reshapedText.split('').reverse().join('');
+                    };
+                    
+                    doc.setFontSize(22);
+                    doc.text(processPersianText("گزارش سلامت پریناز"), 105, 20, { align: 'center' });
+                    doc.setFontSize(12);
+                    doc.text(processPersianText("این یک گزارش تست برای اطمینان از صحت عملکرد دانلود است."), 105, 30, { align: 'center' });
+                    doc.text(processPersianText(`تاریخ گزارش: ${moment().format('jYYYY/jM/jD')}`), 105, 40, { align: 'center' });
+                    // --- END OF SIMPLIFIED CONTENT ---
 
-                    // Check if Telegram supports direct file download
-                    if (tg.isVersionAtLeast('6.7') && tg.supports('share_file')) {
-                         tg.shareFile({ url: url, filename: 'Parinaz-Report-Comprehensive.pdf' });
-                    } else {
-                        // Fallback for older Telegram versions or desktop app issues
-                        const link = document.createElement('a');
-                        link.href = url;
-                        link.download = `Parinaz-Report-Comprehensive.pdf`;
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        URL.revokeObjectURL(url);
-                        
-                        showToast('دانلود آغاز شد.', false);
-                    }
-                    // --- END: FIX ---
+                    // --- NEW DOWNLOAD METHOD ---
+                    // This method attempts to open the PDF in a new tab/window.
+                    // It is often more compatible with mobile webviews than direct downloads.
+                    doc.output('dataurlnewwindow');
 
                 } catch (e) {
                     console.error("Failed to create PDF:", e);
-                    showToast('خطا در ساخت PDF. لطفاً جزئیات خطا را در کنسول بررسی کنید.', true);
+                    showToast(e.message || 'خطا در ساخت PDF. لطفاً جزئیات خطا را در کنسول بررسی کنید.', true);
                 } finally {
-                    spinner.classList.remove('visible');
+                    // Add a small delay before hiding the spinner to ensure the new window has time to open.
+                    setTimeout(() => {
+                        spinner.classList.remove('visible');
+                    }, 1000);
                 }
             },
+            // --- END: NEW PDF EXPORT FUNCTION ---
 
             goToSettings() { renderSettings(userData); },
             goToAnalysis() { renderAnalysis(userData, charts); },
@@ -818,14 +618,13 @@ document.addEventListener('DOMContentLoaded', function() {
         
         editPeriodModal.addEventListener('click', (e) => {
             if (e.target.closest('#delete-history-btn')) {
-                window.app.openDeletePeriodChoiceModal(); // MODIFIED
+                window.app.openDeletePeriodChoiceModal(); 
             }
             if (e.target.classList.contains('modal-overlay')) {
                 editPeriodModal.classList.remove('visible');
             }
         });
         
-        // --- NEW --- Listener for the new choice modal
         deleteChoiceModal.addEventListener('click', (e) => {
             if (e.target.id === 'delete-last-period-btn') {
                 app.handleDeletePeriod('last');
