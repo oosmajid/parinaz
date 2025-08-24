@@ -349,13 +349,22 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
         } else {
             console.error(`[ERROR] Font file not found at: ${fontPath}.`);
         }
+        
+        // --- THE FINAL FIX: Safely find the reshape function ---
+        let reshape;
+        if (typeof arabicReshaper.reshape === 'function') {
+            reshape = arabicReshaper.reshape;
+        } else if (arabicReshaper.default && typeof arabicReshaper.default.reshape === 'function') {
+            reshape = arabicReshaper.default.reshape;
+        } else {
+            throw new Error('The "reshape" function could not be found in the arabic-reshaper module.');
+        }
 
-        // --- THE MOST LIKELY FIX: Call the module directly as a function ---
         const processText = (text) => {
-            const reshapedText = arabicReshaper(text); // Using the module as a function
+            const reshapedText = reshape(text);
             return bidi.reorder(reshapedText);
         };
-        // --- END FIX ---
+        // --- END FINAL FIX ---
 
         doc.fontSize(25).text(processText('گزارش سلامت پریناز'), { align: 'center' });
         doc.fontSize(16).text(processText(`گزارش برای بازه زمانی: ${months} ماه گذشته`), { align: 'center' });
