@@ -137,21 +137,23 @@ const templates = {
                 </div>`; 
     },
     analysis() { 
-        return `<div class="page-enter space-y-6">
-                    <div class="flex justify-between items-center border-b">
+        return `<div class="page-enter space-y-4">
+                    <div class="border-b">
                         <div class="flex">
                             <button data-months="1" class="analysis-tab time-tab active-tab px-4 py-2 font-semibold">۱ ماه</button>
                             <button data-months="3" class="analysis-tab time-tab px-4 py-2 font-semibold">۳ ماه</button>
                             <button data-months="6" class="analysis-tab time-tab px-4 py-2 font-semibold">۶ ماه</button>
                             <button data-months="12" class="analysis-tab time-tab px-4 py-2 font-semibold">۱ سال</button>
                         </div>
-                        <button id="export-pdf-btn" class="p-2 text-gray-500 hover:text-red-500" title="خروجی PDF">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            </svg>
-                        </button>
                     </div>
-                    <div class="flex justify-center mb-4">
+                    <button id="export-pdf-btn" class="w-full flex justify-between items-center text-right p-3 bg-gray-100 text-gray-700 rounded-lg font-medium text-sm hover:bg-gray-200 transition-colors">
+                        <span>دانلود گزارش به صورت pdf</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                    </button>
+                    <div id="cycle-history-summary"></div>
+                    <div class="flex justify-center pt-2">
                         <div class="flex p-1 bg-gray-200 rounded-full text-sm">
                             <button data-phase="all" class="analysis-tab phase-tab active-tab px-4 py-1 rounded-full">کلی</button>
                             <button data-phase="pms" class="analysis-tab phase-tab px-4 py-1 rounded-full">دوره PMS</button>
@@ -609,6 +611,96 @@ const renderAnalysis = (userData, charts) => {
     const updateAnalysisCharts = (months, phase) => {
         const startDate = moment().subtract(months, 'months');
         
+        // --- MODIFIED: Cycle History and Chart Logic moved here ---
+
+        // 1. Render Cycle History Summary based on selected months
+        const historyContainer = document.getElementById('cycle-history-summary');
+        if (historyContainer) {
+            const history = userData.period_history;
+            if (!history || history.length < 2) {
+                historyContainer.innerHTML = `<div class="p-4 bg-gray-100 rounded-lg text-center text-gray-500 text-sm">برای نمایش خلاصه‌ی سیکل‌ها، به حداقل دو دوره پریود ثبت‌شده نیاز است.</div>`;
+            } else {
+                const sortedHistory = [...history]
+                    .map(p => ({ ...p, startDateMoment: moment(p.start_date, 'YYYY-MM-DD') }))
+                    .sort((a, b) => b.startDateMoment - a.startDateMoment);
+                
+                let completedCycles = [];
+                for (let i = 0; i < sortedHistory.length - 1; i++) {
+                    const cycle = {
+                        currentPeriod: sortedHistory[i],
+                        previousPeriod: sortedHistory[i+1]
+                    };
+                    // Filter cycles that started within the selected time frame
+                    if(cycle.previousPeriod.startDateMoment.isSameOrAfter(startDate)) {
+                        completedCycles.push(cycle);
+                    }
+                }
+                
+                if (completedCycles.length === 0) {
+                     historyContainer.innerHTML = `<div class="p-4 bg-gray-100 rounded-lg text-center text-gray-500 text-sm">هیچ سیکل کاملی در این بازه زمانی ثبت نشده است.</div>`;
+                } else {
+                    let historyHTML = '';
+                    completedCycles.forEach(cycle => {
+                        const cycleStartDate = cycle.previousPeriod.startDateMoment;
+                        const cycleEndDate = cycle.currentPeriod.startDateMoment.clone().subtract(1, 'day');
+                        const cycleLength = cycle.currentPeriod.startDateMoment.diff(cycle.previousPeriod.startDateMoment, 'days');
+                        const periodLength = cycle.previousPeriod.duration;
+
+                        const isPeriodLengthNormal = periodLength >= 2 && periodLength <= 8;
+                        const isCycleLengthNormal = cycleLength >= 21 && cycleLength <= 35;
+                        
+                        let statusText = '';
+                        let statusIcon = '';
+                        const greenIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>`;
+                        const yellowIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.21 3.03-1.742 3.03H4.42c-1.532 0-2.492-1.696-1.742-3.03l5.58-9.92zM10 13a1 1 0 100-2 1 1 0 000 2zm-1-4a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clip-rule="evenodd" /></svg>`;
+
+                        if (isPeriodLengthNormal && isCycleLengthNormal) {
+                            statusText = 'طول دوره و پریود در بازه طبیعی قرار دارد.';
+                            statusIcon = greenIcon;
+                        } else if (!isPeriodLengthNormal && !isCycleLengthNormal) {
+                            statusText = 'طول دوره و طول پریود خارج از بازه طبیعی است.';
+                            statusIcon = yellowIcon;
+                        } else if (!isCycleLengthNormal) {
+                            statusText = 'طول دوره خارج از بازه طبیعی است.';
+                            statusIcon = yellowIcon;
+                        } else { // !isPeriodLengthNormal
+                            statusText = 'طول پریود خارج از بازه طبیعی است.';
+                            statusIcon = yellowIcon;
+                        }
+                        
+                        const statusTextColor = (isPeriodLengthNormal && isCycleLengthNormal) ? 'text-green-600' : 'text-yellow-600';
+                        const periodPercentage = (periodLength / cycleLength) * 100;
+
+                        historyHTML += `
+                        <div class="p-4 bg-white rounded-lg border">
+                            <div class="flex items-center justify-between">
+                                <div class="relative w-20 h-20 flex items-center justify-center">
+                                    <svg class="w-full h-full" viewBox="0 0 36 36">
+                                        <path class="stroke-current text-gray-200" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke-width="3.5"></path>
+                                        <path class="stroke-current text-red-400" stroke-dasharray="${periodPercentage}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke-width="3.5" stroke-linecap="round"></path>
+                                    </svg>
+                                    <span class="absolute text-lg font-bold text-gray-700">${toPersian(cycleLength)} روز</span>
+                                </div>
+                                <div class="text-right text-sm">
+                                    <p class="font-bold text-gray-800">${toPersian(cycleStartDate.format('jD jMMMM'))} - ${toPersian(cycleEndDate.format('jD jMMMM'))}</p>
+                                    <div class="mt-2 space-y-1 text-xs text-gray-600">
+                                        <p><span class="inline-block w-2 h-2 rounded-full bg-red-400 ml-2"></span>طول پریود: ${toPersian(periodLength)} روز</p>
+                                        <p><span class="inline-block w-2 h-2 rounded-full bg-gray-300 ml-2"></span>طول دوره: ${toPersian(cycleLength)} روز</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-start gap-2 mt-3 pt-3 border-t text-xs">
+                                ${statusIcon}
+                                <span class="${statusTextColor} font-medium">${statusText}</span>
+                            </div>
+                        </div>`;
+                    });
+                    historyContainer.innerHTML = `<div class="space-y-3">${historyHTML}</div>`;
+                }
+            }
+        }
+        
+        // 2. Chart Logic (existing code)
         const recordedPeriodDays = new Set();
         const periodHistorySorted = [...(userData.period_history || [])].sort((a,b) => new Date(a.start_date) - new Date(b.start_date));
         
@@ -707,7 +799,6 @@ const renderAnalysis = (userData, charts) => {
         });
     });
 
-    // --- NEW --- اتصال دکمه PDF به تابع خروجی
     document.getElementById('export-pdf-btn').addEventListener('click', () => {
         window.app.exportToPDF(currentFilter.months);
     });
