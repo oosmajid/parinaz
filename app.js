@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const editPeriodModal = document.getElementById('edit-period-modal');
         const editPeriodModalContent = document.getElementById('edit-period-modal-content');
         const confirmationModal = document.getElementById('confirmation-modal');
+        const deleteChoiceModal = document.getElementById('delete-period-choice-modal'); // NEW
 
         // --- TOAST NOTIFICATION ---
         const toast = document.createElement('div');
@@ -244,9 +245,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const data = await response.json();
                     if (!response.ok) throw new Error(data.error || 'خطا در ثبت اطلاعات');
                     
-                    userData.user = data.user;
-                    await this.init(true); // Refresh data
-                    
+                    await this.init(true); // Refresh all user data
                     showToast(data.message);
                     editPeriodModal.classList.remove('visible');
                     renderDashboard(userData);
@@ -256,30 +255,39 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
             
-            async deletePeriodHistory() {
-                 showConfirmationModal(
-                    'حذف تمام سوابق پریود',
-                    'آیا مطمئن هستید؟ با این کار تمام تاریخچه پریود شما حذف شده و محاسبات از نو انجام خواهد شد. این عمل غیرقابل بازگشت است.',
-                    async () => {
-                        try {
-                            const response = await fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}/period`, {
-                                method: 'DELETE'
-                            });
-                            const data = await response.json();
-                            if (!response.ok) throw new Error(data.error || 'خطا در حذف سوابق');
+            // --- NEW --- Function to open the choice modal
+            openDeletePeriodChoiceModal() {
+                editPeriodModal.classList.remove('visible');
+                deleteChoiceModal.classList.add('visible');
+            },
 
-                            userData.user = data.user;
-                            userData.period_history = [];
-                            
-                            showToast(data.message);
-                            editPeriodModal.classList.remove('visible');
-                            renderDashboard(userData);
-                        } catch (error) {
-                            console.error('Failed to delete period history:', error);
-                            showToast(error.message, true);
-                        }
+            // --- NEW --- Function to handle the actual deletion after user confirms
+            handleDeletePeriod(scope) {
+                deleteChoiceModal.classList.remove('visible'); // Hide the choice modal first
+
+                const title = (scope === 'last') ? 'حذف آخرین سابقه' : 'حذف تمام سوابق';
+                const message = (scope === 'last') 
+                    ? 'آیا از حذف آخرین سابقه پریود خود مطمئن هستید؟ این عمل غیرقابل بازگشت است.'
+                    : 'آیا مطمئن هستید؟ تمام تاریخچه پریود شما حذف خواهد شد. این عمل غیرقابل بازگشت است.';
+                
+                showConfirmationModal(title, message, async () => {
+                    try {
+                        const response = await fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}/period`, {
+                            method: 'DELETE',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ scope: scope }) // Pass the scope to the backend
+                        });
+                        const data = await response.json();
+                        if (!response.ok) throw new Error(data.error || 'خطا در حذف سوابق');
+                        
+                        await this.init(true); // Refresh all user data from server
+                        showToast(data.message);
+                        renderDashboard(userData); // Re-render dashboard with updated data
+                    } catch (error) {
+                        console.error('Failed to delete period history:', error);
+                        showToast(error.message, true);
                     }
-                );
+                });
             },
 
             deleteAccount() {
@@ -385,13 +393,9 @@ document.addEventListener('DOMContentLoaded', function() {
             },
 
             async exportToPDF(months) {
-                // --- Show Spinner ---
                 const spinner = document.getElementById('spinner-overlay');
                 spinner.classList.add('visible');
-                // Allow the browser a moment to render the spinner before the UI might freeze
                 await new Promise(resolve => setTimeout(resolve, 50));
-
-                // Library checks
                 if (typeof window.jspdf === 'undefined' || typeof window.ArabicReshaper === 'undefined' || typeof window.Chart === 'undefined') {
                     showToast('یکی از کتابخانه‌های PDF، متن فارسی یا نمودار بارگذاری نشده است.', true);
                     spinner.classList.remove('visible');
@@ -402,24 +406,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     spinner.classList.remove('visible');
                     return;
                 }
-
                 try {
-                    // --- Reliable text processing function ---
                     const processPersianText = (text) => {
                         if (!text) return '';
                         const reshapedText = ArabicReshaper.convertArabic(String(text));
                         return reshapedText.split('').reverse().join('');
                     };
-
                     const { jsPDF } = window.jspdf;
                     const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-                    
                     doc.addFileToVFS('Vazir-Regular-font.ttf', window.vazirFont);
                     doc.addFont('Vazir-Regular-font.ttf', 'Vazir', 'normal');
                     doc.setFont('Vazir');
                     doc.setR2L(true);
-
-                    // --- Layout Variables ---
                     let y = 15;
                     const pageHeight = doc.internal.pageSize.height;
                     const pageWidth = doc.internal.pageSize.width;
@@ -428,39 +426,31 @@ document.addEventListener('DOMContentLoaded', function() {
                     const rightEdge = pageWidth - margin;
                     const boxColors = ['#fff1f2', '#f0f9ff', '#f0fdf4', '#fefce8'];
                     const lineHeight = 7;
-
-                    // --- Helper Functions ---
                     const checkPageBreak = (neededHeight = 20) => {
                         if (y + neededHeight > pageHeight - margin) {
                             doc.addPage();
                             y = 15;
                         }
                     };
-                    
                     const drawSection = (title, contentLines) => {
                         doc.setFontSize(10);
                         let totalHeight = 12;
                         let wrappedContent = [];
-
                         contentLines.forEach(line => {
                             const lines = doc.splitTextToSize(processPersianText(line), contentWidth - 10);
                             wrappedContent.push(lines);
                             totalHeight += lines.length * lineHeight;
                         });
                         totalHeight += 5;
-
                         checkPageBreak(totalHeight);
                         const startY = y;
-                        
                         const boxColor = boxColors[drawSection.colorIndex % boxColors.length];
                         drawSection.colorIndex++;
                         doc.setFillColor(boxColor);
                         doc.rect(margin, startY, contentWidth, totalHeight, 'F');
-
                         doc.setFontSize(14);
                         doc.setTextColor('#1f2937');
                         doc.text(processPersianText(title), rightEdge - 5, startY + 10, { align: 'right' });
-                        
                         doc.setFontSize(10);
                         doc.setTextColor('#374151');
                         let contentY = startY + 20;
@@ -468,44 +458,33 @@ document.addEventListener('DOMContentLoaded', function() {
                             doc.text(lines, rightEdge - 5, contentY, { align: 'right' });
                             contentY += lines.length * lineHeight;
                         });
-
                         y = startY + totalHeight + 7;
                     };
                     drawSection.colorIndex = 0;
-                    
                     const drawChartSection = (title, chartImage) => {
                         const chartHeight = (contentWidth - 10) / 2;
                         const totalHeight = chartHeight + 20;
-
                         checkPageBreak(totalHeight);
                         const startY = y;
-                        
                         const boxColor = boxColors[drawSection.colorIndex % boxColors.length];
                         drawSection.colorIndex++;
                         doc.setFillColor(boxColor);
                         doc.rect(margin, startY, contentWidth, totalHeight, 'F');
-                        
                         doc.setFontSize(14);
                         doc.setTextColor('#1f2937');
                         doc.text(processPersianText(title), rightEdge - 5, startY + 10, { align: 'right' });
-                        
                         doc.addImage(chartImage, 'JPEG', margin + 5, startY + 15, contentWidth - 10, chartHeight, undefined, 'FAST');
-
                         y = startY + totalHeight + 7;
                     };
-
-                    // --- Data Preparation ---
                     const endDate = moment();
                     const startDate = moment().subtract(months, 'months');
                      const periodHistorySorted = [...(userData.period_history || [])]
                         .map(p => ({...p, start_date: moment(p.start_date)}))
                         .filter(p => p.start_date.isBetween(startDate, endDate, undefined, '[]'))
                         .sort((a,b) => a.start_date - b.start_date);
-                    
                     const filteredLogs = Object.entries(userData.logs).filter(([date]) => {
                         return moment(date).isBetween(startDate, endDate, undefined, '[]');
                     });
-                    
                     const getLogPhase = (logDate) => {
                         const recordedPeriod = periodHistorySorted.find(p => logDate.isBetween(p.start_date, p.start_date.clone().add(p.duration - 1, 'days'), undefined, '[]'));
                         if (recordedPeriod) return 'period';
@@ -524,7 +503,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                         return 'other';
                     };
-
                     const getFrequentSymptoms = (phase, limit) => {
                         const counts = {};
                         filteredLogs.forEach(([dateKey, log]) => {
@@ -536,7 +514,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         });
                         return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, limit);
                     };
-
                     const addChartToPDF = (data, title, unit) => {
                         return new Promise((resolve, reject) => {
                             const container = document.createElement('div');
@@ -549,24 +526,21 @@ document.addEventListener('DOMContentLoaded', function() {
                                  document.body.removeChild(container);
                                  reject(new Error(`Chart rendering timed out for: ${title}`));
                             }, 5000);
-
-                            // --- NEW: A simple plugin to fill the background with white ---
                             const background_filler_plugin = {
                                 id: 'canvasBGFiller',
                                 beforeDraw: (chart) => {
                                     const ctx = chart.ctx;
                                     ctx.save();
                                     ctx.globalCompositeOperation = 'destination-over';
-                                    ctx.fillStyle = 'white'; // Set background color
+                                    ctx.fillStyle = 'white';
                                     ctx.fillRect(0, 0, chart.width, chart.height);
                                     ctx.restore();
                                 }
                             };
-
                             const chart = new Chart(canvas.getContext('2d'), {
                                 type: 'line',
                                 data: { labels: data.labels, datasets: [{ data: data.data, borderColor: '#ec4899', borderWidth: 2, pointBackgroundColor: '#ec4899' }] },
-                                plugins: [background_filler_plugin], // Register the plugin here
+                                plugins: [background_filler_plugin],
                                 options: {
                                     animation: { duration: 1, onComplete: () => {
                                         clearTimeout(timeout);
@@ -580,7 +554,6 @@ document.addEventListener('DOMContentLoaded', function() {
                                     plugins: { 
                                         legend: { display: false }, 
                                         title: { display: true, text: title },
-                                        // Pass the plugin to the plugins option as well
                                         canvasBGFiller: {}
                                     },
                                     scales: { y: { ticks: { callback: v => `${v} ${unit}` } } }
@@ -588,17 +561,13 @@ document.addEventListener('DOMContentLoaded', function() {
                             });
                         });
                     };
-
-                    // --- PDF Content ---
                     doc.setFontSize(18);
                     doc.text(processPersianText('گزارش جامع سلامت پریناز'), pageWidth / 2, y, { align: 'center'});
                     y += 8;
-
                     doc.setFontSize(11);
                     const dateRangeText = `بازه زمانی گزارش: از ${toPersian(startDate.format('jYYYY/jM/jD'))} تا ${toPersian(endDate.format('jYYYY/jM/jD'))}`;
                     doc.text(processPersianText(dateRangeText), pageWidth / 2, y, { align: 'center'});
                     y += 12;
-                    
                     const cycleSummaryLines = [];
                     const avgCycle = userData.user.avg_cycle_length ? toPersian(parseFloat(userData.user.avg_cycle_length).toFixed(1)) : '--';
                     const avgPeriod = userData.user.avg_period_length ? toPersian(parseFloat(userData.user.avg_period_length).toFixed(1)) : '--';
@@ -617,7 +586,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     } else { cycleSummaryLines.push("داده کافی برای محاسبه وجود ندارد."); }
                     drawSection('خلاصه سیکل و پریود', cycleSummaryLines);
-                    
                     const formatSymptomList = (phase, limit) => {
                         const symptoms = getFrequentSymptoms(phase, limit);
                         return symptoms.length > 0 ? symptoms.map(([symptom, count]) => `${symptom}: ${toPersian(count)} بار -`) : ["موردی ثبت نشده است."];
@@ -625,7 +593,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     drawSection('پرتکرارترین علائم در مجموع', formatSymptomList('all', 20));
                     drawSection('علائم پرتکرار در دوره پی‌ام‌اس', formatSymptomList('pms', 10));
                     drawSection('علائم پرتکرار در دوره پریود', formatSymptomList('period', 10));
-
                     const processMetricLogs = (metricKey) => {
                         const data = filteredLogs.filter(([, log]) => log[metricKey] != null && log[metricKey] !== '').map(([date, log]) => ({ date: moment(date), value: parseFloat(log[metricKey])})).sort((a,b) => a.date - b.date);
                         return { labels: data.map(d => toPersian(d.date.format('jM/jD'))), data: data.map(d => d.value) };
@@ -635,7 +602,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         { data: processMetricLogs('water'), title: 'نمودار نوشیدن آب', unit: 'لیوان' },
                         { data: processMetricLogs('sleep'), title: 'نمودار ساعات خواب', unit: 'ساعت' }
                     ];
-
                     for (const config of chartConfigs) {
                         if (config.data.labels.length > 1) {
                             const chartImage = await addChartToPDF(config.data, config.title, config.unit);
@@ -644,14 +610,11 @@ document.addEventListener('DOMContentLoaded', function() {
                             drawSection(config.title, ["داده کافی برای رسم نمودار وجود ندارد."]);
                         }
                     }
-
                     doc.save(`Parinaz-Report-Comprehensive.pdf`);
-                    
                 } catch (e) {
                     console.error("Failed to create PDF:", e);
                     showToast('خطا در ساخت PDF. لطفاً جزئیات خطا را در کنسول بررسی کنید.', true);
                 } finally {
-                    // --- Hide Spinner ---
                     spinner.classList.remove('visible');
                 }
             },
@@ -666,7 +629,6 @@ document.addEventListener('DOMContentLoaded', function() {
             goToToday() {
                 calendarDate = moment();
                 this.renderCalendar(calendarDate);
-
                 setTimeout(() => {
                     const todayEl = document.querySelector('#calendar-grid .today');
                     if (todayEl) {
@@ -682,15 +644,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 selectedLogDate = dateKey;
                 const currentLog = userData.logs[selectedLogDate] || {};
                 const shouldNotifyCompanion = userData.user.companion_notify_daily_symptoms && userData.companions && userData.companions.length > 0;
-
                 let modalBodyHTML = `<div class="flex justify-between items-center mb-4"><button id="delete-log-btn" class="text-red-500 hover:text-red-700 text-sm font-semibold ${Object.keys(currentLog).length > 0 ? '' : 'invisible'}">حذف علائم</button><h3 class="text-xl font-bold text-center">ثبت علائم</h3><div class="w-16"></div></div><p class="text-center text-gray-500 mb-4 -mt-4">${toPersian(moment(dateKey, 'YYYY-MM-DD').format('dddd jD jMMMM'))}</p><div class="space-y-4">`;
-
                 for (const categoryKey in LOG_CONFIG) {
                     if (categoryKey === 'moods' && shouldNotifyCompanion) {
-                        modalBodyHTML += `<div class="p-3 pt-4 bg-pink-50 rounded-lg border border-pink-200 space-y-4 relative">
-                                            <span class="absolute top-2 left-3 text-xs text-pink-600 font-semibold">اطلاع‌رسانی به همراه</span>`;
+                        modalBodyHTML += `<div class="p-3 pt-4 bg-pink-50 rounded-lg border border-pink-200 space-y-4 relative"><span class="absolute top-2 left-3 text-xs text-pink-600 font-semibold">اطلاع‌رسانی به همراه</span>`;
                     }
-
                     const category = LOG_CONFIG[categoryKey];
                     modalBodyHTML += `<div><h4 class="font-semibold mb-2 text-gray-600">${category.title}</h4>`;
                     if (categoryKey === 'metrics') {
@@ -719,14 +677,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         modalBodyHTML += `</div>`;
                     }
                     modalBodyHTML += `</div>`;
-
                     if (categoryKey === 'symptoms' && shouldNotifyCompanion) {
-                        modalBodyHTML += `</div>`; // Close the highlight box
+                        modalBodyHTML += `</div>`;
                     }
                 }
                 modalBodyHTML += `<div><div class="flex justify-between items-center mb-2"><h4 class="font-semibold text-gray-600">توضیحات دیگر</h4><span id="notes-char-count" class="text-xs text-gray-400"></span></div><textarea id="log-notes" class="w-full p-2 border rounded-lg bg-gray-50" rows="3" maxlength="500" oninput="document.getElementById('notes-char-count').textContent = toPersian(this.value.length) + ' / ' + toPersian(500)">${currentLog.notes || ''}</textarea></div></div>`;
                 const modalFooterHTML = `<div class="flex gap-4"><button id="save-log-btn" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg">ذخیره</button><button id="close-log-btn" class="w-full bg-gray-200 text-gray-700 font-bold py-3 rounded-lg">انصراف</button></div>`;
-                
                 logModalContent.innerHTML = `<div class="modal-body">${modalBodyHTML}</div><div class="modal-footer">${modalFooterHTML}</div>`;
                 logModal.classList.add('visible');
                 document.getElementById('log-notes').dispatchEvent(new Event('input'));
@@ -785,19 +741,10 @@ document.addEventListener('DOMContentLoaded', function() {
                           <span>حذف</span>
                       </button>`
                     : '';
-
-                const modalHeader = `
-                    <div class="flex items-center mb-6">
-                        <div class="flex-1 flex justify-start">${deleteButton}</div>
-                        <div class="flex-shrink-0"><h3 class="text-xl font-bold">ثبت زمان پریود</h3></div>
-                        <div class="flex-1"></div>
-                    </div>
-                `;
-                
+                const modalHeader = `<div class="flex items-center mb-6"><div class="flex-1 flex justify-start">${deleteButton}</div><div class="flex-shrink-0"><h3 class="text-xl font-bold">ثبت زمان پریود</h3></div><div class="flex-1"></div></div>`;
                 const modalBody = `<div class="space-y-6"><div><label class="block text-gray-600 mb-2">تاریخ شروع خون‌ریزی</label><input type="text" id="edit-period-date-input" readonly class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg cursor-pointer" onclick="window.app.openDatePicker('edit-period-date-input')"></div><div><div class="flex justify-between items-center mb-2"><label class="text-gray-600">طول دوره پریود (خون‌ریزی)</label><span id="edit-period-length-value" class="font-semibold text-pink-500"></span></div><input type="range" id="edit-period-length" min="2" max="12" step="1" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"></div></div>`;
                 const modalFooter = `<div class="flex gap-4"><button onclick="window.app.savePeriodUpdate()" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg">ذخیره و تحلیل</button><button onclick="document.getElementById('edit-period-modal').classList.remove('visible')" class="w-full bg-gray-200 text-gray-700 font-bold py-3 rounded-lg">انصراف</button></div>`;
                 editPeriodModalContent.innerHTML = `<div class="modal-body">${modalHeader}${modalBody}</div><div class="modal-footer">${modalFooter}</div>`;
-
                 const dateInput = document.getElementById('edit-period-date-input');
                 const today = moment();
                 dateInput.value = toPersian(today.format('jYYYY/jM/jD'));
@@ -822,7 +769,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (e.target.id === 'save-log-btn') window.app.saveLog();
             if (e.target.id === 'delete-log-btn') window.app.deleteLog();
             if (e.target.id === 'close-log-btn' || e.target.classList.contains('modal-overlay')) logModal.classList.remove('visible');
-            
             const chip = e.target.closest('.symptom-chip');
             if (chip) {
                 const { category } = chip.dataset;
@@ -842,13 +788,24 @@ document.addEventListener('DOMContentLoaded', function() {
         
         editPeriodModal.addEventListener('click', (e) => {
             if (e.target.closest('#delete-history-btn')) {
-                window.app.deletePeriodHistory();
+                window.app.openDeletePeriodChoiceModal(); // MODIFIED
             }
             if (e.target.classList.contains('modal-overlay')) {
                 editPeriodModal.classList.remove('visible');
             }
         });
         
+        // --- NEW --- Listener for the new choice modal
+        deleteChoiceModal.addEventListener('click', (e) => {
+            if (e.target.id === 'delete-last-period-btn') {
+                app.handleDeletePeriod('last');
+            } else if (e.target.id === 'delete-all-periods-btn') {
+                app.handleDeletePeriod('all');
+            } else if (e.target.id === 'cancel-delete-choice-btn' || e.target.classList.contains('modal-overlay')) {
+                deleteChoiceModal.classList.remove('visible');
+            }
+        });
+
         confirmationModal.addEventListener('click', (e) => {
              if (e.target.classList.contains('modal-overlay') || e.target.id === 'cancel-action-btn') {
                 confirmationModal.classList.remove('visible');

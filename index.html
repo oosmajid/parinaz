@@ -55,6 +55,18 @@
         </div>
     </div>
 
+    <div id="delete-period-choice-modal" class="modal-overlay" style="z-index: 70;">
+        <div class="modal-content !w-full !max-w-sm p-6 text-center">
+            <h3 class="text-lg font-bold text-gray-800 mb-2">حذف سابقه پریود</h3>
+            <p class="text-gray-600 mb-6">کدام سابقه را می‌خواهید حذف کنید؟</p>
+            <div class="space-y-3">
+                <button id="delete-last-period-btn" class="w-full bg-red-500 text-white font-bold py-2.5 rounded-lg hover:bg-red-600">فقط آخرین سابقه</button>
+                <button id="delete-all-periods-btn" class="w-full bg-red-100 text-red-700 font-bold py-2.5 rounded-lg hover:bg-red-200">حذف تمام سوابق</button>
+                <button id="cancel-delete-choice-btn" class="w-full bg-gray-200 text-gray-700 font-bold py-2.5 rounded-lg mt-4">انصراف</button>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/jalali-moment/dist/jalali-moment.browser.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
