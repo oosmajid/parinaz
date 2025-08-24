@@ -1,6 +1,6 @@
 // --- CONSTANTS & CONFIGURATION ---
 
-const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = 'http://parinaz.delplayer.ir:52347/api';
 const TELEGRAM_ID = 123456789; 
 
 const LOG_CONFIG = {
