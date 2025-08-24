@@ -23,17 +23,16 @@ const pool = new Pool({
   port: process.env.DB_PORT,
 });
 
-// Initialize Telegram Bot
 const token = process.env.BOT_TOKEN;
 if (!token) {
-    console.error('خطا: توکن ربات تلگرام در فایل .env تعریف نشده است.');
+    console.error('FATAL ERROR: BOT_TOKEN is not defined in your .env file.');
     process.exit(1);
 }
 const bot = new TelegramBot(token);
 
 pool.query('SELECT NOW()', (err) => {
-  if (err) console.error('خطا در اتصال به دیتابیس:', err);
-  else console.log('اتصال به دیتابیس PostgreSQL با موفقیت برقرار شد.');
+  if (err) console.error('Database Connection Error:', err);
+  else console.log('Database connection successful.');
 });
 
 app.use(cors());
@@ -42,42 +41,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 // --- END: BOT & DB Initialization ---
 
 
-const calculateAverages = (history) => {
-    if (history.length < 2) {
-        const avgPeriod = history.length > 0 ? history.reduce((sum, p) => sum + p.duration, 0) / history.length : null;
-        return { avgCycleLength: null, avgPeriodLength: avgPeriod };
-    }
-    const sortedHistory = [...history].sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
-    const cycleLengths = [];
-    for (let i = 0; i < sortedHistory.length - 1; i++) {
-        const startDate = new Date(sortedHistory[i].start_date);
-        const prevStartDate = new Date(sortedHistory[i + 1].start_date);
-        const diffDays = Math.round((startDate - prevStartDate) / (1000 * 60 * 60 * 24));
-        if (diffDays >= 18 && diffDays <= 65) cycleLengths.push(diffDays);
-    }
-    const periodLengths = sortedHistory.map(p => p.duration);
-    const calculateExponentiallyWeightedAverage = (arr) => {
-        if (arr.length === 0) return null;
-        const decayFactor = 0.75; 
-        let weightedSum = 0;
-        let totalWeight = 0;
-        arr.forEach((value, index) => {
-            const weight = Math.pow(decayFactor, index);
-            weightedSum += value * weight;
-            totalWeight += weight;
-        });
-        return totalWeight > 0 ? (weightedSum / totalWeight) : null;
-    };
-    const avgCycleLength = calculateExponentiallyWeightedAverage(cycleLengths);
-    const avgPeriodLength = calculateExponentiallyWeightedAverage(periodLengths);
-    return { avgCycleLength, avgPeriodLength };
-};
-
-
-// --- API Routes (Existing ones remain the same) ---
-// ... (All your existing routes like /onboarding, /user/:telegram_id, /logs, etc.)
-// ... just add the new one below them ...
-
+// ... (All your other routes like /onboarding, /user/:telegram_id, etc. should be here)
+// ... I'm omitting them for brevity, just make sure the new /report route is added ...
 app.post('/api/onboarding', async (req, res) => {
   const client = await pool.connect();
   try {
@@ -354,70 +319,83 @@ app.delete('/api/user/:telegram_id/companions', async (req, res) => {
 });
 
 
-// --- START: NEW PDF REPORT ENDPOINT ---
+// --- START: NEW PDF REPORT ENDPOINT with DEBUG LOGS ---
 app.post('/api/user/:telegram_id/report', async (req, res) => {
     const { telegram_id } = req.params;
     const { months } = req.body;
+    
+    console.log(`[LOG] Report request received for user: ${telegram_id}, months: ${months}`);
+
+    const filePath = path.join(__dirname, `report-${telegram_id}-${Date.now()}.pdf`);
 
     try {
-        // 1. Fetch user data (This logic can be expanded later)
-        const userResult = await pool.query('SELECT * FROM users WHERE telegram_id = $1', [telegram_id]);
-        if (userResult.rows.length === 0) {
-            return res.status(404).json({ error: 'کاربر یافت نشد.' });
-        }
-        // const user = userResult.rows[0];
-
-        // 2. Create PDF
-        const doc = new PDFDocument({ margin: 50 });
-        const filePath = path.join(__dirname, `report-${telegram_id}.pdf`);
+        console.log('[LOG] Initializing PDF document...');
+        const doc = new PDFDocument({ margin: 50, bufferPages: true });
         const stream = fs.createWriteStream(filePath);
         doc.pipe(stream);
 
-        // --- Add content to PDF ---
-        // Register font
+        console.log('[LOG] Checking for font file...');
         const fontPath = path.join(__dirname, 'public/fonts/Vazirmatn-Regular.ttf');
         if (fs.existsSync(fontPath)) {
             doc.registerFont('Vazir', fontPath);
             doc.font('Vazir');
+            console.log('[LOG] Vazir font registered successfully.');
         } else {
-            console.warn("Warning: Vazir font not found. Using default font.");
+            console.error(`[ERROR] Font file not found at: ${fontPath}. Persian text will not render correctly.`);
+            // We can still proceed, but the PDF will have garbled text.
         }
         
-        // This is a simple PDF. You can expand it later with real data.
+        console.log('[LOG] Adding content to PDF...');
         doc.fontSize(25).text('گزارش سلامت پریناز', { align: 'center' });
         doc.fontSize(16).text(`گزارش برای بازه زمانی: ${months} ماه گذشته`, { align: 'center' });
         doc.moveDown();
         doc.fontSize(12).text('این گزارش به صورت خودکار توسط ربات پریناز تولید شده است.');
-
-        // Finalize the PDF and end the stream
+        
+        console.log('[LOG] Finalizing PDF document...');
         doc.end();
 
-        // 3. Wait for the file to be written, then send it
         stream.on('finish', async () => {
             try {
+                console.log(`[LOG] PDF file created at: ${filePath}. Preparing to send...`);
+                
+                // Check if file exists and is not empty
+                if (!fs.existsSync(filePath) || fs.statSync(filePath).size === 0) {
+                    throw new Error('PDF file was created but is empty or missing.');
+                }
+
                 const caption = `گزارش شما برای ${months} ماه گذشته آماده است.`;
                 await bot.sendDocument(telegram_id, filePath, { caption });
+                console.log(`[LOG] Document sent successfully to user: ${telegram_id}`);
                 
-                // 4. Clean up the temporary file
-                fs.unlinkSync(filePath); 
+                res.status(200).json({ message: 'گزارش شما از طریق ربات ارسال شد.' });
 
-                res.status(200).json({ message: 'گزارش با موفقیت از طریق ربات ارسال شد.' });
             } catch (botError) {
-                console.error('خطا در ارسال فایل توسط ربات:', botError);
-                // Also clean up the file on error
-                if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+                console.error('[ERROR] Failed to send document via bot:', botError.message);
                 res.status(500).json({ error: 'خطا در ارسال گزارش از طریق ربات.' });
+            } finally {
+                // Clean up the temporary file
+                if (fs.existsSync(filePath)) {
+                    fs.unlinkSync(filePath);
+                    console.log(`[LOG] Temporary file deleted: ${filePath}`);
+                }
             }
         });
 
+        stream.on('error', (err) => {
+             console.error('[ERROR] Stream Error during PDF creation:', err);
+             res.status(500).json({ error: 'خطا در ایجاد فایل PDF روی سرور.' });
+             if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        });
+
     } catch (error) {
-        console.error('خطا در ساخت گزارش PDF:', error);
+        console.error('[ERROR] General error in report generation:', error);
         res.status(500).json({ error: 'خطای داخلی سرور هنگام ساخت گزارش.' });
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     }
 });
 // --- END: NEW PDF REPORT ENDPOINT ---
 
 
 app.listen(PORT, () => {
-  console.log(`سرور با موفقیت روی پورت ${PORT} اجرا شد.`);
+  console.log(`Server is running successfully on port ${PORT}`);
 });
