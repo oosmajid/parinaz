@@ -335,7 +335,7 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
         doc.pipe(stream);
 
         console.log('[LOG] Checking for font file...');
-        const fontPath = path.join(__dirname, 'public/fonts/Vazirmatn-Regular.ttf');
+        const fontPath = path.join(__dirname, 'public/Vazirmatn-Regular.ttf');
         if (fs.existsSync(fontPath)) {
             doc.registerFont('Vazir', fontPath);
             doc.font('Vazir');
