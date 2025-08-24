@@ -6,6 +6,7 @@ require('dotenv').config();
 // 1. فراخوانی ابزارهای مورد نیاز
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const { Pool, types } = require('pg');
 
 // به درایور می‌گوییم ستون‌های DATE را به عنوان رشته متنی برگرداند
@@ -37,6 +38,7 @@ pool.query('SELECT NOW()', (err, res) => {
 // 4. استفاده از ابزارهای کمکی
 app.use(cors());
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
 
 // --- الگوریتم هوشمند برای محاسبه میانگین‌ها ---
