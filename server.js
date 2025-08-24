@@ -327,7 +327,7 @@ app.delete('/api/user/:telegram_id/companions', async (req, res) => {
 
 // --- START: NEW PDF REPORT ENDPOINT with DEBUG LOGS ---
 const arabicReshaper = require('arabic-reshaper');
-const bidi = require('bidi-js')(); 
+const bidi = require('bidi-js')();
 
 app.post('/api/user/:telegram_id/report', async (req, res) => {
     const { telegram_id } = req.params;
@@ -348,18 +348,21 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
         } else {
             console.error(`[ERROR] Font file not found at: ${fontPath}.`);
         }
-        
-        // --- FINAL FIX: Using the correct function name "getReorderedString" ---
+
+        // --- FINAL FIX: Using the correct 2-step process for bidi-js ---
         const processText = (text) => {
             const reshapedText = arabicReshaper.convertArabic(text);
-            return bidi.getReorderedString(reshapedText); // Using the correct function for bidi-js
+            // 1. First, process the string to generate paragraph data
+            const processedInfo = bidi.processString(reshapedText);
+            // 2. Then, get the reordered string from the processed info
+            return bidi.getReorderedString(processedInfo);
         };
         // --- END FINAL FIX ---
 
         doc.fontSize(25).text(processText('گزارش سلامت پریناز'), { align: 'center' });
         doc.fontSize(16).text(processText(`گزارش برای بازه زمانی: ${months} ماه گذشته`), { align: 'center' });
         doc.moveDown();
-        doc.fontSize(12).text(processText('این گزارش به صورت خودکار توسط ربات پریناز تولید شده است.'), {align: 'right'});
+        doc.fontSize(12).text(processText('این گزارش به صورت خودکار توسط ربات پریناز تولید شده است.'), { align: 'right' });
 
         doc.end();
 
@@ -368,13 +371,12 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
                 const stats = fs.statSync(filePath);
                 console.log(`[LOG] PDF file created at: ${filePath} with size: ${stats.size} bytes.`);
                 if (stats.size < 100) {
-                     throw new Error('PDF file was created but is likely empty.');
+                    throw new Error('PDF file was created but is likely empty.');
                 }
-                
+
                 const caption = `گزارش شما برای ${months} ماه گذشته آماده است.`;
                 await bot.sendDocument(telegram_id, filePath, { caption });
                 console.log(`[LOG] Document sent successfully to user: ${telegram_id}`);
-                
                 res.status(200).json({ message: 'گزارش شما از طریق ربات ارسال شد.' });
 
             } catch (botError) {
@@ -389,9 +391,9 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
         });
 
         stream.on('error', (err) => {
-             console.error('[ERROR] Stream Error during PDF creation:', err);
-             res.status(500).json({ error: 'خطا در ایجاد فایل PDF روی سرور.' });
-             if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+            console.error('[ERROR] Stream Error during PDF creation:', err);
+            res.status(500).json({ error: 'خطا در ایجاد فایل PDF روی سرور.' });
+            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
         });
 
     } catch (error) {
