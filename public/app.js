@@ -637,7 +637,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         document.body.removeChild(link);
                         URL.revokeObjectURL(url);
                         
-                        showToast('دانلود آغاز شد. اگر دانلود شروع نشد، لطفاً از یک مرورگر دیگر استفاده کنید.', false);
+                        showToast('دانلود آغاز شد.', false);
                     }
                     // --- END: FIX ---
 
