@@ -327,6 +327,9 @@ app.delete('/api/user/:telegram_id/companions', async (req, res) => {
 
 
 // --- START: NEW PDF REPORT ENDPOINT with DEBUG LOGS ---
+const arabicReshaper = require('arabic-reshaper');
+const bidi = require('bidi-js');
+
 app.post('/api/user/:telegram_id/report', async (req, res) => {
     const { telegram_id } = req.params;
     const { months } = req.body;
@@ -337,7 +340,7 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
 
     try {
         console.log('[LOG] Initializing PDF document...');
-        const doc = new PDFDocument({ margin: 50, bufferPages: true });
+        const doc = new PDFDocument({ margin: 50, bufferPages: true, size: 'A4' });
         const stream = fs.createWriteStream(filePath);
         doc.pipe(stream);
 
@@ -349,27 +352,46 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
             console.log('[LOG] Vazir font registered successfully.');
         } else {
             console.error(`[ERROR] Font file not found at: ${fontPath}. Persian text will not render correctly.`);
-            // We can still proceed, but the PDF will have garbled text.
         }
         
         console.log('[LOG] Adding content to PDF...');
-        doc.fontSize(25).text('گزارش سلامت پریناز', { align: 'center' });
-        doc.fontSize(16).text(`گزارش برای بازه زمانی: ${months} ماه گذشته`, { align: 'center' });
-        doc.moveDown();
-        doc.fontSize(12).text('این گزارش به صورت خودکار توسط ربات پریناز تولید شده است.');
         
+        // --- ADDED: Helper function to process and reshape Persian text ---
+        const processText = (text) => {
+            const reshapedText = arabicReshaper.reshape(text);
+            const bidiResult = bidi.get=bidi.get=bidi.get.reorder(reshapedText);
+            return bidiResult;
+        };
+        // --- END ADDED ---
+
+        // Use the new helper function for all Persian text
+        doc.fontSize(25).text(processText('گزارش سلامت پریناز'), { align: 'center' });
+        doc.fontSize(16).text(processText(`گزارش برای بازه زمانی: ${months} ماه گذشته`), { align: 'center' });
+        doc.moveDown();
+        doc.fontSize(12).text(processText('این گزارش به صورت خودکار توسط ربات پریناز تولید شده است.'), {align: 'right'});
+        
+        // --- DEBUG: Add more content to check if it's rendered correctly ---
+        doc.moveDown(1);
+        doc.text(processText('تست رندر متن فارسی: این خط باید به درستی نمایش داده شود.'));
+        doc.moveDown(1);
+        doc.text(processText('سلام، این یک تست برای نمایش متن فارسی است.'));
+        // --- END DEBUG ---
+
         console.log('[LOG] Finalizing PDF document...');
         doc.end();
 
         stream.on('finish', async () => {
             try {
+                // --- ADDED: Check file size for debugging ---
+                const stats = fs.statSync(filePath);
+                console.log(`[LOG] PDF file created with size: ${stats.size} bytes.`);
+                if (stats.size === 0) {
+                     throw new Error('PDF file was created but is empty.');
+                }
+                // --- END ADDED ---
+                
                 console.log(`[LOG] PDF file created at: ${filePath}. Preparing to send...`);
                 
-                // Check if file exists and is not empty
-                if (!fs.existsSync(filePath) || fs.statSync(filePath).size === 0) {
-                    throw new Error('PDF file was created but is empty or missing.');
-                }
-
                 const caption = `گزارش شما برای ${months} ماه گذشته آماده است.`;
                 await bot.sendDocument(telegram_id, filePath, { caption });
                 console.log(`[LOG] Document sent successfully to user: ${telegram_id}`);
@@ -399,7 +421,6 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
         res.status(500).json({ error: 'خطای داخلی سرور هنگام ساخت گزارش.' });
         if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     }
-});
 // --- END: NEW PDF REPORT ENDPOINT ---
 
 
