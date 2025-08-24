@@ -2,6 +2,15 @@
 
 document.addEventListener('DOMContentLoaded', function() {
     try {
+        // --- START: کدهای جدید برای اتصال به تلگرام ---
+        const tg = window.Telegram.WebApp;
+        tg.ready(); // به تلگرام اطلاع می‌دهد که اپ شما آماده است
+        tg.expand(); // اپ را در حالت تمام صفحه باز می‌کند
+
+        // شناسه واقعی کاربر را از تلگرام می‌خواند
+        // اگر اپ در مرورگر باز شود، از یک شناسه تست استفاده می‌کند تا خطا ندهد
+        const TELEGRAM_ID = tg.initDataUnsafe?.user?.id || '123456789'; 
+
         // --- STATE & DOM ELEMENTS ---
         let userData = { user: null, logs: {}, period_history: [], companions: [] };
         let calendarDate = moment();
