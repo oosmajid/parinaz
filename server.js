@@ -1,4 +1,22 @@
 // server.js
+// DIAGNOSTIC CODE - ADD THIS TO THE VERY TOP OF server.js
+console.log("--- DIAGNOSTIC LOG FOR ARABIC-RESHAPER ---");
+try {
+  const arabicReshaperModule = require('arabic-reshaper');
+  console.log("typeof arabicReshaperModule:", typeof arabicReshaperModule);
+  console.log("arabicReshaperModule content:", arabicReshaperModule);
+  console.log("Object.keys(arabicReshaperModule):", Object.keys(arabicReshaperModule));
+} catch (e) {
+  console.error("ERROR requiring arabic-reshaper:", e);
+}
+console.log("--- END DIAGNOSTIC LOG ---");
+// END DIAGNOSTIC CODE
+
+// Your existing code starts here...
+require('dotenv').config();
+const express = require('express');
+// ... etc
+
 
 require('dotenv').config();
 const express = require('express');
