@@ -206,80 +206,22 @@ app.post('/api/logs', async (req, res) => {
     }
 });
 
-// مسیر حذف گزارش روزانه
-app.delete('/api/user/:telegram_id/period', async (req, res) => {
-    const client = await pool.connect();
+// --- NEW --- مسیر حذف گزارش روزانه
+app.delete('/api/logs', async (req, res) => {
     try {
-        await client.query('BEGIN'); // شروع تراکنش
-
-        const { telegram_id } = req.params;
-        const { scope } = req.body; // 'last' or 'all'
-
-        const userRes = await client.query('SELECT id FROM users WHERE telegram_id = $1', [telegram_id]);
-        if (userRes.rows.length === 0) {
-            return res.status(404).json({ error: 'کاربر یافت نشد.' });
+        const { user_id, log_date } = req.body;
+        if (!user_id || !log_date) {
+            return res.status(400).json({ error: 'شناسه کاربری و تاریخ گزارش ضروری است.' });
         }
-        const userId = userRes.rows[0].id;
-
-        let message = '';
-        
-        if (scope === 'last') {
-            // 1. پیدا کردن جدیدترین رکورد پریود
-            const lastPeriodRes = await client.query(
-                'SELECT id FROM period_history WHERE user_id = $1 ORDER BY start_date DESC LIMIT 1',
-                [userId]
-            );
-
-            if (lastPeriodRes.rows.length > 0) {
-                const lastPeriodId = lastPeriodRes.rows[0].id;
-                // 2. حذف همان یک رکورد
-                await client.query('DELETE FROM period_history WHERE id = $1', [lastPeriodId]);
-                message = 'آخرین سابقه پریود با موفقیت حذف شد.';
-            } else {
-                 message = 'سابقه پریودی برای حذف وجود نداشت.';
-            }
-
-            // 3. محاسبه مجدد میانگین‌ها و آپدیت کاربر
-            const historyRes = await client.query('SELECT start_date, duration FROM period_history WHERE user_id = $1', [userId]);
-            
-            if (historyRes.rows.length > 0) {
-                const { avgCycleLength, avgPeriodLength } = calculateAverages(historyRes.rows);
-                const latestPeriodDate = historyRes.rows.sort((a, b) => new Date(b.start_date) - new Date(a.start_date))[0].start_date;
-
-                const updateUserQuery = `
-                    UPDATE users SET last_period_date = $1, avg_cycle_length = $2, avg_period_length = $3 WHERE id = $4 RETURNING *;
-                `;
-                const updatedUserRes = await client.query(updateUserQuery, [latestPeriodDate, avgCycleLength, avgPeriodLength, userId]);
-                await client.query('COMMIT');
-                return res.status(200).json({ message, user: updatedUserRes.rows[0] });
-            }
-            // اگر تاریخچه‌ای باقی نمانده باشد، ادامه پیدا کرده و فیلدها نال می‌شوند
-        }
-        
-        // اگر اسکوپ 'all' باشد یا آخرین رکورد حذف شده و چیزی باقی نمانده باشد
-        // 1. حذف تمام رکوردها از جدول تاریخچه
-        if (scope !== 'last') { // اگر اسکوپ 'last' نباشد همه را حذف کن
-             await client.query('DELETE FROM period_history WHERE user_id = $1', [userId]);
-             message = 'تمام سوابق پریود با موفقیت حذف شد.';
-        }
-
-        // 2. نال کردن فیلدهای مربوطه در جدول اصلی کاربر
-        const updateQuery = `
-            UPDATE users SET last_period_date = NULL, avg_cycle_length = NULL, avg_period_length = NULL WHERE id = $1 RETURNING *;
-        `;
-        const updatedUserRes = await client.query(updateQuery, [userId]);
-
-        await client.query('COMMIT'); // تایید تراکنش
-        res.status(200).json({ message, user: updatedUserRes.rows[0] });
-
+        const query = 'DELETE FROM daily_logs WHERE user_id = $1 AND log_date = $2';
+        await pool.query(query, [user_id, log_date]);
+        res.status(200).json({ message: 'گزارش با موفقیت حذف شد.' });
     } catch (error) {
-        await client.query('ROLLBACK'); // بازگردانی در صورت خطا
-        console.error('خطا در حذف سوابق پریود:', error);
+        console.error('خطا در حذف گزارش:', error);
         res.status(500).json({ error: 'خطای داخلی سرور' });
-    } finally {
-        client.release();
     }
 });
+
 
 // مسیر به‌روزرسانی تنظیمات کامل کاربر
 app.put('/api/user/:telegram_id', async (req, res) => {
@@ -369,13 +311,14 @@ app.post('/api/user/:telegram_id/period', async (req, res) => {
     }
 });
 
-// مسیر حذف کامل سوابق پریود کاربر
+// --- NEW --- مسیر حذف سوابق پریود کاربر
 app.delete('/api/user/:telegram_id/period', async (req, res) => {
     const client = await pool.connect();
     try {
         await client.query('BEGIN'); // شروع تراکنش
 
         const { telegram_id } = req.params;
+        const { scope } = req.body; // 'last' or 'all'
 
         const userRes = await client.query('SELECT id FROM users WHERE telegram_id = $1', [telegram_id]);
         if (userRes.rows.length === 0) {
@@ -383,24 +326,56 @@ app.delete('/api/user/:telegram_id/period', async (req, res) => {
         }
         const userId = userRes.rows[0].id;
 
+        let message = '';
+        
+        if (scope === 'last') {
+            // 1. پیدا کردن جدیدترین رکورد پریود
+            const lastPeriodRes = await client.query(
+                'SELECT id FROM period_history WHERE user_id = $1 ORDER BY start_date DESC LIMIT 1',
+                [userId]
+            );
+
+            if (lastPeriodRes.rows.length > 0) {
+                const lastPeriodId = lastPeriodRes.rows[0].id;
+                // 2. حذف همان یک رکورد
+                await client.query('DELETE FROM period_history WHERE id = $1', [lastPeriodId]);
+                message = 'آخرین سابقه پریود با موفقیت حذف شد.';
+            } else {
+                 message = 'سابقه پریودی برای حذف وجود نداشت.';
+            }
+
+            // 3. محاسبه مجدد میانگین‌ها و آپدیت کاربر
+            const historyRes = await client.query('SELECT start_date, duration FROM period_history WHERE user_id = $1', [userId]);
+            
+            if (historyRes.rows.length > 0) {
+                const { avgCycleLength, avgPeriodLength } = calculateAverages(historyRes.rows);
+                const latestPeriodDate = historyRes.rows.sort((a, b) => new Date(b.start_date) - new Date(a.start_date))[0].start_date;
+
+                const updateUserQuery = `
+                    UPDATE users SET last_period_date = $1, avg_cycle_length = $2, avg_period_length = $3 WHERE id = $4 RETURNING *;
+                `;
+                const updatedUserRes = await client.query(updateUserQuery, [latestPeriodDate, avgCycleLength, avgPeriodLength, userId]);
+                await client.query('COMMIT');
+                return res.status(200).json({ message, user: updatedUserRes.rows[0] });
+            }
+            // اگر تاریخچه‌ای باقی نمانده باشد، ادامه پیدا کرده و فیلدها نال می‌شوند
+        }
+        
+        // اگر اسکوپ 'all' باشد یا آخرین رکورد حذف شده و چیزی باقی نمانده باشد
         // 1. حذف تمام رکوردها از جدول تاریخچه
-        await client.query('DELETE FROM period_history WHERE user_id = $1', [userId]);
+        if (scope !== 'last') { // اگر اسکوپ 'last' نباشد همه را حذف کن
+             await client.query('DELETE FROM period_history WHERE user_id = $1', [userId]);
+             message = 'تمام سوابق پریود با موفقیت حذف شد.';
+        }
 
         // 2. نال کردن فیلدهای مربوطه در جدول اصلی کاربر
         const updateQuery = `
-            UPDATE users
-            SET 
-                last_period_date = NULL,
-                avg_cycle_length = NULL,
-                avg_period_length = NULL
-            WHERE id = $1
-            RETURNING *;
+            UPDATE users SET last_period_date = NULL, avg_cycle_length = NULL, avg_period_length = NULL WHERE id = $1 RETURNING *;
         `;
         const updatedUserRes = await client.query(updateQuery, [userId]);
 
         await client.query('COMMIT'); // تایید تراکنش
-
-        res.status(200).json({ message: 'تمام سوابق پریود با موفقیت حذف شد.', user: updatedUserRes.rows[0] });
+        res.status(200).json({ message, user: updatedUserRes.rows[0] });
 
     } catch (error) {
         await client.query('ROLLBACK'); // بازگردانی در صورت خطا
