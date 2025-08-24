@@ -349,10 +349,10 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
             console.error(`[ERROR] Font file not found at: ${fontPath}.`);
         }
         
-        // --- FINAL FIX: Using the correct function name "convertArabic" ---
+        // --- FINAL FIX: Using the correct function name "getReorderedString" ---
         const processText = (text) => {
-            const reshapedText = arabicReshaper.convertArabic(text); // Using the correct function
-            return bidi.reorder(reshapedText);
+            const reshapedText = arabicReshaper.convertArabic(text);
+            return bidi.getReorderedString(reshapedText); // Using the correct function for bidi-js
         };
         // --- END FINAL FIX ---
 
@@ -381,7 +381,6 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
                 console.error('[ERROR] Failed to send document via bot:', botError.message);
                 res.status(500).json({ error: 'خطا در ارسال گزارش از طریق ربات.' });
             } finally {
-                // Clean up the temporary file
                 if (fs.existsSync(filePath)) {
                     fs.unlinkSync(filePath);
                     console.log(`[LOG] Temporary file deleted: ${filePath}`);
