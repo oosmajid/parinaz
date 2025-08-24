@@ -14,57 +14,9 @@
           font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
         }
     </style>
-    <link rel="stylesheet" href="style.css">
-</head>
+    <link rel="stylesheet" href="style.css?v=1.0">
+    </head>
 <body class="bg-gray-50 flex items-center justify-center min-h-screen py-8">
-
-    <div class="w-full max-w-md mx-auto bg-white rounded-2xl shadow-lg p-8 transition-all">
-        
-        <div class="flex justify-between items-center mb-8">
-            <div class="w-16 flex justify-start">
-                <button id="back-btn" class="text-gray-400 hover:text-pink-500 transition hidden p-2"> <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg> </button>
-            </div>
-            <h1 class="text-center text-3xl font-bold text-pink-500 flex-grow">پریناز</h1>
-            <div class="w-16 flex justify-end items-center gap-2">
-                <button id="analysis-btn" class="text-gray-400 hover:text-pink-500 transition hidden p-2"> <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg> </button>
-                <button id="settings-btn" class="text-gray-400 hover:text-pink-500 transition hidden p-2"> <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg> </button>
-            </div>
-        </div>
-        <div id="app-content"></div>
-    </div>
-    
-    <div id="log-modal" class="modal-overlay">
-        <div id="log-modal-content" class="modal-content"></div>
-    </div>
-    <div id="datepicker-modal" class="modal-overlay">
-        <div id="datepicker-modal-content" class="modal-content"></div>
-    </div>
-    <div id="edit-period-modal" class="modal-overlay">
-        <div id="edit-period-modal-content" class="modal-content"></div>
-    </div>
-
-    <div id="confirmation-modal" class="modal-overlay" style="z-index: 70;">
-        <div class="modal-content !w-full !max-w-sm p-6 text-center">
-            <h3 id="confirmation-title" class="text-lg font-bold text-gray-800 mb-2"></h3>
-            <p id="confirmation-message" class="text-gray-600 mb-6"></p>
-            <div class="flex gap-4">
-                <button id="confirm-action-btn" class="w-full bg-red-500 text-white font-bold py-2.5 rounded-lg">تأیید</button>
-                <button id="cancel-action-btn" class="w-full bg-gray-200 text-gray-700 font-bold py-2.5 rounded-lg">انصراف</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="delete-period-choice-modal" class="modal-overlay" style="z-index: 70;">
-        <div class="modal-content !w-full !max-w-sm p-6 text-center">
-            <h3 class="text-lg font-bold text-gray-800 mb-2">حذف سابقه پریود</h3>
-            <p class="text-gray-600 mb-6">کدام سابقه را می‌خواهید حذف کنید؟</p>
-            <div class="space-y-3">
-                <button id="delete-last-period-btn" class="w-full bg-red-500 text-white font-bold py-2.5 rounded-lg hover:bg-red-600">فقط آخرین سابقه</button>
-                <button id="delete-all-periods-btn" class="w-full bg-red-100 text-red-700 font-bold py-2.5 rounded-lg hover:bg-red-200">حذف تمام سوابق</button>
-                <button id="cancel-delete-choice-btn" class="w-full bg-gray-200 text-gray-700 font-bold py-2.5 rounded-lg mt-4">انصراف</button>
-            </div>
-        </div>
-    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/jalali-moment/dist/jalali-moment.browser.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -72,10 +24,9 @@
     <script src="https://cdn.jsdelivr.net/npm/arabic-reshaper@1.1.0/index.min.js"></script>
     <script src="vazir-font.js"></script>
     
-    <script src="config.js"></script>
-    <script src="ui.js"></script>
-    <script src="app.js"></script>
-
+    <script src="config.js?v=1.0"></script>
+    <script src="ui.js?v=1.0"></script>
+    <script src="app.js?v=1.0"></script>
     <div id="spinner-overlay" class="modal-overlay" style="z-index: 999; background-color: rgba(255, 255, 255, 0.7);">
     <div class="spinner"></div>
     </div>
