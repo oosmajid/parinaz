@@ -78,7 +78,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 } catch (error) {
                     console.error('Initialization failed:', error);
                     if (!refreshOnly) {
-                        appContent.innerHTML = `<div class="text-center text-red-500 p-8">ارتباط با سرور برقرار نشد. لطفاً از روشن بودن سرور اطمینان حاصل کرده و صفحه را رفرش کنید.</div>`;
+                        appContent.innerHTML = `<div class="text-center text-red-500 p-8">ارتباط با سرور برقرار نشد.</div>`;
                     }
                     showToast(error.message, true);
                 }
