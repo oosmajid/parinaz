@@ -604,7 +604,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     drawSection('علائم پرتکرار در دوره پریود', formatSymptomList('period', 10));
                     const processMetricLogs = (metricKey) => {
                         const data = filteredLogs.filter(([, log]) => log[metricKey] != null && log[metricKey] !== '').map(([date, log]) => ({ date: moment(date), value: parseFloat(log[metricKey])})).sort((a,b) => a.date - b.date);
-                        return { labels: data.map(d => toPersian(d.date.format('jM/jD'))), data: data.map(d => d.value) };
+                        return { labels: data.map(d => d.date.format('YYYY-MM-DD')), data: data.map(d => d.value) };
                     };
                     const chartConfigs = [
                         { data: processMetricLogs('weight'), title: 'نمودار وزن', unit: 'kg' },
@@ -619,7 +619,28 @@ document.addEventListener('DOMContentLoaded', function() {
                             drawSection(config.title, ["داده کافی برای رسم نمودار وجود ندارد."]);
                         }
                     }
-                    doc.save(`Parinaz-Report-Comprehensive.pdf`);
+
+                    // --- START: FIX for PDF Download ---
+                    const pdfData = doc.output('blob');
+                    const url = URL.createObjectURL(pdfData);
+
+                    // Check if Telegram supports direct file download
+                    if (tg.isVersionAtLeast('6.7') && tg.supports('share_file')) {
+                         tg.shareFile({ url: url, filename: 'Parinaz-Report-Comprehensive.pdf' });
+                    } else {
+                        // Fallback for older Telegram versions or desktop app issues
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `Parinaz-Report-Comprehensive.pdf`;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(url);
+                        
+                        showToast('دانلود آغاز شد. اگر دانلود شروع نشد، لطفاً از یک مرورگر دیگر استفاده کنید.', false);
+                    }
+                    // --- END: FIX ---
+
                 } catch (e) {
                     console.error("Failed to create PDF:", e);
                     showToast('خطا در ساخت PDF. لطفاً جزئیات خطا را در کنسول بررسی کنید.', true);
