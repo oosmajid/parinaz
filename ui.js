@@ -138,11 +138,18 @@ const templates = {
     },
     analysis() { 
         return `<div class="page-enter space-y-6">
-                    <div class="flex justify-center border-b">
-                        <button data-months="1" class="analysis-tab time-tab active-tab px-4 py-2 font-semibold">۱ ماه</button>
-                        <button data-months="3" class="analysis-tab time-tab px-4 py-2 font-semibold">۳ ماه</button>
-                        <button data-months="6" class="analysis-tab time-tab px-4 py-2 font-semibold">۶ ماه</button>
-                        <button data-months="12" class="analysis-tab time-tab px-4 py-2 font-semibold">۱ سال</button>
+                    <div class="flex justify-between items-center border-b">
+                        <div class="flex">
+                            <button data-months="1" class="analysis-tab time-tab active-tab px-4 py-2 font-semibold">۱ ماه</button>
+                            <button data-months="3" class="analysis-tab time-tab px-4 py-2 font-semibold">۳ ماه</button>
+                            <button data-months="6" class="analysis-tab time-tab px-4 py-2 font-semibold">۶ ماه</button>
+                            <button data-months="12" class="analysis-tab time-tab px-4 py-2 font-semibold">۱ سال</button>
+                        </div>
+                        <button id="export-pdf-btn" class="p-2 text-gray-500 hover:text-red-500" title="خروجی PDF">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                        </button>
                     </div>
                     <div class="flex justify-center mb-4">
                         <div class="flex p-1 bg-gray-200 rounded-full text-sm">
@@ -698,6 +705,11 @@ const renderAnalysis = (userData, charts) => {
             tab.classList.add('active-tab');
             updateAnalysisCharts(currentFilter.months, currentFilter.phase);
         });
+    });
+
+    // --- NEW --- اتصال دکمه PDF به تابع خروجی
+    document.getElementById('export-pdf-btn').addEventListener('click', () => {
+        window.app.exportToPDF(currentFilter.months);
     });
 
     updateAnalysisCharts(currentFilter.months, currentFilter.phase);

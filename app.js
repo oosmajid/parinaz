@@ -38,7 +38,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 3000);
         };
         
-        // --- MODIFIED --- This function is now corrected to avoid the TypeError.
         const showConfirmationModal = (title, message, onConfirm) => {
             document.getElementById('confirmation-title').textContent = title;
             document.getElementById('confirmation-message').textContent = message;
@@ -46,7 +45,6 @@ document.addEventListener('DOMContentLoaded', function() {
             let currentConfirmBtn = document.getElementById('confirm-action-btn');
             const newConfirmBtn = currentConfirmBtn.cloneNode(true);
             
-            // Replace the old button with the clone to safely remove previous event listeners.
             currentConfirmBtn.parentNode.replaceChild(newConfirmBtn, currentConfirmBtn);
             
             newConfirmBtn.onclick = () => {
@@ -62,10 +60,6 @@ document.addEventListener('DOMContentLoaded', function() {
         window.app = {
             onboardingData: {},
 
-            /**
-             * Initializes the application by fetching user data.
-             * @param {boolean} refreshOnly - If true, only fetches data without re-rendering the initial page.
-             */
             async init(refreshOnly = false) {
                 moment.locale('fa');
                 try {
@@ -89,10 +83,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
 
-            /**
-             * Handles the multi-step onboarding process.
-             * @param {number} step - The current step in the onboarding flow.
-             */
             async nextStep(step) {
                 if (step === 2) this.onboardingData.cycle_length = document.getElementById('cycle-length').value;
                 if (step === 3) this.onboardingData.period_length = document.getElementById('period-length').value;
@@ -139,9 +129,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
             
-            /**
-             * Saves the user's updated settings.
-             */
             async saveSettings() {
                 const settingsData = {
                     cycle_length: document.getElementById('settings-cycle-length').value,
@@ -169,9 +156,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
 
-            /**
-             * Saves or updates the daily log for the selected date.
-             */
             async saveLog() {
                 const newLog = {};
                 for (const itemKey in LOG_CONFIG.metrics.items) {
@@ -218,9 +202,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 this.renderCalendar(calendarDate);
             },
 
-            /**
-             * Deletes the daily log for the selected date.
-             */
             async deleteLog() {
                 if (!userData.logs[selectedLogDate]) {
                     logModal.classList.remove('visible');
@@ -247,9 +228,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 this.renderCalendar(calendarDate);
             },
 
-            /**
-             * Submits a new or updated period record.
-             */
             async savePeriodUpdate() {
                 const dateInput = document.getElementById('edit-period-date-input');
                 const periodUpdateData = {
@@ -278,7 +256,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
             
-            // --- Deletes all period history
             async deletePeriodHistory() {
                  showConfirmationModal(
                     'حذف تمام سوابق پریود',
@@ -291,7 +268,6 @@ document.addEventListener('DOMContentLoaded', function() {
                             const data = await response.json();
                             if (!response.ok) throw new Error(data.error || 'خطا در حذف سوابق');
 
-                            // Update local state to reflect the deletion
                             userData.user = data.user;
                             userData.period_history = [];
                             
@@ -322,7 +298,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             showToast(data.message);
                             setTimeout(() => {
                                 window.location.reload();
-                            }, 1500); // Wait for toast to show
+                            }, 1500);
                         } catch (error) {
                             console.error('Failed to delete account:', error);
                             showToast(error.message, true);
@@ -343,8 +319,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         const data = await response.json();
                          if (!response.ok) throw new Error(data.error || 'خطا در افزودن همراه');
                         showToast(data.message);
-                        await this.init(true); // Refresh user data
-                        this.goToSettings(); // Re-render settings page
+                        await this.init(true);
+                        this.goToSettings();
                     } catch(error) {
                         showToast(error.message, true);
                     }
@@ -408,7 +384,278 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
 
-            // --- UI Interaction Methods ---
+            async exportToPDF(months) {
+                // --- Show Spinner ---
+                const spinner = document.getElementById('spinner-overlay');
+                spinner.classList.add('visible');
+                // Allow the browser a moment to render the spinner before the UI might freeze
+                await new Promise(resolve => setTimeout(resolve, 50));
+
+                // Library checks
+                if (typeof window.jspdf === 'undefined' || typeof window.ArabicReshaper === 'undefined' || typeof window.Chart === 'undefined') {
+                    showToast('یکی از کتابخانه‌های PDF، متن فارسی یا نمودار بارگذاری نشده است.', true);
+                    spinner.classList.remove('visible');
+                    return;
+                }
+                if (typeof window.vazirFont === 'undefined') {
+                    showToast('فونت مورد نیاز برای ساخت PDF بارگذاری نشده است.', true);
+                    spinner.classList.remove('visible');
+                    return;
+                }
+
+                try {
+                    // --- Reliable text processing function ---
+                    const processPersianText = (text) => {
+                        if (!text) return '';
+                        const reshapedText = ArabicReshaper.convertArabic(String(text));
+                        return reshapedText.split('').reverse().join('');
+                    };
+
+                    const { jsPDF } = window.jspdf;
+                    const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+                    
+                    doc.addFileToVFS('Vazir-Regular-font.ttf', window.vazirFont);
+                    doc.addFont('Vazir-Regular-font.ttf', 'Vazir', 'normal');
+                    doc.setFont('Vazir');
+                    doc.setR2L(true);
+
+                    // --- Layout Variables ---
+                    let y = 15;
+                    const pageHeight = doc.internal.pageSize.height;
+                    const pageWidth = doc.internal.pageSize.width;
+                    const margin = 15;
+                    const contentWidth = pageWidth - (2 * margin);
+                    const rightEdge = pageWidth - margin;
+                    const boxColors = ['#fff1f2', '#f0f9ff', '#f0fdf4', '#fefce8'];
+                    const lineHeight = 7;
+
+                    // --- Helper Functions ---
+                    const checkPageBreak = (neededHeight = 20) => {
+                        if (y + neededHeight > pageHeight - margin) {
+                            doc.addPage();
+                            y = 15;
+                        }
+                    };
+                    
+                    const drawSection = (title, contentLines) => {
+                        doc.setFontSize(10);
+                        let totalHeight = 12;
+                        let wrappedContent = [];
+
+                        contentLines.forEach(line => {
+                            const lines = doc.splitTextToSize(processPersianText(line), contentWidth - 10);
+                            wrappedContent.push(lines);
+                            totalHeight += lines.length * lineHeight;
+                        });
+                        totalHeight += 5;
+
+                        checkPageBreak(totalHeight);
+                        const startY = y;
+                        
+                        const boxColor = boxColors[drawSection.colorIndex % boxColors.length];
+                        drawSection.colorIndex++;
+                        doc.setFillColor(boxColor);
+                        doc.rect(margin, startY, contentWidth, totalHeight, 'F');
+
+                        doc.setFontSize(14);
+                        doc.setTextColor('#1f2937');
+                        doc.text(processPersianText(title), rightEdge - 5, startY + 10, { align: 'right' });
+                        
+                        doc.setFontSize(10);
+                        doc.setTextColor('#374151');
+                        let contentY = startY + 20;
+                        wrappedContent.forEach(lines => {
+                            doc.text(lines, rightEdge - 5, contentY, { align: 'right' });
+                            contentY += lines.length * lineHeight;
+                        });
+
+                        y = startY + totalHeight + 7;
+                    };
+                    drawSection.colorIndex = 0;
+                    
+                    const drawChartSection = (title, chartImage) => {
+                        const chartHeight = (contentWidth - 10) / 2;
+                        const totalHeight = chartHeight + 20;
+
+                        checkPageBreak(totalHeight);
+                        const startY = y;
+                        
+                        const boxColor = boxColors[drawSection.colorIndex % boxColors.length];
+                        drawSection.colorIndex++;
+                        doc.setFillColor(boxColor);
+                        doc.rect(margin, startY, contentWidth, totalHeight, 'F');
+                        
+                        doc.setFontSize(14);
+                        doc.setTextColor('#1f2937');
+                        doc.text(processPersianText(title), rightEdge - 5, startY + 10, { align: 'right' });
+                        
+                        doc.addImage(chartImage, 'JPEG', margin + 5, startY + 15, contentWidth - 10, chartHeight, undefined, 'FAST');
+
+                        y = startY + totalHeight + 7;
+                    };
+
+                    // --- Data Preparation ---
+                    const endDate = moment();
+                    const startDate = moment().subtract(months, 'months');
+                     const periodHistorySorted = [...(userData.period_history || [])]
+                        .map(p => ({...p, start_date: moment(p.start_date)}))
+                        .filter(p => p.start_date.isBetween(startDate, endDate, undefined, '[]'))
+                        .sort((a,b) => a.start_date - b.start_date);
+                    
+                    const filteredLogs = Object.entries(userData.logs).filter(([date]) => {
+                        return moment(date).isBetween(startDate, endDate, undefined, '[]');
+                    });
+                    
+                    const getLogPhase = (logDate) => {
+                        const recordedPeriod = periodHistorySorted.find(p => logDate.isBetween(p.start_date, p.start_date.clone().add(p.duration - 1, 'days'), undefined, '[]'));
+                        if (recordedPeriod) return 'period';
+                        let cycleStartDate, cycleLength;
+                        for (let i = 0; i < periodHistorySorted.length; i++) {
+                            if (logDate.isSameOrAfter(periodHistorySorted[i].start_date) && (!periodHistorySorted[i+1] || logDate.isBefore(periodHistorySorted[i+1].start_date))) {
+                                cycleStartDate = periodHistorySorted[i].start_date;
+                                cycleLength = periodHistorySorted[i+1] ? periodHistorySorted[i+1].start_date.diff(cycleStartDate, 'days') : (userData.user.avg_cycle_length || userData.user.cycle_length);
+                                break;
+                            }
+                        }
+                        if (cycleStartDate) {
+                            const pmsStartDay = cycleLength - 4;
+                            const dayOfCycle = logDate.diff(cycleStartDate, 'days') + 1;
+                            if (dayOfCycle >= pmsStartDay && dayOfCycle <= cycleLength) return 'pms';
+                        }
+                        return 'other';
+                    };
+
+                    const getFrequentSymptoms = (phase, limit) => {
+                        const counts = {};
+                        filteredLogs.forEach(([dateKey, log]) => {
+                            if (phase === 'all' || getLogPhase(moment(dateKey)) === phase) {
+                                ALL_SYMPTOM_CATEGORIES.forEach(cat => {
+                                    if(log[cat]) (Array.isArray(log[cat]) ? log[cat] : [log[cat]]).forEach(item => { counts[item] = (counts[item] || 0) + 1 });
+                                });
+                            }
+                        });
+                        return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, limit);
+                    };
+
+                    const addChartToPDF = (data, title, unit) => {
+                        return new Promise((resolve, reject) => {
+                            const container = document.createElement('div');
+                            container.style.cssText = 'position: absolute; left: -10000px; top: 0px; width: 800px; height: 400px;';
+                            document.body.appendChild(container);
+                            const canvas = document.createElement('canvas');
+                            container.appendChild(canvas);
+                            const timeout = setTimeout(() => {
+                                 chart.destroy();
+                                 document.body.removeChild(container);
+                                 reject(new Error(`Chart rendering timed out for: ${title}`));
+                            }, 5000);
+
+                            // --- NEW: A simple plugin to fill the background with white ---
+                            const background_filler_plugin = {
+                                id: 'canvasBGFiller',
+                                beforeDraw: (chart) => {
+                                    const ctx = chart.ctx;
+                                    ctx.save();
+                                    ctx.globalCompositeOperation = 'destination-over';
+                                    ctx.fillStyle = 'white'; // Set background color
+                                    ctx.fillRect(0, 0, chart.width, chart.height);
+                                    ctx.restore();
+                                }
+                            };
+
+                            const chart = new Chart(canvas.getContext('2d'), {
+                                type: 'line',
+                                data: { labels: data.labels, datasets: [{ data: data.data, borderColor: '#ec4899', borderWidth: 2, pointBackgroundColor: '#ec4899' }] },
+                                plugins: [background_filler_plugin], // Register the plugin here
+                                options: {
+                                    animation: { duration: 1, onComplete: () => {
+                                        clearTimeout(timeout);
+                                        setTimeout(() => {
+                                            const imgData = canvas.toDataURL('image/jpeg', 0.8);
+                                            chart.destroy();
+                                            document.body.removeChild(container);
+                                            resolve(imgData);
+                                        }, 100);
+                                    }},
+                                    plugins: { 
+                                        legend: { display: false }, 
+                                        title: { display: true, text: title },
+                                        // Pass the plugin to the plugins option as well
+                                        canvasBGFiller: {}
+                                    },
+                                    scales: { y: { ticks: { callback: v => `${v} ${unit}` } } }
+                                }
+                            });
+                        });
+                    };
+
+                    // --- PDF Content ---
+                    doc.setFontSize(18);
+                    doc.text(processPersianText('گزارش جامع سلامت پریناز'), pageWidth / 2, y, { align: 'center'});
+                    y += 8;
+
+                    doc.setFontSize(11);
+                    const dateRangeText = `بازه زمانی گزارش: از ${toPersian(startDate.format('jYYYY/jM/jD'))} تا ${toPersian(endDate.format('jYYYY/jM/jD'))}`;
+                    doc.text(processPersianText(dateRangeText), pageWidth / 2, y, { align: 'center'});
+                    y += 12;
+                    
+                    const cycleSummaryLines = [];
+                    const avgCycle = userData.user.avg_cycle_length ? toPersian(parseFloat(userData.user.avg_cycle_length).toFixed(1)) : '--';
+                    const avgPeriod = userData.user.avg_period_length ? toPersian(parseFloat(userData.user.avg_period_length).toFixed(1)) : '--';
+                    cycleSummaryLines.push(`میانگین طول سیکل: ${avgCycle} روز`);
+                    cycleSummaryLines.push(`میانگین طول پریود: ${avgPeriod} روز`);
+                    cycleSummaryLines.push(" ");
+                    cycleSummaryLines.push(":پریودهای ثبت‌شده");
+                    if (periodHistorySorted.length > 0) periodHistorySorted.forEach(p => cycleSummaryLines.push(`از ${toPersian(p.start_date.format('jYYYY/jM/jD'))} تا ${toPersian(p.start_date.clone().add(p.duration - 1, 'days').format('jYYYY/jM/jD'))} به مدت ${toPersian(p.duration)} روز -`));
+                    else cycleSummaryLines.push("موردی ثبت نشده است.");
+                    cycleSummaryLines.push(" ");
+                    cycleSummaryLines.push(":طول سیکل‌های ثبت‌شده");
+                    if (periodHistorySorted.length > 1) {
+                        for (let i = 1; i < periodHistorySorted.length; i++) {
+                            const len = periodHistorySorted[i].start_date.diff(periodHistorySorted[i-1].start_date, 'days');
+                            cycleSummaryLines.push(`سیکل شروع‌شده در ${toPersian(periodHistorySorted[i-1].start_date.format('jYY/jM/jD'))} به مدت ${toPersian(len)} روز -`);
+                        }
+                    } else { cycleSummaryLines.push("داده کافی برای محاسبه وجود ندارد."); }
+                    drawSection('خلاصه سیکل و پریود', cycleSummaryLines);
+                    
+                    const formatSymptomList = (phase, limit) => {
+                        const symptoms = getFrequentSymptoms(phase, limit);
+                        return symptoms.length > 0 ? symptoms.map(([symptom, count]) => `${symptom}: ${toPersian(count)} بار -`) : ["موردی ثبت نشده است."];
+                    };
+                    drawSection('پرتکرارترین علائم در مجموع', formatSymptomList('all', 20));
+                    drawSection('علائم پرتکرار در دوره پی‌ام‌اس', formatSymptomList('pms', 10));
+                    drawSection('علائم پرتکرار در دوره پریود', formatSymptomList('period', 10));
+
+                    const processMetricLogs = (metricKey) => {
+                        const data = filteredLogs.filter(([, log]) => log[metricKey] != null && log[metricKey] !== '').map(([date, log]) => ({ date: moment(date), value: parseFloat(log[metricKey])})).sort((a,b) => a.date - b.date);
+                        return { labels: data.map(d => toPersian(d.date.format('jM/jD'))), data: data.map(d => d.value) };
+                    };
+                    const chartConfigs = [
+                        { data: processMetricLogs('weight'), title: 'نمودار وزن', unit: 'kg' },
+                        { data: processMetricLogs('water'), title: 'نمودار نوشیدن آب', unit: 'لیوان' },
+                        { data: processMetricLogs('sleep'), title: 'نمودار ساعات خواب', unit: 'ساعت' }
+                    ];
+
+                    for (const config of chartConfigs) {
+                        if (config.data.labels.length > 1) {
+                            const chartImage = await addChartToPDF(config.data, config.title, config.unit);
+                            drawChartSection(config.title, chartImage);
+                        } else {
+                            drawSection(config.title, ["داده کافی برای رسم نمودار وجود ندارد."]);
+                        }
+                    }
+
+                    doc.save(`Parinaz-Report-Comprehensive.pdf`);
+                    
+                } catch (e) {
+                    console.error("Failed to create PDF:", e);
+                    showToast('خطا در ساخت PDF. لطفاً جزئیات خطا را در کنسول بررسی کنید.', true);
+                } finally {
+                    // --- Hide Spinner ---
+                    spinner.classList.remove('visible');
+                }
+            },
+
             goToSettings() { renderSettings(userData); },
             goToAnalysis() { renderAnalysis(userData, charts); },
             goToDashboard() { renderDashboard(userData); },
@@ -420,23 +667,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 calendarDate = moment();
                 this.renderCalendar(calendarDate);
 
-                // Add heartbeat animation to today's element in the calendar
                 setTimeout(() => {
                     const todayEl = document.querySelector('#calendar-grid .today');
                     if (todayEl) {
                         todayEl.classList.add('animate-heartbeat');
-                        // Remove the class after the animation finishes to allow re-triggering
                         setTimeout(() => {
                             todayEl.classList.remove('animate-heartbeat');
-                        }, 2000); // Animation duration is 2s
+                        }, 2000);
                     }
-                }, 50); // A small delay to ensure the DOM is updated
+                }, 50);
             },
 
-            /**
-             * Opens the log modal for a specific date.
-             * @param {string} dateKey - The date string in 'YYYY-MM-DD' format.
-             */
             openLogModal(dateKey) {
                 selectedLogDate = dateKey;
                 const currentLog = userData.logs[selectedLogDate] || {};
@@ -535,9 +776,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 datepickerModal.classList.remove('visible');
             },
 
-            // --- MODIFIED --- The button is now more compact to fit on mobile screens with its text.
             openEditPeriodModal() {
-                // Conditionally create the delete button with new, more compact styles.
                 const deleteButton = userData.user.last_period_date
                     ? `<button id="delete-history-btn" class="flex items-center gap-1 text-xs bg-red-100 text-red-700 font-semibold px-2 py-1 rounded-md hover:bg-red-200 transition-colors">
                           <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
@@ -547,7 +786,6 @@ document.addEventListener('DOMContentLoaded', function() {
                       </button>`
                     : '';
 
-                // A robust flex layout that works on all screen sizes.
                 const modalHeader = `
                     <div class="flex items-center mb-6">
                         <div class="flex-1 flex justify-start">${deleteButton}</div>
@@ -603,7 +841,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         editPeriodModal.addEventListener('click', (e) => {
-            if (e.target.closest('#delete-history-btn')) { // Use closest to handle clicks on svg/span inside the button
+            if (e.target.closest('#delete-history-btn')) {
                 window.app.deletePeriodHistory();
             }
             if (e.target.classList.contains('modal-overlay')) {
