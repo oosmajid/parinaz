@@ -479,7 +479,7 @@ app.post('/api/user/:telegram_id/period', async (req, res) => {
         );
         
         // Notify companions that period has started
-        const today = moment().tz('Asia/Tehran').format('YYYY-MM-DD');
+        const today = moment().format('YYYY-MM-DD');
         if (start_date === today) {
             const companionsRes = await client.query('SELECT companion_telegram_id FROM companions WHERE user_id = $1', [userId]);
             companionsRes.rows.forEach(c => {
@@ -676,7 +676,7 @@ scheduleRandomly(`${Math.floor(Math.random() * 60)} ${Math.floor(Math.random() *
 
 // Companion daily summary (21:00 - 22:00)
 scheduleRandomly(`${Math.floor(Math.random() * 60)} 21 * * *`, async () => {
-    const today = moment().tz('Asia/Tehran').format('YYYY-MM-DD');
+    const today = moment().format('YYYY-MM-DD');
     const query = `
         SELECT 
             c.companion_telegram_id, 
