@@ -707,7 +707,7 @@ scheduleRandomly(`${Math.floor(Math.random() * 60)} 20 * * *`, async () => {
         SELECT * FROM users 
         WHERE last_period_date IS NOT NULL 
         AND reminder_cycle = TRUE
-        AND (last_period_date + (COALESCE(avg_cycle_length, cycle_length) * INTERVAL '1 day'))::date = (CURRENT_DATE - INTERVAL '3 day')::date
+        AND (last_period_date + (floor(COALESCE(avg_cycle_length, cycle_length)) * INTERVAL '1 day'))::date = ((now() AT TIME ZONE 'Asia/Tehran') - INTERVAL '3 day')::date
     `);
     for (const user of usersRes.rows) {
         const companionsRes = await pool.query('SELECT companion_telegram_id FROM companions WHERE user_id = $1', [user.id]);
@@ -724,7 +724,7 @@ const scheduleDailyCycleChecks = () => {
         const usersRes = await pool.query(`
             SELECT * FROM users 
             WHERE last_period_date IS NOT NULL AND reminder_cycle = TRUE
-            AND (last_period_date + (COALESCE(avg_cycle_length, cycle_length) * INTERVAL '1 day'))::date = (CURRENT_DATE + INTERVAL '1 day')::date
+            AND (last_period_date + (floor(COALESCE(avg_cycle_length, cycle_length)) * INTERVAL '1 day'))::date = ((now() AT TIME ZONE 'Asia/Tehran') + INTERVAL '1 day')::date
         `);
         for (const user of usersRes.rows) {
             bot.sendMessage(user.telegram_id, getRandomMessage('user', 'pre_period_warning'));
@@ -738,7 +738,7 @@ const scheduleDailyCycleChecks = () => {
         const usersRes = await pool.query(`
             SELECT * FROM users 
             WHERE last_period_date IS NOT NULL AND reminder_cycle = TRUE
-            AND (last_period_date + (COALESCE(avg_cycle_length, cycle_length) * INTERVAL '1 day'))::date = CURRENT_DATE::date
+            AND (last_period_date + (floor(COALESCE(avg_cycle_length, cycle_length)) * INTERVAL '1 day'))::date = (now() AT TIME ZONE 'Asia/Tehran')::date
         `);
         for (const user of usersRes.rows) {
             bot.sendMessage(user.telegram_id, getRandomMessage('user', 'period_day_warning'));
@@ -750,7 +750,7 @@ const scheduleDailyCycleChecks = () => {
         const usersRes = await pool.query(`
             SELECT * FROM users 
             WHERE last_period_date IS NOT NULL AND reminder_cycle = TRUE
-            AND (last_period_date + (COALESCE(avg_cycle_length, cycle_length) * INTERVAL '1 day') - INTERVAL '4 day')::date = CURRENT_DATE::date
+            AND (last_period_date + (floor(COALESCE(avg_cycle_length, cycle_length)) * INTERVAL '1 day') - INTERVAL '4 day')::date = (now() AT TIME ZONE 'Asia/Tehran')::date
         `);
         for (const user of usersRes.rows) {
              bot.sendMessage(user.telegram_id, getRandomMessage('user', 'pms_start'));
@@ -764,7 +764,7 @@ const scheduleDailyCycleChecks = () => {
         const usersRes = await pool.query(`
             SELECT * FROM users 
             WHERE last_period_date IS NOT NULL AND reminder_cycle = TRUE
-            AND (last_period_date + (COALESCE(avg_cycle_length, cycle_length) * INTERVAL '1 day'))::date = (CURRENT_DATE - INTERVAL '3 day')::date
+            AND (last_period_date + (floor(COALESCE(avg_cycle_length, cycle_length)) * INTERVAL '1 day'))::date = ((now() AT TIME ZONE 'Asia/Tehran') - INTERVAL '3 day')::date
         `);
         for (const user of usersRes.rows) {
              bot.sendMessage(user.telegram_id, getRandomMessage('user', 'period_late'));
