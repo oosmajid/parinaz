@@ -452,54 +452,58 @@ app.post('/api/user/:telegram_id/period', async (req, res) => {
         const history = historyRes.rows;
         let avg_cycle_length = null;
         let avg_period_length = null;
-        const last_period_date = history[0].start_date;
-
-        if (history.length > 1) {
-            let cycleSum = 0;
-            for (let i = 0; i < history.length - 1; i++) {
-                const current = new Date(history[i].start_date);
-                const previous = new Date(history[i + 1].start_date);
-                const diffTime = Math.abs(current - previous);
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                cycleSum += diffDays;
-            }
-            avg_cycle_length = cycleSum / (history.length - 1);
-        }
-
-        const periodSum = history.reduce((sum, record) => sum + record.duration, 0);
-        avg_period_length = periodSum / history.length;
-
-        // Update users table
-        await client.query(
-            `UPDATE users SET 
-                last_period_date = $1, 
-                avg_cycle_length = $2, 
-                avg_period_length = $3
-             WHERE id = $4`,
-            [last_period_date, avg_cycle_length, avg_period_length, userId]
-        );
         
-        // Notify companions that period has started
-        // const today = moment().format('YYYY-MM-DD');
-        // if (start_date === today) {
-        //     const companionsRes = await client.query('SELECT companion_telegram_id FROM companions WHERE user_id = $1', [userId]);
-        //     companionsRes.rows.forEach(c => {
-        //         const message = getRandomMessage('companion', 'period_started').replace('{FIRST_NAME}', userFirstName);
-        //         bot.sendMessage(c.companion_telegram_id, message);
-        //     });
-        // }
+        // *** START FIX ***
+        // Handle case where history might be empty or has only one record
+        if (history.length > 0) {
+            const last_period_date = history[0].start_date;
+
+            if (history.length > 1) {
+                let cycleSum = 0;
+                for (let i = 0; i < history.length - 1; i++) {
+                    const current = new Date(history[i].start_date);
+                    const previous = new Date(history[i + 1].start_date);
+                    const diffTime = Math.abs(current - previous);
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    cycleSum += diffDays;
+                }
+                avg_cycle_length = cycleSum / (history.length - 1);
+            }
+
+            const periodSum = history.reduce((sum, record) => sum + record.duration, 0);
+            avg_period_length = periodSum / history.length;
+
+            // Update users table
+            await client.query(
+                `UPDATE users SET 
+                    last_period_date = $1, 
+                    avg_cycle_length = $2, 
+                    avg_period_length = $3
+                 WHERE id = $4`,
+                [last_period_date, avg_cycle_length, avg_period_length, userId]
+            );
+        } else {
+             // This is the first period record, just update the last_period_date
+             await client.query(
+                `UPDATE users SET last_period_date = $1 WHERE id = $2`,
+                [start_date, userId]
+            );
+        }
 
         // Notify companions that period has started
-        const today = moment().format('YYYY-MM-DD');
-        if (true) {
-            console.log('--HERE--')
-            bot.sendMessage(c.companion_telegram_id,"HI");
-            const companionsRes = await client.query('SELECT companion_telegram_id FROM companions WHERE user_id = $1', [userId]);
-            companionsRes.rows.forEach(c => {
-                const message = getRandomMessage('companion', 'period_started').replace('{FIRST_NAME}', userFirstName);
-                bot.sendMessage(c.companion_telegram_id, message);
-            });
+        const today = moment().tz('Asia/Tehran').format('YYYY-MM-DD');
+        if (start_date === today) {
+            try {
+                const companionsRes = await client.query('SELECT companion_telegram_id FROM companions WHERE user_id = $1', [userId]);
+                companionsRes.rows.forEach(c => {
+                    const message = getRandomMessage('companion', 'period_started').replace('{FIRST_NAME}', userFirstName);
+                    bot.sendMessage(c.companion_telegram_id, message);
+                });
+            } catch (botError) {
+                console.error("Bot failed to send message, but continuing transaction:", botError);
+            }
         }
+        // *** END FIX ***
 
 
         await client.query('COMMIT');
