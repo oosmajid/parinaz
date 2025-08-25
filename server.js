@@ -480,14 +480,27 @@ app.post('/api/user/:telegram_id/period', async (req, res) => {
         );
         
         // Notify companions that period has started
+        // const today = moment().format('YYYY-MM-DD');
+        // if (start_date === today) {
+        //     const companionsRes = await client.query('SELECT companion_telegram_id FROM companions WHERE user_id = $1', [userId]);
+        //     companionsRes.rows.forEach(c => {
+        //         const message = getRandomMessage('companion', 'period_started').replace('{FIRST_NAME}', userFirstName);
+        //         bot.sendMessage(c.companion_telegram_id, message);
+        //     });
+        // }
+
+        // Notify companions that period has started
         const today = moment().format('YYYY-MM-DD');
-        if (start_date === today) {
+        if (true) {
+            console.log('--HERE--')
+            bot.sendMessage(c.companion_telegram_id,"HI");
             const companionsRes = await client.query('SELECT companion_telegram_id FROM companions WHERE user_id = $1', [userId]);
             companionsRes.rows.forEach(c => {
                 const message = getRandomMessage('companion', 'period_started').replace('{FIRST_NAME}', userFirstName);
                 bot.sendMessage(c.companion_telegram_id, message);
             });
         }
+
 
         await client.query('COMMIT');
         res.status(200).json({ message: 'سابقه پریود با موفقیت ثبت و تحلیل شد.' });
