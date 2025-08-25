@@ -481,7 +481,8 @@ app.post('/api/user/:telegram_id/period', async (req, res) => {
         
         // Notify companions that period has started
         const today = moment().format('YYYY-MM-DD');
-        if (start_date === today) {
+        // if (start_date === today) {
+        if (true) {
             console.log('--HERE--')
             const companionsRes = await client.query('SELECT companion_telegram_id FROM companions WHERE user_id = $1', [userId]);
             companionsRes.rows.forEach(c => {
