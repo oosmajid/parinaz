@@ -50,7 +50,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // --- Helper Function for Formatting Names ---
 const formatUserName = (firstName, userName) => {
-    if (userName && userName !== `کاربر ${firstName}`) {
+    if (userName) {
         return `${firstName} (@${userName})`;
     }
     return firstName;
@@ -94,7 +94,7 @@ bot.onText(/\/start (.+)/, async (msg, match) => {
     const chatId = msg.chat.id;
     const token = match[1];
     const companionFirstName = msg.from.first_name || 'همراه';
-    const companionUsername = msg.from.username;
+    const companionUsername = msg.from.username || null;
 
     const client = await pool.connect();
     try {

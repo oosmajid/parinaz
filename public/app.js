@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', function() {
         tg.ready();
         tg.expand();
         const TELEGRAM_ID = tg.initDataUnsafe?.user?.id || '123456789'; 
-        const TELEGRAM_USERNAME = tg.initDataUnsafe?.user?.username || `کاربر ${TELEGRAM_ID}`;
+        const TELEGRAM_USERNAME = tg.initDataUnsafe?.user?.username || null;
         const TELEGRAM_FIRSTNAME = tg.initDataUnsafe?.user?.first_name || 'کاربر';
 
 
