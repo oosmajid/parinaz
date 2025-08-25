@@ -8,6 +8,8 @@ const fs = require('fs');
 const PDFDocument = require('pdfkit');
 const TelegramBot = require('node-telegram-bot-api');
 const crypto = require('crypto');
+const cron = require('node-cron');
+const moment = require('jalali-moment');
 
 // --- START: BOT & DB Initialization ---
 types.setTypeParser(1082, (dateString) => dateString);
@@ -167,7 +169,7 @@ bot.on('message', async (msg) => {
         const client = await pool.connect();
         try {
             const res = await client.query(`
-                SELECT c.user_id, u.telegram_firstname, u.telegram_username
+                SELECT c.user_id, u.telegram_firstname, u.telegram_username 
                 FROM companions c
                 JOIN users u ON c.user_id = u.id
                 WHERE c.companion_telegram_id = $1
@@ -425,11 +427,12 @@ app.post('/api/user/:telegram_id/period', async (req, res) => {
     try {
         await client.query('BEGIN');
 
-        const userRes = await client.query('SELECT id, period_length FROM users WHERE telegram_id = $1', [telegram_id]);
+        const userRes = await client.query('SELECT id, telegram_firstname, period_length FROM users WHERE telegram_id = $1', [telegram_id]);
         if (userRes.rows.length === 0) {
             return res.status(404).json({ error: 'کاربر یافت نشد.' });
         }
         const userId = userRes.rows[0].id;
+        const userFirstName = userRes.rows[0].telegram_firstname;
 
         // Add to history
         await client.query(
@@ -474,6 +477,16 @@ app.post('/api/user/:telegram_id/period', async (req, res) => {
              WHERE id = $4`,
             [last_period_date, avg_cycle_length, avg_period_length, userId]
         );
+        
+        // Notify companions that period has started
+        const today = moment().tz('Asia/Tehran').format('YYYY-MM-DD');
+        if (start_date === today) {
+            const companionsRes = await client.query('SELECT companion_telegram_id FROM companions WHERE user_id = $1', [userId]);
+            companionsRes.rows.forEach(c => {
+                const message = getRandomMessage('companion', 'period_started').replace('{FIRST_NAME}', userFirstName);
+                bot.sendMessage(c.companion_telegram_id, message);
+            });
+        }
 
         await client.query('COMMIT');
         res.status(200).json({ message: 'سابقه پریود با موفقیت ثبت و تحلیل شد.' });
@@ -633,6 +646,142 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
         res.status(500).json({ error: 'خطا در ارسال پیام از طریق ربات.' });
     }
 });
+
+// --- NOTIFICATION LOGIC ---
+const notifications = JSON.parse(fs.readFileSync(path.join(__dirname, 'notifications.json'), 'utf8'));
+
+const getRandomMessage = (category, key) => {
+    const messages = notifications[category][key];
+    return messages[Math.floor(Math.random() * messages.length)];
+};
+
+const scheduleRandomly = (cronExpression, task) => {
+    cron.schedule(cronExpression, task, {
+        timezone: "Asia/Tehran"
+    });
+};
+
+// Daily Log Reminder (18:00 - 21:00)
+scheduleRandomly(`${Math.floor(Math.random() * 60)} ${Math.floor(Math.random() * 4) + 18} * * *`, async () => {
+    const query = `
+        SELECT u.telegram_id FROM users u
+        LEFT JOIN daily_logs dl ON u.id = dl.user_id AND dl.log_date = CURRENT_DATE
+        WHERE u.reminder_logs = TRUE AND dl.id IS NULL;
+    `;
+    const { rows } = await pool.query(query);
+    rows.forEach(user => {
+        bot.sendMessage(user.telegram_id, getRandomMessage('user', 'log_reminder'));
+    });
+});
+
+// Companion daily summary (21:00 - 22:00)
+scheduleRandomly(`${Math.floor(Math.random() * 60)} 21 * * *`, async () => {
+    const today = moment().tz('Asia/Tehran').format('YYYY-MM-DD');
+    const query = `
+        SELECT 
+            c.companion_telegram_id, 
+            u.telegram_firstname,
+            dl.moods,
+            dl.symptoms
+        FROM companions c
+        JOIN users u ON c.user_id = u.id
+        JOIN daily_logs dl ON u.id = dl.user_id
+        WHERE c.notify_daily_symptoms = TRUE AND dl.log_date = $1;
+    `;
+    const { rows } = await pool.query(query, [today]);
+    rows.forEach(row => {
+        const moods = row.moods ? row.moods.join(', ') : 'ثبت نشده';
+        const symptoms = row.symptoms ? row.symptoms.join(', ') : 'ثبت نشده';
+        if(moods !== 'ثبت نشده' || symptoms !== 'ثبت نشده') {
+            let message = getRandomMessage('companion', 'daily_log_summary');
+            message = message.replace('{FIRST_NAME}', row.telegram_firstname).replace('{MOODS}', moods).replace('{SYMPTOMS}', symptoms);
+            bot.sendMessage(row.companion_telegram_id, message);
+        }
+    });
+});
+
+// Period late notification for companion (20:00 - 21:00)
+scheduleRandomly(`${Math.floor(Math.random() * 60)} 20 * * *`, async () => {
+    const usersRes = await pool.query('SELECT * FROM users WHERE last_period_date IS NOT NULL');
+    for (const user of usersRes.rows) {
+        const cycleLength = user.avg_cycle_length ? Math.round(user.avg_cycle_length) : user.cycle_length;
+        const lastPeriod = moment(user.last_period_date);
+        const nextPeriod = lastPeriod.clone().add(cycleLength, 'days');
+        const daysToPeriod = nextPeriod.diff(moment().tz('Asia/Tehran'), 'days');
+        
+        if (daysToPeriod === -3) {
+            const companionsRes = await pool.query('SELECT companion_telegram_id FROM companions WHERE user_id = $1', [user.id]);
+            companionsRes.rows.forEach(c => bot.sendMessage(c.companion_telegram_id, getRandomMessage('companion', 'period_late').replace('{FIRST_NAME}', user.telegram_firstname)));
+        }
+    }
+});
+
+// Daily Cycle Notifications (runs once a day at a random time for each category)
+const scheduleDailyCycleChecks = () => {
+    const randomHourAndMinute = (start, end) => `${Math.floor(Math.random()*60)} ${Math.floor(Math.random()*(end-start+1))+start} * * *`;
+    
+    // Pre-period (1 day before)
+    cron.schedule(randomHourAndMinute(10, 18), async () => {
+        const usersRes = await pool.query('SELECT * FROM users WHERE last_period_date IS NOT NULL AND reminder_cycle = TRUE');
+        for (const user of usersRes.rows) {
+            const cycleLength = user.avg_cycle_length ? Math.round(user.avg_cycle_length) : user.cycle_length;
+            const lastPeriod = moment(user.last_period_date);
+            const nextPeriod = lastPeriod.clone().add(cycleLength, 'days');
+            const daysToPeriod = nextPeriod.diff(moment().tz('Asia/Tehran').startOf('day'), 'days');
+            if (daysToPeriod === 1) {
+                bot.sendMessage(user.telegram_id, getRandomMessage('user', 'pre_period_warning'));
+                const companionsRes = await pool.query('SELECT companion_telegram_id FROM companions WHERE user_id = $1', [user.id]);
+                companionsRes.rows.forEach(c => bot.sendMessage(c.companion_telegram_id, getRandomMessage('companion', 'pre_period_warning').replace('{FIRST_NAME}', user.telegram_firstname)));
+            }
+        }
+    }, { timezone: "Asia/Tehran" });
+
+    // Period day
+    cron.schedule(randomHourAndMinute(7, 8), async () => {
+        const usersRes = await pool.query('SELECT * FROM users WHERE last_period_date IS NOT NULL AND reminder_cycle = TRUE');
+        for (const user of usersRes.rows) {
+            const cycleLength = user.avg_cycle_length ? Math.round(user.avg_cycle_length) : user.cycle_length;
+            const lastPeriod = moment(user.last_period_date);
+            const nextPeriod = lastPeriod.clone().add(cycleLength, 'days');
+            const daysToPeriod = nextPeriod.diff(moment().tz('Asia/Tehran').startOf('day'), 'days');
+            if (daysToPeriod === 0) {
+                bot.sendMessage(user.telegram_id, getRandomMessage('user', 'period_day_warning'));
+            }
+        }
+    }, { timezone: "Asia/Tehran" });
+
+    // PMS start (4 days before)
+    cron.schedule(randomHourAndMinute(10, 18), async () => {
+        const usersRes = await pool.query('SELECT * FROM users WHERE last_period_date IS NOT NULL AND reminder_cycle = TRUE');
+        for (const user of usersRes.rows) {
+            const cycleLength = user.avg_cycle_length ? Math.round(user.avg_cycle_length) : user.cycle_length;
+            const lastPeriod = moment(user.last_period_date);
+            const nextPeriod = lastPeriod.clone().add(cycleLength, 'days');
+            const daysToPeriod = nextPeriod.diff(moment().tz('Asia/Tehran').startOf('day'), 'days');
+            if (daysToPeriod === 4) {
+                 bot.sendMessage(user.telegram_id, getRandomMessage('user', 'pms_start'));
+                const companionsRes = await pool.query('SELECT companion_telegram_id FROM companions WHERE user_id = $1', [user.id]);
+                companionsRes.rows.forEach(c => bot.sendMessage(c.companion_telegram_id, getRandomMessage('companion', 'pms_start').replace('{FIRST_NAME}', user.telegram_firstname)));
+            }
+        }
+    }, { timezone: "Asia/Tehran" });
+
+    // Period is late by 3 days
+    cron.schedule(randomHourAndMinute(10, 20), async () => {
+        const usersRes = await pool.query('SELECT * FROM users WHERE last_period_date IS NOT NULL AND reminder_cycle = TRUE');
+        for (const user of usersRes.rows) {
+            const cycleLength = user.avg_cycle_length ? Math.round(user.avg_cycle_length) : user.cycle_length;
+            const lastPeriod = moment(user.last_period_date);
+            const nextPeriod = lastPeriod.clone().add(cycleLength, 'days');
+            const daysToPeriod = nextPeriod.diff(moment().tz('Asia/Tehran').startOf('day'), 'days');
+            if (daysToPeriod === -3) {
+                 bot.sendMessage(user.telegram_id, getRandomMessage('user', 'period_late'));
+            }
+        }
+    }, { timezone: "Asia/Tehran" });
+};
+
+scheduleDailyCycleChecks();
 
 
 app.listen(PORT, () => {
