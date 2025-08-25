@@ -49,6 +49,39 @@ app.use(express.static(path.join(__dirname, 'public')));
 // --- END: BOT & DB Initialization ---
 
 // --- BOT COMMANDS ---
+bot.onText(/\/start$/, async (msg) => {
+    const chatId = msg.chat.id;
+    const client = await pool.connect();
+    try {
+        const companionRes = await client.query('SELECT * FROM companions WHERE companion_telegram_id = $1', [chatId]);
+        if (companionRes.rows.length > 0) {
+            // This user is a companion for someone
+            bot.sendMessage(chatId, 'شما به عنوان همراه ثبت شده‌اید. برای مدیریت همراهی‌های خود از دکمه زیر استفاده کنید.', {
+                reply_markup: {
+                    keyboard: [
+                        [{ text: 'لغو همراهی' }]
+                    ],
+                    resize_keyboard: true,
+                    one_time_keyboard: false
+                }
+            });
+        } else {
+            // This is a regular user
+            bot.sendMessage(chatId, 'سلام! به ربات پریناز خوش آمدید. برای استفاده از امکانات، لطفاً از اپلیکیشن وب استفاده کنید.', {
+                reply_markup: {
+                    remove_keyboard: true
+                }
+            });
+        }
+    } catch (error) {
+        console.error('Error in /start handler:', error);
+        bot.sendMessage(chatId, 'خطایی رخ داده است.');
+    } finally {
+        client.release();
+    }
+});
+
+
 bot.onText(/\/start (.+)/, async (msg, match) => {
     const chatId = msg.chat.id;
     const token = match[1];
@@ -58,7 +91,6 @@ bot.onText(/\/start (.+)/, async (msg, match) => {
     try {
         await client.query('BEGIN');
 
-        // Find the invitation
         const inviteRes = await client.query(
             'SELECT * FROM companion_invites WHERE token = $1 AND is_used = FALSE AND expires_at > NOW()',
             [token]
@@ -73,35 +105,43 @@ bot.onText(/\/start (.+)/, async (msg, match) => {
         const invite = inviteRes.rows[0];
         const primaryUserId = invite.user_id;
 
-        // Get primary user's name
-        const primaryUserRes = await client.query('SELECT telegram_username FROM users WHERE id = $1', [primaryUserId]);
+        const primaryUserRes = await client.query('SELECT id, telegram_id, telegram_username FROM users WHERE id = $1', [primaryUserId]);
         if (primaryUserRes.rows.length === 0) {
             throw new Error('کاربر اصلی پیدا نشد.');
         }
-        const primaryUserName = primaryUserRes.rows[0].telegram_username || 'دوست شما';
+        
+        const primaryUser = primaryUserRes.rows[0];
+        
+        // Prevent user from adding themselves
+        if (primaryUser.telegram_id == chatId) {
+            bot.sendMessage(chatId, 'شما نمی‌توانید خودتان را به عنوان همراه اضافه کنید.');
+            // DO NOT invalidate the token, just rollback and return
+            await client.query('ROLLBACK');
+            return;
+        }
 
-        // Add to companions table
+        const primaryUserName = primaryUser.telegram_username || 'دوست شما';
+
         const insertCompanionQuery = `
             INSERT INTO companions (user_id, companion_telegram_id, name)
             VALUES ($1, $2, $3)
-            ON CONFLICT (user_id, companion_telegram_id) DO NOTHING
-            RETURNING *;
+            ON CONFLICT (user_id, companion_telegram_id) DO NOTHING;
         `;
-        const companionRes = await client.query(insertCompanionQuery, [primaryUserId, chatId, companionUsername]);
+        await client.query(insertCompanionQuery, [primaryUserId, chatId, companionUsername]);
 
-        // Mark token as used
         await client.query('UPDATE companion_invites SET is_used = TRUE WHERE id = $1', [invite.id]);
         
         await client.query('COMMIT');
 
-        // Send welcome messages
-        bot.sendMessage(chatId, `سلام ${companionUsername}!\nشما به عنوان همراه ${primaryUserName} در پریناز ثبت شدید. از این به بعد، وضعیت چرخه قاعدگی ایشان برای شما ارسال می‌شود تا بتوانید بیشتر مراقبشان باشید.`);
+        bot.sendMessage(chatId, `سلام ${companionUsername}!\nشما به عنوان همراه ${primaryUserName} در پریناز ثبت شدید. از این به بعد، وضعیت چرخه قاعدگی ایشان برای شما ارسال می‌شود تا بتوانید بیشتر مراقبشان باشید.`, {
+            reply_markup: {
+                keyboard: [[{ text: 'لغو همراهی' }]],
+                resize_keyboard: true,
+                one_time_keyboard: false
+            }
+        });
         
-        const primaryUserTelegramIdRes = await client.query('SELECT telegram_id FROM users WHERE id = $1', [primaryUserId]);
-        if(primaryUserTelegramIdRes.rows.length > 0) {
-            const primaryUserTelegramId = primaryUserTelegramIdRes.rows[0].telegram_id;
-            bot.sendMessage(primaryUserTelegramId, `همراه جدید شما (${companionUsername}) با موفقیت اضافه شد.`);
-        }
+        bot.sendMessage(primaryUser.telegram_id, `همراه جدید شما (${companionUsername}) با موفقیت اضافه شد.`);
 
     } catch (error) {
         await client.query('ROLLBACK');
@@ -109,6 +149,80 @@ bot.onText(/\/start (.+)/, async (msg, match) => {
         bot.sendMessage(chatId, 'خطایی در ثبت شما به عنوان همراه رخ داد. لطفاً دوباره امتحان کنید.');
     } finally {
         client.release();
+    }
+});
+
+bot.on('message', async (msg) => {
+    const chatId = msg.chat.id;
+    if (msg.text === 'لغو همراهی') {
+        const client = await pool.connect();
+        try {
+            const res = await client.query(`
+                SELECT c.user_id, u.telegram_username 
+                FROM companions c
+                JOIN users u ON c.user_id = u.id
+                WHERE c.companion_telegram_id = $1
+            `, [chatId]);
+
+            if (res.rows.length === 0) {
+                bot.sendMessage(chatId, 'شما در حال حاضر همراه کسی نیستید.');
+                return;
+            }
+
+            const inlineKeyboard = res.rows.map(row => ([{
+                text: `لغو همراهی با ${row.telegram_username || `کاربر ${row.user_id}`}`,
+                callback_data: `unfollow_${row.user_id}`
+            }]));
+
+            bot.sendMessage(chatId, 'همراهی با کدام کاربر را می‌خواهید لغو کنید؟', {
+                reply_markup: {
+                    inline_keyboard: inlineKeyboard
+                }
+            });
+
+        } catch (error) {
+            console.error('Error fetching companions for cancellation:', error);
+            bot.sendMessage(chatId, 'خطایی در دریافت لیست همراهی شما رخ داد.');
+        } finally {
+            client.release();
+        }
+    }
+});
+
+bot.on('callback_query', async (callbackQuery) => {
+    const msg = callbackQuery.message;
+    const data = callbackQuery.data;
+    const companionId = callbackQuery.from.id;
+
+    if (data.startsWith('unfollow_')) {
+        const primaryUserId = parseInt(data.split('_')[1], 10);
+        const client = await pool.connect();
+        try {
+            const primaryUserRes = await client.query('SELECT telegram_id, telegram_username FROM users WHERE id = $1', [primaryUserId]);
+            const companionRes = await client.query('DELETE FROM companions WHERE user_id = $1 AND companion_telegram_id = $2 RETURNING *', [primaryUserId, companionId]);
+
+            if (companionRes.rowCount > 0) {
+                bot.answerCallbackQuery(callbackQuery.id, { text: 'همراهی با موفقیت لغو شد.' });
+                bot.editMessageText(`همراهی شما با ${primaryUserRes.rows[0].telegram_username || 'کاربر'} لغو شد.`, {
+                    chat_id: msg.chat.id,
+                    message_id: msg.message_id
+                });
+
+                // Notify the primary user
+                if (primaryUserRes.rows.length > 0) {
+                    const primaryUserTelegramId = primaryUserRes.rows[0].telegram_id;
+                    const companionUsername = callbackQuery.from.username || `کاربر ${companionId}`;
+                    bot.sendMessage(primaryUserTelegramId, `${companionUsername} دیگر همراه شما نیست.`);
+                }
+            } else {
+                bot.answerCallbackQuery(callbackQuery.id, { text: 'خطایی رخ داد یا شما دیگر همراه این کاربر نبودید.', show_alert: true });
+            }
+        } catch (error) {
+            console.error('Error unfollowing user:', error);
+            bot.answerCallbackQuery(callbackQuery.id, { text: 'خطا در لغو همراهی.', show_alert: true });
+        } finally {
+            client.release();
+        }
     }
 });
 
@@ -176,19 +290,9 @@ app.get('/api/user/:telegram_id', async (req, res) => {
         const historyResult = await pool.query(historyQuery, [user.id]);
         const period_history = historyResult.rows;
 
-        // Fetch companion details including their username from the users table
-        const companionsQuery = `
-            SELECT c.*, u.telegram_username 
-            FROM companions c 
-            LEFT JOIN users u ON c.companion_telegram_id = u.telegram_id
-            WHERE c.user_id = $1
-        `;
+        const companionsQuery = `SELECT id, name, notify_daily_symptoms FROM companions WHERE user_id = $1`;
         const companionsResult = await pool.query(companionsQuery, [user.id]);
-        const companions = companionsResult.rows.map(c => ({
-            id: c.id,
-            name: c.telegram_username || c.name, // Prefer username from users table
-            notify_daily_symptoms: c.notify_daily_symptoms
-        }));
+        const companions = companionsResult.rows;
 
         res.status(200).json({ user, logs, period_history, companions });
     } catch (error) {
@@ -200,35 +304,22 @@ app.get('/api/user/:telegram_id', async (req, res) => {
 app.put('/api/user/:telegram_id', async (req, res) => {
     try {
         const { telegram_id } = req.params;
-        const { cycle_length, period_length, birth_year, reminder_logs, reminder_cycle, companion_notify_daily_symptoms } = req.body;
+        const { cycle_length, period_length, birth_year, reminder_logs, reminder_cycle } = req.body;
         
-        // Fetch user to update their global companion setting
-        const userRes = await pool.query('SELECT id FROM users WHERE telegram_id = $1', [telegram_id]);
-        if (userRes.rows.length === 0) {
-            return res.status(404).json({ error: 'کاربر یافت نشد.' });
-        }
-        const userId = userRes.rows[0].id;
-        
-        const client = await pool.connect();
-        try {
-            await client.query('BEGIN');
-            const query = `
-                UPDATE users
-                SET cycle_length = $1, period_length = $2, birth_year = $3, reminder_logs = $4, reminder_cycle = $5, companion_notify_daily_symptoms = $6
-                WHERE id = $7
-                RETURNING *;
-            `;
-            const values = [cycle_length, period_length, birth_year, reminder_logs, reminder_cycle, companion_notify_daily_symptoms, userId];
-            const result = await client.query(query, values);
+        const query = `
+            UPDATE users
+            SET cycle_length = $1, period_length = $2, birth_year = $3, reminder_logs = $4, reminder_cycle = $5
+            WHERE telegram_id = $6
+            RETURNING *;
+        `;
+        const values = [cycle_length, period_length, birth_year, reminder_logs, reminder_cycle, telegram_id];
+        const result = await pool.query(query, values);
 
-            await client.query('COMMIT');
-            res.status(200).json({ message: 'تنظیمات با موفقیت به‌روزرسانی شد', user: result.rows[0] });
-        } catch(e) {
-            await client.query('ROLLBACK');
-            throw e;
-        } finally {
-            client.release();
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'کاربر برای به‌روزرسانی یافت نشد.' });
         }
+
+        res.status(200).json({ message: 'تنظیمات با موفقیت به‌روزرسانی شد', user: result.rows[0] });
 
     } catch (error) {
         console.error('خطا در به‌روزرسانی تنظیمات:', error);

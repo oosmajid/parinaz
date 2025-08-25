@@ -504,7 +504,7 @@ const renderSettings = (userData) => {
                     <div class="flex items-center gap-3">
                         <label class="flex items-center gap-1 cursor-pointer text-xs text-gray-500">
                             <input type="checkbox" onchange="window.app.updateCompanionNotification(${c.id}, this.checked)" class="h-4 w-4 rounded border-gray-300 text-pink-500 focus:ring-pink-400" ${c.notify_daily_symptoms ? 'checked' : ''}>
-                            <span>اعلان علائم</span>
+                            <span>ارسال علائم روزانه</span>
                         </label>
                         <button onclick="window.app.deleteCompanion(${c.id}, '${c.name || 'این همراه'}')" class="text-red-400 hover:text-red-600">
                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -566,26 +566,6 @@ const renderSettings = (userData) => {
                 <div class="flex gap-3 pt-2">
                    <button onclick="window.app.generateInviteLink()" class="w-full bg-blue-500 text-white font-bold py-2.5 rounded-lg text-sm">+ ثبت همراه جدید</button>
                 </div>
-
-                <div class="space-y-3 pt-4">
-                    <p class="text-sm text-gray-500">تنظیمات کلی برای همه همراهان:</p>
-                     <label class="flex items-center justify-between cursor-not-allowed opacity-70">
-                        <span class="text-gray-600">اعلان چرخه قاعدگی</span>
-                        <input type="checkbox" id="settings-companion-cycle-global" class="h-5 w-5 rounded border-gray-300 text-pink-500 focus:ring-pink-400" checked disabled>
-                    </label>
-                    <label class="flex items-center justify-between cursor-pointer">
-                        <div class="flex items-center gap-2 relative">
-                            <span class="text-gray-600">اعلان علائم روزانه (برای همه)</span>
-                            <button id="info-icon-symptoms-btn" onclick="window.app.toggleSymptomsInfo(event)" class="text-gray-400 hover:text-gray-600">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" /></svg>
-                            </button>
-                            <div id="symptoms-info-popover" class="info-popover" style="width: 14rem;">
-                                صرفاً علائم و حس‌وحال روزانه‌ات رو به همراهات می‌فرستیم.
-                            </div>
-                        </div>
-                        <input type="checkbox" id="settings-companion-symptoms-global" class="h-5 w-5 rounded border-gray-300 text-pink-500 focus:ring-pink-400">
-                    </label>
-                </div>
             </div>
 
             <button onclick="window.app.saveSettings()" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg mt-8">ذخیره تغییرات</button>
@@ -607,7 +587,6 @@ const renderSettings = (userData) => {
     s('birth-year').value=userData.user.birth_year;
     s('reminder-logs').checked = userData.user.reminder_logs;
     s('reminder-cycle').checked = userData.user.reminder_cycle;
-    s('companion-symptoms-global').checked = userData.user.companion_notify_daily_symptoms;
     document.getElementById('settings-btn').classList.add('hidden');
     document.getElementById('analysis-btn').classList.add('hidden');
     document.getElementById('back-btn').classList.remove('hidden');
