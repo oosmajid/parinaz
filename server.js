@@ -493,6 +493,19 @@ app.post('/api/user/:telegram_id/period', async (req, res) => {
         // Notify companions that period has started
         const today = moment().tz('Asia/Tehran').format('YYYY-MM-DD');
         if (start_date === today) {
+            console.loh("HERE1")
+            try {
+                const companionsRes = await client.query('SELECT companion_telegram_id FROM companions WHERE user_id = $1', [userId]);
+                companionsRes.rows.forEach(c => {
+                    const message = getRandomMessage('companion', 'period_started').replace('{FIRST_NAME}', userFirstName);
+                    bot.sendMessage(c.companion_telegram_id, message);
+                });
+            } catch (botError) {
+                console.error("Bot failed to send message, but continuing transaction:", botError);
+            }
+        }
+
+        if (true) {
             try {
                 const companionsRes = await client.query('SELECT companion_telegram_id FROM companions WHERE user_id = $1', [userId]);
                 companionsRes.rows.forEach(c => {
