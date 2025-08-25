@@ -13,6 +13,7 @@ const moment = require('moment-timezone');
 
 // --- START: BOT & DB Initialization ---
 types.setTypeParser(1082, (dateString) => dateString);
+moment.tz.setDefault('Asia/Tehran');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -479,7 +480,7 @@ app.post('/api/user/:telegram_id/period', async (req, res) => {
         );
         
         // Notify companions that period has started
-        const today = moment().tz('Asia/Tehran').format('YYYY-MM-DD');
+        const today = moment().format('YYYY-MM-DD');
         if (start_date === today) {
             const companionsRes = await client.query('SELECT companion_telegram_id FROM companions WHERE user_id = $1', [userId]);
             companionsRes.rows.forEach(c => {
