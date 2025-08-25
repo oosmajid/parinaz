@@ -7,6 +7,8 @@ document.addEventListener('DOMContentLoaded', function() {
         tg.ready();
         tg.expand();
         const TELEGRAM_ID = tg.initDataUnsafe?.user?.id || '123456789'; 
+        const TELEGRAM_USERNAME = tg.initDataUnsafe?.user?.username || `کاربر ${TELEGRAM_ID}`;
+
 
         // --- STATE & DOM ELEMENTS ---
         let userData = { user: null, logs: {}, period_history: [], companions: [] };
@@ -98,6 +100,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (step > 4) {
                     this.onboardingData.birth_year = document.getElementById('birth-year').value;
                     this.onboardingData.telegram_id = TELEGRAM_ID;
+                    this.onboardingData.telegram_username = TELEGRAM_USERNAME; // Add username
                     try {
                         const response = await fetch(`${API_BASE_URL}/onboarding`, {
                             method: 'POST',
@@ -105,7 +108,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             body: JSON.stringify(this.onboardingData)
                         });
                         const data = await response.json();
-                        if (!response.ok && response.status !== 201) {
+                        if (response.status !== 201) {
                             throw new Error(data.error || 'خطا در ثبت‌نام');
                         }
                         showToast(data.message);
@@ -135,7 +138,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     birth_year: document.getElementById('settings-birth-year').value,
                     reminder_logs: document.getElementById('settings-reminder-logs').checked,
                     reminder_cycle: document.getElementById('settings-reminder-cycle').checked,
-                    companion_notify_daily_symptoms: document.getElementById('settings-companion-symptoms').checked,
+                    companion_notify_daily_symptoms: document.getElementById('settings-companion-symptoms-global').checked,
                 };
                 try {
                     const response = await fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}`, {
@@ -300,46 +303,57 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 );
             },
-            async addCompanion() {
-                const companionId = prompt("لطفاً شناسه عددی تلگرام همراه خود را وارد کنید:");
-                if (companionId && !isNaN(companionId)) {
-                    try {
-                        const response = await fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}/companions`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ companion_telegram_id: companionId })
-                        });
-                        const data = await response.json();
-                         if (!response.ok) throw new Error(data.error || 'خطا در افزودن همراه');
-                        showToast(data.message);
-                        await this.init(true);
-                        this.goToSettings();
-                    } catch(error) {
-                        showToast(error.message, true);
-                    }
-                } else if (companionId) {
-                    showToast("شناسه وارد شده معتبر نیست.", true);
+            async generateInviteLink() {
+                showToast('در حال ایجاد لینک دعوت...');
+                try {
+                    const response = await fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}/generate-invite`, {
+                        method: 'POST'
+                    });
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.error);
+                    showToast(data.message);
+                } catch (error) {
+                    showToast(error.message, true);
                 }
             },
-            deleteAllCompanions() {
+            deleteCompanion(companionId, companionName) {
                 showConfirmationModal(
-                    'حذف همه همراهان',
-                    'آیا از حذف تمام همراهان خود مطمئن هستید؟',
+                    `حذف ${companionName}`,
+                    `آیا از حذف این همراه مطمئن هستید؟`,
                     async () => {
                         try {
-                            const response = await fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}/companions`, {
+                            const response = await fetch(`${API_BASE_URL}/companion/${companionId}`, {
                                 method: 'DELETE'
                             });
                             const data = await response.json();
-                            if (!response.ok) throw new Error(data.error || 'خطا در حذف همراهان');
+                            if (!response.ok) throw new Error(data.error);
                             showToast(data.message);
-                            await this.init(true);
-                            this.goToSettings();
+                            await this.init(true); // Refresh data
+                            this.goToSettings(); // Re-render settings page
                         } catch (error) {
                             showToast(error.message, true);
                         }
                     }
                 );
+            },
+            async updateCompanionNotification(companionId, isChecked) {
+                 try {
+                    const response = await fetch(`${API_BASE_URL}/companion/${companionId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ notify_daily_symptoms: isChecked })
+                    });
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.error);
+                    showToast("تنظیمات اعلان همراه به‌روزرسانی شد.");
+                    // Update local state to avoid full reload
+                    const companion = userData.companions.find(c => c.id === companionId);
+                    if (companion) {
+                        companion.notify_daily_symptoms = isChecked;
+                    }
+                 } catch (error) {
+                    showToast(error.message, true);
+                 }
             },
             toggleCompanionInfo(event) {
                 event.stopPropagation();
@@ -369,7 +383,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
 
-            // --- START: MODIFIED PDF EXPORT FUNCTION ---
             async exportToPDF(months) {
                 const spinner = document.getElementById('spinner-overlay');
                 spinner.classList.add('visible');
@@ -390,16 +403,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 } catch (error) {
                     console.error("Failed to request PDF report:", error);
-                    // --- START: Add Telegram Alert on Error ---
-                    // This will show a native popup if the fetch fails (e.g., due to CORS)
                     tg.showAlert(error.message);
-                    // --- END: Add Telegram Alert on Error ---
                     showToast(error.message, true);
                 } finally {
                     spinner.classList.remove('visible');
                 }
             },
-            // --- END: MODIFIED PDF EXPORT FUNCTION ---
 
             goToSettings() { renderSettings(userData); },
             goToAnalysis() { renderAnalysis(userData, charts); },

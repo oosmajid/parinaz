@@ -5,6 +5,7 @@
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,                      -- یک شماره شناسایی منحصر به فرد و خودکار برای هر کاربر
     telegram_id BIGINT UNIQUE NOT NULL,         -- شناسه تلگرام کاربر برای شناسایی او در مراجعات بعدی
+    telegram_username TEXT,                     -- نام کاربری تلگرام برای نمایش
     
     -- تنظیمات اولیه یا دستی کاربر
     cycle_length INT NOT NULL DEFAULT 28,       -- طول سیکل قاعدگی (پیش‌فرض ۲۸ روز)
@@ -47,6 +48,16 @@ CREATE TABLE companions (
     notify_daily_symptoms BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (user_id, companion_telegram_id) -- A user can't add the same companion twice
+);
+
+-- جدول توکن‌های دعوت همراه
+CREATE TABLE companion_invites (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token TEXT UNIQUE NOT NULL,
+    is_used BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '24 hours')
 );
 
 

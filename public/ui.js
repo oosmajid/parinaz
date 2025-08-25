@@ -65,76 +65,8 @@ const templates = {
                 </div>`; 
     },
     settings() { 
-        return `<div class="page-enter space-y-6">
-                    <div>
-                        <label class="block text-gray-600 mb-2">طول سیکل پریود</label>
-                        <select id="settings-cycle-length" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select>
-                    </div>
-                    <div>
-                        <label class="block text-gray-600 mb-2">طول دوره پریود</label>
-                        <select id="settings-period-length" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select>
-                    </div>
-                    <div class="p-3 bg-pink-100 text-xs text-pink-800 rounded-lg mt-2">
-                        پریناز اولش بر اساس اطلاعاتی که وارد کردی، زمان پریودت رو حدس می‌زنه. اما به مرور که پریودهات رو منظم ثبت کنی، عملکرد چرخه پریودت رو یاد می‌گیره و ممکنه پیش‌بینی‌هاش با مقادیری که اینجا وارد می‌کنی، متفاوت باشه.
-                    </div>
-                    <div>
-                        <label class="block text-gray-600 mb-2">سال تولد</label>
-                        <select id="settings-birth-year" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select>
-                    </div>
-
-                    <div class="space-y-4 border-t pt-6 mt-6">
-                        <h3 class="text-lg font-semibold text-gray-700 mb-2">تنظیمات اعلان</h3>
-                        <label class="flex items-center justify-between cursor-pointer">
-                            <span class="text-gray-600">یادآور ثبت علائم</span>
-                            <input type="checkbox" id="settings-reminder-logs" class="h-5 w-5 rounded border-gray-300 text-pink-500 focus:ring-pink-400">
-                        </label>
-                        <label class="flex items-center justify-between cursor-pointer">
-                            <span class="text-gray-600">اعلان چرخه قاعدگی</span>
-                            <input type="checkbox" id="settings-reminder-cycle" class="h-5 w-5 rounded border-gray-300 text-pink-500 focus:ring-pink-400">
-                        </label>
-                    </div>
-
-                    <div class="space-y-4 border-t pt-6 mt-6">
-                        <div class="flex items-center gap-2 mb-3 relative">
-                            <h3 class="text-lg font-semibold text-gray-700">تنظیمات همراه</h3>
-                            <button id="info-icon-btn" onclick="window.app.toggleCompanionInfo(event)" class="text-gray-400 hover:text-gray-600">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" /></svg>
-                            </button>
-                            <div id="companion-info-popover" class="info-popover">
-                                می‌تونی پارتنر یا خانواده یا دوستت رو به پریناز دعوت کنی تا از تغییرات چرخه پریودت باخبر بشه.
-                            </div>
-                        </div>
-                        <div class="flex gap-3">
-                           <button onclick="window.app.addCompanion()" class="w-full bg-blue-500 text-white font-bold py-2.5 rounded-lg text-sm">+ ثبت همراه جدید</button>
-                           <button onclick="window.app.deleteAllCompanions()" class="w-full bg-red-100 text-red-700 font-bold py-2.5 rounded-lg text-sm">حذف همه</button>
-                        </div>
-                        <div class="space-y-3 pt-2">
-                            <p class="text-sm text-gray-500">به همراه چه اعلان‌هایی را بفرستیم:</p>
-                            <label class="flex items-center justify-between cursor-not-allowed opacity-70">
-                                <span class="text-gray-600">اعلان چرخه قاعدگی</span>
-                                <input type="checkbox" id="settings-companion-cycle" class="h-5 w-5 rounded border-gray-300 text-pink-500 focus:ring-pink-400" checked disabled>
-                            </label>
-                            <label class="flex items-center justify-between cursor-pointer">
-                                <div class="flex items-center gap-2 relative">
-                                    <span class="text-gray-600">اعلان علائم روزانه</span>
-                                    <button id="info-icon-symptoms-btn" onclick="window.app.toggleSymptomsInfo(event)" class="text-gray-400 hover:text-gray-600">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" /></svg>
-                                    </button>
-                                    <div id="symptoms-info-popover" class="info-popover" style="width: 14rem;">
-                                        صرفاً علائم و حس‌وحال روزانه‌ات رو به همراهات می‌فرستیم.
-                                    </div>
-                                </div>
-                                <input type="checkbox" id="settings-companion-symptoms" class="h-5 w-5 rounded border-gray-300 text-pink-500 focus:ring-pink-400">
-                            </label>
-                        </div>
-                    </div>
-
-                    <button onclick="window.app.saveSettings()" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg mt-8">ذخیره تغییرات</button>
-
-                    <div class="border-t pt-6 mt-6">
-                        <button onclick="window.app.deleteAccount()" class="w-full bg-red-100 text-red-700 font-bold py-3 rounded-lg hover:bg-red-200">حذف حساب کاربری</button>
-                    </div>
-                </div>`; 
+        // This is now a function that will be called with userData
+        return ''; 
     },
     analysis() { 
         return `<div class="page-enter space-y-4">
@@ -562,7 +494,109 @@ const renderCalendar = (calendarDate, userData) => {
 };
 
 const renderSettings = (userData) => {
-    render(templates.settings());
+    let companionsHTML = '';
+    if (userData.companions && userData.companions.length > 0) {
+        companionsHTML += '<div class="space-y-3 pt-2">';
+        userData.companions.forEach(c => {
+            companionsHTML += `
+                <div class="flex items-center justify-between p-2 bg-gray-50 rounded-lg border">
+                    <span class="text-sm font-medium text-gray-700">${c.name || 'همراه'}</span>
+                    <div class="flex items-center gap-3">
+                        <label class="flex items-center gap-1 cursor-pointer text-xs text-gray-500">
+                            <input type="checkbox" onchange="window.app.updateCompanionNotification(${c.id}, this.checked)" class="h-4 w-4 rounded border-gray-300 text-pink-500 focus:ring-pink-400" ${c.notify_daily_symptoms ? 'checked' : ''}>
+                            <span>اعلان علائم</span>
+                        </label>
+                        <button onclick="window.app.deleteCompanion(${c.id}, '${c.name || 'این همراه'}')" class="text-red-400 hover:text-red-600">
+                           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+        companionsHTML += '</div>';
+    } else {
+        companionsHTML = '<p class="text-center text-sm text-gray-400 py-2">هنوز همراهی ثبت نکرده‌اید.</p>';
+    }
+
+    const settingsTemplate = `
+        <div class="page-enter space-y-6">
+            <div>
+                <label class="block text-gray-600 mb-2">طول سیکل پریود</label>
+                <select id="settings-cycle-length" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select>
+            </div>
+            <div>
+                <label class="block text-gray-600 mb-2">طول دوره پریود</label>
+                <select id="settings-period-length" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select>
+            </div>
+            <div class="p-3 bg-pink-100 text-xs text-pink-800 rounded-lg mt-2">
+                پریناز اولش بر اساس اطلاعاتی که وارد کردی، زمان پریودت رو حدس می‌زنه. اما به مرور که پریودهات رو منظم ثبت کنی، عملکرد چرخه پریودت رو یاد می‌گیره و ممکنه پیش‌بینی‌هاش با مقادیری که اینجا وارد می‌کنی، متفاوت باشه.
+            </div>
+            <div>
+                <label class="block text-gray-600 mb-2">سال تولد</label>
+                <select id="settings-birth-year" class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg"></select>
+            </div>
+
+            <div class="space-y-4 border-t pt-6 mt-6">
+                <h3 class="text-lg font-semibold text-gray-700 mb-2">تنظیمات اعلان</h3>
+                <label class="flex items-center justify-between cursor-pointer">
+                    <span class="text-gray-600">یادآور ثبت علائم</span>
+                    <input type="checkbox" id="settings-reminder-logs" class="h-5 w-5 rounded border-gray-300 text-pink-500 focus:ring-pink-400">
+                </label>
+                <label class="flex items-center justify-between cursor-pointer">
+                    <span class="text-gray-600">اعلان چرخه قاعدگی</span>
+                    <input type="checkbox" id="settings-reminder-cycle" class="h-5 w-5 rounded border-gray-300 text-pink-500 focus:ring-pink-400">
+                </label>
+            </div>
+
+            <div class="space-y-4 border-t pt-6 mt-6">
+                <div class="flex items-center gap-2 mb-3 relative">
+                    <h3 class="text-lg font-semibold text-gray-700">همراهان من</h3>
+                    <button id="info-icon-btn" onclick="window.app.toggleCompanionInfo(event)" class="text-gray-400 hover:text-gray-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" /></svg>
+                    </button>
+                    <div id="companion-info-popover" class="info-popover">
+                        می‌تونی پارتنر یا خانواده یا دوستت رو به پریناز دعوت کنی تا از تغییرات چرخه پریودت باخبر بشه.
+                    </div>
+                </div>
+                
+                ${companionsHTML}
+
+                <div class="flex gap-3 pt-2">
+                   <button onclick="window.app.generateInviteLink()" class="w-full bg-blue-500 text-white font-bold py-2.5 rounded-lg text-sm">+ ثبت همراه جدید</button>
+                </div>
+
+                <div class="space-y-3 pt-4">
+                    <p class="text-sm text-gray-500">تنظیمات کلی برای همه همراهان:</p>
+                     <label class="flex items-center justify-between cursor-not-allowed opacity-70">
+                        <span class="text-gray-600">اعلان چرخه قاعدگی</span>
+                        <input type="checkbox" id="settings-companion-cycle-global" class="h-5 w-5 rounded border-gray-300 text-pink-500 focus:ring-pink-400" checked disabled>
+                    </label>
+                    <label class="flex items-center justify-between cursor-pointer">
+                        <div class="flex items-center gap-2 relative">
+                            <span class="text-gray-600">اعلان علائم روزانه (برای همه)</span>
+                            <button id="info-icon-symptoms-btn" onclick="window.app.toggleSymptomsInfo(event)" class="text-gray-400 hover:text-gray-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" /></svg>
+                            </button>
+                            <div id="symptoms-info-popover" class="info-popover" style="width: 14rem;">
+                                صرفاً علائم و حس‌وحال روزانه‌ات رو به همراهات می‌فرستیم.
+                            </div>
+                        </div>
+                        <input type="checkbox" id="settings-companion-symptoms-global" class="h-5 w-5 rounded border-gray-300 text-pink-500 focus:ring-pink-400">
+                    </label>
+                </div>
+            </div>
+
+            <button onclick="window.app.saveSettings()" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg mt-8">ذخیره تغییرات</button>
+
+            <div class="border-t pt-6 mt-6">
+                <button onclick="window.app.deleteAccount()" class="w-full bg-red-100 text-red-700 font-bold py-3 rounded-lg hover:bg-red-200">حذف حساب کاربری</button>
+            </div>
+        </div>
+    `;
+
+    render(settingsTemplate);
     const populateSelect=(id,s,e,u='')=>{const el=document.getElementById(id);el.innerHTML='';for(let i=s;i>=e;i--)el.innerHTML+=`<option value="${i}">${toPersian(i)}${u}</option>`;};
     populateSelect('settings-cycle-length',60,21,' روز');
     populateSelect('settings-period-length',12,3,' روز');
@@ -573,7 +607,7 @@ const renderSettings = (userData) => {
     s('birth-year').value=userData.user.birth_year;
     s('reminder-logs').checked = userData.user.reminder_logs;
     s('reminder-cycle').checked = userData.user.reminder_cycle;
-    s('companion-symptoms').checked = userData.user.companion_notify_daily_symptoms;
+    s('companion-symptoms-global').checked = userData.user.companion_notify_daily_symptoms;
     document.getElementById('settings-btn').classList.add('hidden');
     document.getElementById('analysis-btn').classList.add('hidden');
     document.getElementById('back-btn').classList.remove('hidden');
