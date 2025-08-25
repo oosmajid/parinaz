@@ -327,9 +327,199 @@ app.put('/api/user/:telegram_id', async (req, res) => {
     }
 });
 
+// START: Added routes for logs and period
+app.post('/api/logs', async (req, res) => {
+    const client = await pool.connect();
+    try {
+        const { user_id, log_date, ...logData } = req.body;
 
-// ... other routes like logs, period, delete user ...
-// ... (omitted for brevity, no changes needed there for this feature)
+        if (!user_id || !log_date) {
+            return res.status(400).json({ error: 'اطلاعات ضروری ارسال نشده است.' });
+        }
+
+        const columns = ['user_id', 'log_date'];
+        const values = [user_id, log_date];
+        const updates = [];
+        
+        Object.keys(logData).forEach((key, index) => {
+            columns.push(key);
+            values.push(logData[key]);
+            updates.push(`${key} = $${index + 3}`);
+        });
+
+        const query = `
+            INSERT INTO daily_logs (${columns.join(', ')})
+            VALUES (${values.map((_, i) => `$${i + 1}`).join(', ')})
+            ON CONFLICT (user_id, log_date) DO UPDATE SET
+                ${updates.join(', ')}
+            RETURNING *;
+        `;
+        
+        const result = await client.query(query, values);
+        res.status(200).json({ message: 'گزارش با موفقیت ذخیره شد', log: result.rows[0] });
+
+    } catch (error) {
+        console.error('خطا در ذخیره گزارش:', error);
+        res.status(500).json({ error: 'خطای داخلی سرور' });
+    } finally {
+        client.release();
+    }
+});
+
+app.delete('/api/logs', async (req, res) => {
+    try {
+        const { user_id, log_date } = req.body;
+        if (!user_id || !log_date) {
+            return res.status(400).json({ error: 'اطلاعات ضروری برای حذف ارسال نشده است.' });
+        }
+        const result = await pool.query('DELETE FROM daily_logs WHERE user_id = $1 AND log_date = $2', [user_id, log_date]);
+        
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: 'گزارشی برای حذف یافت نشد.' });
+        }
+
+        res.status(200).json({ message: 'گزارش با موفقیت حذف شد.' });
+    } catch (error) {
+        console.error('خطا در حذف گزارش:', error);
+        res.status(500).json({ error: 'خطای داخلی سرور' });
+    }
+});
+
+app.post('/api/user/:telegram_id/period', async (req, res) => {
+    const { telegram_id } = req.params;
+    const { start_date, duration } = req.body;
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const userRes = await client.query('SELECT id, period_length FROM users WHERE telegram_id = $1', [telegram_id]);
+        if (userRes.rows.length === 0) {
+            return res.status(404).json({ error: 'کاربر یافت نشد.' });
+        }
+        const userId = userRes.rows[0].id;
+
+        // Add to history
+        await client.query(
+            `INSERT INTO period_history (user_id, start_date, duration)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (user_id, start_date) DO UPDATE SET duration = EXCLUDED.duration`,
+            [userId, start_date, duration]
+        );
+
+        // Recalculate averages and update last_period_date
+        const historyRes = await client.query(
+            'SELECT start_date, duration FROM period_history WHERE user_id = $1 ORDER BY start_date DESC',
+            [userId]
+        );
+
+        const history = historyRes.rows;
+        let avg_cycle_length = null;
+        let avg_period_length = null;
+        const last_period_date = history[0].start_date;
+
+        if (history.length > 1) {
+            let cycleSum = 0;
+            for (let i = 0; i < history.length - 1; i++) {
+                const current = new Date(history[i].start_date);
+                const previous = new Date(history[i + 1].start_date);
+                const diffTime = Math.abs(current - previous);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                cycleSum += diffDays;
+            }
+            avg_cycle_length = cycleSum / (history.length - 1);
+        }
+
+        const periodSum = history.reduce((sum, record) => sum + record.duration, 0);
+        avg_period_length = periodSum / history.length;
+
+        // Update users table
+        await client.query(
+            `UPDATE users SET 
+                last_period_date = $1, 
+                avg_cycle_length = $2, 
+                avg_period_length = $3
+             WHERE id = $4`,
+            [last_period_date, avg_cycle_length, avg_period_length, userId]
+        );
+
+        await client.query('COMMIT');
+        res.status(200).json({ message: 'سابقه پریود با موفقیت ثبت و تحلیل شد.' });
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error saving period data:', error);
+        res.status(500).json({ error: 'خطای داخلی سرور' });
+    } finally {
+        client.release();
+    }
+});
+
+app.delete('/api/user/:telegram_id/period', async (req, res) => {
+    const { telegram_id } = req.params;
+    const { scope } = req.body; // 'last' or 'all'
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+        const userRes = await client.query('SELECT id FROM users WHERE telegram_id = $1', [telegram_id]);
+        if (userRes.rows.length === 0) {
+            return res.status(404).json({ error: 'کاربر یافت نشد.' });
+        }
+        const userId = userRes.rows[0].id;
+
+        if (scope === 'last') {
+            const lastPeriodRes = await client.query(
+                'SELECT id FROM period_history WHERE user_id = $1 ORDER BY start_date DESC LIMIT 1',
+                [userId]
+            );
+            if (lastPeriodRes.rows.length > 0) {
+                await client.query('DELETE FROM period_history WHERE id = $1', [lastPeriodRes.rows[0].id]);
+            }
+        } else if (scope === 'all') {
+            await client.query('DELETE FROM period_history WHERE user_id = $1', [userId]);
+        } else {
+            return res.status(400).json({ error: 'دامنه حذف نامعتبر است.' });
+        }
+
+        // After deleting, recalculate and update user stats
+        const historyRes = await client.query(
+            'SELECT start_date, duration FROM period_history WHERE user_id = $1 ORDER BY start_date DESC',
+            [userId]
+        );
+        const history = historyRes.rows;
+
+        if (history.length === 0) {
+            await client.query('UPDATE users SET last_period_date = NULL, avg_cycle_length = NULL, avg_period_length = NULL WHERE id = $1', [userId]);
+        } else {
+            // Recalculate averages as in the POST route
+            const last_period_date = history[0].start_date;
+            let avg_cycle_length = null;
+            if (history.length > 1) {
+                 let cycleSum = 0;
+                for (let i = 0; i < history.length - 1; i++) {
+                    const current = new Date(history[i].start_date);
+                    const previous = new Date(history[i + 1].start_date);
+                    cycleSum += Math.ceil(Math.abs(current - previous) / (1000 * 60 * 60 * 24));
+                }
+                avg_cycle_length = cycleSum / (history.length - 1);
+            }
+            const avg_period_length = history.reduce((sum, r) => sum + r.duration, 0) / history.length;
+            await client.query('UPDATE users SET last_period_date = $1, avg_cycle_length = $2, avg_period_length = $3 WHERE id = $4', [last_period_date, avg_cycle_length, avg_period_length, userId]);
+        }
+        
+        await client.query('COMMIT');
+        res.status(200).json({ message: 'سابقه پریود با موفقیت حذف شد.' });
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error deleting period history:', error);
+        res.status(500).json({ error: 'خطای داخلی سرور' });
+    } finally {
+        client.release();
+    }
+});
+// END: Added routes
 
 // --- COMPANION MANAGEMENT ROUTES ---
 
@@ -416,6 +606,3 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server is running successfully on port ${PORT}`);
 });
-
-// Keep other existing routes for logs, user data etc. as they were
-// ... (The full server.js code would include all previous routes)
