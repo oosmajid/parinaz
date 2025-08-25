@@ -48,6 +48,14 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 // --- END: BOT & DB Initialization ---
 
+// --- Helper Function for Formatting Names ---
+const formatUserName = (firstName, userName) => {
+    if (userName && userName !== `کاربر ${firstName}`) {
+        return `${firstName} (@${userName})`;
+    }
+    return firstName;
+};
+
 // --- BOT COMMANDS ---
 bot.onText(/\/start$/, async (msg) => {
     const chatId = msg.chat.id;
@@ -85,7 +93,8 @@ bot.onText(/\/start$/, async (msg) => {
 bot.onText(/\/start (.+)/, async (msg, match) => {
     const chatId = msg.chat.id;
     const token = match[1];
-    const companionUsername = msg.from.username || `کاربر ${msg.from.id}`;
+    const companionFirstName = msg.from.first_name || 'همراه';
+    const companionUsername = msg.from.username;
 
     const client = await pool.connect();
     try {
@@ -105,7 +114,7 @@ bot.onText(/\/start (.+)/, async (msg, match) => {
         const invite = inviteRes.rows[0];
         const primaryUserId = invite.user_id;
 
-        const primaryUserRes = await client.query('SELECT id, telegram_id, telegram_username FROM users WHERE id = $1', [primaryUserId]);
+        const primaryUserRes = await client.query('SELECT id, telegram_id, telegram_username, telegram_firstname FROM users WHERE id = $1', [primaryUserId]);
         if (primaryUserRes.rows.length === 0) {
             throw new Error('کاربر اصلی پیدا نشد.');
         }
@@ -115,25 +124,25 @@ bot.onText(/\/start (.+)/, async (msg, match) => {
         // Prevent user from adding themselves
         if (primaryUser.telegram_id == chatId) {
             bot.sendMessage(chatId, 'شما نمی‌توانید خودتان را به عنوان همراه اضافه کنید.');
-            // DO NOT invalidate the token, just rollback and return
             await client.query('ROLLBACK');
             return;
         }
 
-        const primaryUserName = primaryUser.telegram_username || 'دوست شما';
+        const primaryUserDisplayName = formatUserName(primaryUser.telegram_firstname, primaryUser.telegram_username) || 'دوست شما';
+        const companionDisplayName = formatUserName(companionFirstName, companionUsername);
 
         const insertCompanionQuery = `
             INSERT INTO companions (user_id, companion_telegram_id, name)
             VALUES ($1, $2, $3)
-            ON CONFLICT (user_id, companion_telegram_id) DO NOTHING;
+            ON CONFLICT (user_id, companion_telegram_id) DO UPDATE SET name = EXCLUDED.name;
         `;
-        await client.query(insertCompanionQuery, [primaryUserId, chatId, companionUsername]);
+        await client.query(insertCompanionQuery, [primaryUserId, chatId, companionFirstName]);
 
         await client.query('UPDATE companion_invites SET is_used = TRUE WHERE id = $1', [invite.id]);
         
         await client.query('COMMIT');
 
-        bot.sendMessage(chatId, `سلام ${companionUsername}!\nشما به عنوان همراه ${primaryUserName} در پریناز ثبت شدید. از این به بعد، وضعیت چرخه قاعدگی ایشان برای شما ارسال می‌شود تا بتوانید بیشتر مراقبشان باشید.`, {
+        bot.sendMessage(chatId, `سلام ${companionFirstName}!\nشما به عنوان همراه ${primaryUserDisplayName} در پریناز ثبت شدید. از این به بعد، وضعیت چرخه قاعدگی ایشان برای شما ارسال می‌شود تا بتوانید بیشتر مراقبشان باشید.`, {
             reply_markup: {
                 keyboard: [[{ text: 'لغو همراهی' }]],
                 resize_keyboard: true,
@@ -141,7 +150,7 @@ bot.onText(/\/start (.+)/, async (msg, match) => {
             }
         });
         
-        bot.sendMessage(primaryUser.telegram_id, `همراه جدید شما (${companionUsername}) با موفقیت اضافه شد.`);
+        bot.sendMessage(primaryUser.telegram_id, `همراه جدید شما (${companionDisplayName}) با موفقیت اضافه شد.`);
 
     } catch (error) {
         await client.query('ROLLBACK');
@@ -158,7 +167,7 @@ bot.on('message', async (msg) => {
         const client = await pool.connect();
         try {
             const res = await client.query(`
-                SELECT c.user_id, u.telegram_username 
+                SELECT c.user_id, u.telegram_firstname, u.telegram_username
                 FROM companions c
                 JOIN users u ON c.user_id = u.id
                 WHERE c.companion_telegram_id = $1
@@ -170,7 +179,7 @@ bot.on('message', async (msg) => {
             }
 
             const inlineKeyboard = res.rows.map(row => ([{
-                text: `لغو همراهی با ${row.telegram_username || `کاربر ${row.user_id}`}`,
+                text: `لغو همراهی با ${formatUserName(row.telegram_firstname, row.telegram_username)}`,
                 callback_data: `unfollow_${row.user_id}`
             }]));
 
@@ -193,26 +202,27 @@ bot.on('callback_query', async (callbackQuery) => {
     const msg = callbackQuery.message;
     const data = callbackQuery.data;
     const companionId = callbackQuery.from.id;
+    const companionFirstName = callbackQuery.from.first_name;
+    const companionUsername = callbackQuery.from.username;
 
     if (data.startsWith('unfollow_')) {
         const primaryUserId = parseInt(data.split('_')[1], 10);
         const client = await pool.connect();
         try {
-            const primaryUserRes = await client.query('SELECT telegram_id, telegram_username FROM users WHERE id = $1', [primaryUserId]);
+            const primaryUserRes = await client.query('SELECT telegram_id, telegram_firstname, telegram_username FROM users WHERE id = $1', [primaryUserId]);
             const companionRes = await client.query('DELETE FROM companions WHERE user_id = $1 AND companion_telegram_id = $2 RETURNING *', [primaryUserId, companionId]);
 
             if (companionRes.rowCount > 0) {
                 bot.answerCallbackQuery(callbackQuery.id, { text: 'همراهی با موفقیت لغو شد.' });
-                bot.editMessageText(`همراهی شما با ${primaryUserRes.rows[0].telegram_username || 'کاربر'} لغو شد.`, {
+                bot.editMessageText(`همراهی شما با ${formatUserName(primaryUserRes.rows[0].telegram_firstname, primaryUserRes.rows[0].telegram_username)} لغو شد.`, {
                     chat_id: msg.chat.id,
                     message_id: msg.message_id
                 });
 
-                // Notify the primary user
                 if (primaryUserRes.rows.length > 0) {
                     const primaryUserTelegramId = primaryUserRes.rows[0].telegram_id;
-                    const companionUsername = callbackQuery.from.username || `کاربر ${companionId}`;
-                    bot.sendMessage(primaryUserTelegramId, `${companionUsername} دیگر همراه شما نیست.`);
+                    const companionDisplayName = formatUserName(companionFirstName, companionUsername);
+                    bot.sendMessage(primaryUserTelegramId, `${companionDisplayName} دیگر همراه شما نیست.`);
                 }
             } else {
                 bot.answerCallbackQuery(callbackQuery.id, { text: 'خطایی رخ داد یا شما دیگر همراه این کاربر نبودید.', show_alert: true });
@@ -233,20 +243,21 @@ app.post('/api/onboarding', async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN'); 
-    const { telegram_id, cycle_length, period_length, last_period_date, birth_year, telegram_username } = req.body;
+    const { telegram_id, cycle_length, period_length, last_period_date, birth_year, telegram_username, telegram_firstname } = req.body;
     if (!telegram_id || !last_period_date) {
       return res.status(400).json({ error: 'شناسه تلگرام و تاریخ آخرین پریود ضروری است.' });
     }
-    const values = [telegram_id, cycle_length, period_length, last_period_date, birth_year, telegram_username];
+    const values = [telegram_id, cycle_length, period_length, last_period_date, birth_year, telegram_username, telegram_firstname];
     const userQuery = `
-      INSERT INTO users (telegram_id, cycle_length, period_length, last_period_date, birth_year, telegram_username)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO users (telegram_id, cycle_length, period_length, last_period_date, birth_year, telegram_username, telegram_firstname)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       ON CONFLICT (telegram_id) DO UPDATE SET
         cycle_length = EXCLUDED.cycle_length,
         period_length = EXCLUDED.period_length,
         last_period_date = EXCLUDED.last_period_date,
         birth_year = EXCLUDED.birth_year,
-        telegram_username = EXCLUDED.telegram_username
+        telegram_username = EXCLUDED.telegram_username,
+        telegram_firstname = EXCLUDED.telegram_firstname
       RETURNING *;
     `;
     const result = await client.query(userQuery, values);
@@ -326,6 +337,27 @@ app.put('/api/user/:telegram_id', async (req, res) => {
         res.status(500).json({ error: 'خطای داخلی سرور' });
     }
 });
+
+app.post('/api/user/:telegram_id/update-info', async (req, res) => {
+    try {
+        const { telegram_id } = req.params;
+        const { telegram_username, telegram_firstname } = req.body;
+
+        const query = `
+            UPDATE users
+            SET telegram_username = $1, telegram_firstname = $2
+            WHERE telegram_id = $3 AND (telegram_username IS DISTINCT FROM $1 OR telegram_firstname IS DISTINCT FROM $2)
+        `;
+        const values = [telegram_username, telegram_firstname, telegram_id];
+        await pool.query(query, values);
+
+        res.sendStatus(200); // Send a simple OK, no body needed
+    } catch (error) {
+        console.error('Error updating user info:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 
 // START: Added routes for logs and period
 app.post('/api/logs', async (req, res) => {

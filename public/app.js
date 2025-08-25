@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', function() {
         tg.expand();
         const TELEGRAM_ID = tg.initDataUnsafe?.user?.id || '123456789'; 
         const TELEGRAM_USERNAME = tg.initDataUnsafe?.user?.username || `کاربر ${TELEGRAM_ID}`;
+        const TELEGRAM_FIRSTNAME = tg.initDataUnsafe?.user?.first_name || 'کاربر';
 
 
         // --- STATE & DOM ELEMENTS ---
@@ -65,6 +66,16 @@ document.addEventListener('DOMContentLoaded', function() {
             async init(refreshOnly = false) {
                 moment.locale('fa');
                 try {
+                    // Update user info silently in the background
+                    fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}/update-info`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            telegram_username: TELEGRAM_USERNAME,
+                            telegram_firstname: TELEGRAM_FIRSTNAME,
+                        }),
+                    });
+
                     const response = await fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}`);
                     if (response.status === 404) {
                         if (!refreshOnly) this.nextStep(1);
@@ -99,7 +110,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (step > 4) {
                     this.onboardingData.birth_year = document.getElementById('birth-year').value;
                     this.onboardingData.telegram_id = TELEGRAM_ID;
-                    this.onboardingData.telegram_username = TELEGRAM_USERNAME; // Add username
+                    this.onboardingData.telegram_username = TELEGRAM_USERNAME;
+                    this.onboardingData.telegram_firstname = TELEGRAM_FIRSTNAME; // Add firstname
                     try {
                         const response = await fetch(`${API_BASE_URL}/onboarding`, {
                             method: 'POST',

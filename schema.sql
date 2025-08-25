@@ -6,6 +6,7 @@ CREATE TABLE users (
     id SERIAL PRIMARY KEY,                      -- یک شماره شناسایی منحصر به فرد و خودکار برای هر کاربر
     telegram_id BIGINT UNIQUE NOT NULL,         -- شناسه تلگرام کاربر برای شناسایی او در مراجعات بعدی
     telegram_username TEXT,                     -- نام کاربری تلگرام برای نمایش
+    telegram_firstname TEXT,                    -- نام تلگرام کاربر
     
     -- تنظیمات اولیه یا دستی کاربر
     cycle_length INT NOT NULL DEFAULT 28,       -- طول سیکل قاعدگی (پیش‌فرض ۲۸ روز)
