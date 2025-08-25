@@ -2,7 +2,6 @@
 
 document.addEventListener('DOMContentLoaded', function() {
     try {
-        // --- START: کدهای جدید برای اتصال به تلگرام ---
         const tg = window.Telegram.WebApp;
         tg.ready();
         tg.expand();
@@ -138,7 +137,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     birth_year: document.getElementById('settings-birth-year').value,
                     reminder_logs: document.getElementById('settings-reminder-logs').checked,
                     reminder_cycle: document.getElementById('settings-reminder-cycle').checked,
-                    companion_notify_daily_symptoms: document.getElementById('settings-companion-symptoms-global').checked,
                 };
                 try {
                     const response = await fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}`, {
@@ -432,7 +430,7 @@ document.addEventListener('DOMContentLoaded', function() {
             openLogModal(dateKey) {
                 selectedLogDate = dateKey;
                 const currentLog = userData.logs[selectedLogDate] || {};
-                const shouldNotifyCompanion = userData.user.companion_notify_daily_symptoms && userData.companions && userData.companions.length > 0;
+                const shouldNotifyCompanion = userData.companions && userData.companions.some(c => c.notify_daily_symptoms);
                 let modalBodyHTML = `<div class="flex justify-between items-center mb-4"><button id="delete-log-btn" class="text-red-500 hover:text-red-700 text-sm font-semibold ${Object.keys(currentLog).length > 0 ? '' : 'invisible'}">حذف علائم</button><h3 class="text-xl font-bold text-center">ثبت علائم</h3><div class="w-16"></div></div><p class="text-center text-gray-500 mb-4 -mt-4">${toPersian(moment(dateKey, 'YYYY-MM-DD').format('dddd jD jMMMM'))}</p><div class="space-y-4">`;
                 for (const categoryKey in LOG_CONFIG) {
                     if (categoryKey === 'moods' && shouldNotifyCompanion) {

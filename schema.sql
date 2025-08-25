@@ -22,9 +22,6 @@ CREATE TABLE users (
     -- تنظیمات اعلان‌ها
     reminder_logs BOOLEAN NOT NULL DEFAULT TRUE,
     reminder_cycle BOOLEAN NOT NULL DEFAULT TRUE,
-    
-    -- تنظیمات اعلان همراه (کلیدی)
-    companion_notify_daily_symptoms BOOLEAN NOT NULL DEFAULT FALSE,
 
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW() -- تاریخ و زمان ایجاد حساب کاربری
 );
