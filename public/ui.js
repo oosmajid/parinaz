@@ -265,7 +265,7 @@ const renderDashboard = (userData) => {
         daysUnitEl.textContent = 'روز تأخیر پریود';
         pmsCountdownEl.textContent = '';
         editPeriodBtn.classList.add('animate-heartbeat');
-    } else if (dayOfCycle >= 1 && dayOfCycle <= periodLength) {
+    } else if (dayOfCycle >= 0 && dayOfCycle <= periodLength) {
         // *** START: MODIFICATION FOR PERIOD DAY DISPLAY ***
         daysLeftEl.textContent = `روز ${toPersian(dayOfCycle)} پریود`;
         daysLeftEl.classList.remove('text-5xl');
