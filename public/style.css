@@ -32,7 +32,7 @@ body {
     }
 }
 .animate-draw {
-    animation: draw-circle 0.8s 0.3s ease-out forwards; /* 1.5s duration, 0.3s delay */
+    animation: draw-circle 0.8s 0.3s ease-out forwards;
 }
 
 
@@ -205,6 +205,7 @@ body {
     border-radius: 50%;
     cursor: pointer;
     transition: background-color 0.2s;
+    position: relative;
 }
 .datepicker-day:hover:not(.disabled) {
     background-color: #f3f4f6; /* gray-100 */
@@ -222,14 +223,23 @@ body {
 }
 
 /* *** START: MODIFICATION FOR DATEPICKER PERIOD DAY *** */
-.datepicker-day.period-day {
-    box-shadow: 0 0 0 2px #be123c; /* red-700 */
-    color: #be123c;
+.datepicker-day.period-day::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 90%;
+    height: 90%;
+    border: 2px solid #f87171; /* red-400 */
+    border-radius: 50%;
+    box-sizing: border-box;
+    pointer-events: none; /* Ensure the circle doesn't interfere with clicks */
 }
 /* *** END: MODIFICATION *** */
 
 
-/* --- NEW: Info Popover Styles --- */
+/* --- Info Popover Styles --- */
 .info-popover {
     position: absolute;
     background-color: #374151; /* gray-700 */

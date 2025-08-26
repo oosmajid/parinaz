@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const tg = window.Telegram.WebApp;
         tg.ready();
         tg.expand();
-        const TELEGRAM_ID = tg.initDataUnsafe?.user?.id || '123456789'; 
+        const TELEGRAM_ID = tg.initDataUnsafe?.user?.id || '123456789';
         const TELEGRAM_USERNAME = tg.initDataUnsafe?.user?.username || null;
         const TELEGRAM_FIRSTNAME = tg.initDataUnsafe?.user?.first_name || 'کاربر';
 
@@ -14,7 +14,8 @@ document.addEventListener('DOMContentLoaded', function() {
         let userData = { user: null, logs: {}, period_history: [], companions: [] };
         let calendarDate = moment();
         let selectedLogDate = null;
-        let datepickerState = { visible: false, targetInputId: null, currentDate: moment() };
+        // *** MODIFICATION: Add periodHistory to datepicker state ***
+        let datepickerState = { visible: false, targetInputId: null, currentDate: moment(), periodHistory: [] };
         let charts = {};
 
         // --- DOM Element References ---
@@ -46,7 +47,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 toast.style.bottom = '-100px';
             }, 3000);
         };
-        
+
         const showConfirmationModal = (title, message, onConfirm) => {
             document.getElementById('confirmation-title').textContent = title;
             document.getElementById('confirmation-message').textContent = message;
@@ -106,7 +107,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     this.onboardingData.last_period_date = dateInput.dataset.value;
                 }
-                
+
                 if (step > 4) {
                     this.onboardingData.birth_year = document.getElementById('birth-year').value;
                     this.onboardingData.telegram_id = TELEGRAM_ID;
@@ -123,7 +124,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             throw new Error(data.error || 'خطا در ثبت‌نام');
                         }
                         showToast(data.message);
-                        await this.init(); 
+                        await this.init();
                     } catch (error) {
                         console.error('Onboarding failed:', error);
                         showToast(error.message, true);
@@ -158,7 +159,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
                     const data = await response.json();
                     if (!response.ok) throw new Error(data.error || 'خطا در ذخیره تنظیمات');
-                    
+
                     userData.user = data.user;
                     showToast(data.message);
                     renderDashboard(userData);
@@ -199,10 +200,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
                     const data = await response.json();
                     if (!response.ok) throw new Error(data.error || 'خطا در ذخیره گزارش');
-                    
+
                     if (data.log) userData.logs[selectedLogDate] = data.log;
                     else delete userData.logs[selectedLogDate];
-                    
+
                     showToast(data.message);
                 } catch (error) {
                      console.error('Failed to save log:', error);
@@ -225,7 +226,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
                     const data = await response.json();
                     if (!response.ok) throw new Error(data.error || 'خطا در حذف گزارش');
-                    
+
                     delete userData.logs[selectedLogDate];
                     showToast(data.message);
                 } catch (error) {
@@ -249,7 +250,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
                     const data = await response.json();
                     if (!response.ok) throw new Error(data.error || 'خطا در ثبت اطلاعات');
-                    
+
                     await this.init(true);
                     showToast(data.message);
                     editPeriodModal.classList.remove('visible');
@@ -264,25 +265,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 deleteChoiceModal.classList.add('visible');
             },
             handleDeletePeriod(scope) {
-                deleteChoiceModal.classList.remove('visible'); 
+                deleteChoiceModal.classList.remove('visible');
                 const title = (scope === 'last') ? 'حذف آخرین سابقه' : 'حذف تمام سوابق';
-                const message = (scope === 'last') 
+                const message = (scope === 'last')
                     ? 'آیا از حذف آخرین سابقه پریود خود مطمئن هستید؟ این عمل غیرقابل بازگشت است.'
                     : 'آیا مطمئن هستید؟ تمام تاریخچه پریود شما حذف خواهد شد. این عمل غیرقابل بازگشت است.';
-                
+
                 showConfirmationModal(title, message, async () => {
                     try {
                         const response = await fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}/period`, {
                             method: 'DELETE',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ scope: scope }) 
+                            body: JSON.stringify({ scope: scope })
                         });
                         const data = await response.json();
                         if (!response.ok) throw new Error(data.error || 'خطا در حذف سوابق');
-                        
-                        await this.init(true); 
+
+                        await this.init(true);
                         showToast(data.message);
-                        renderDashboard(userData); 
+                        renderDashboard(userData);
                     } catch (error) {
                         console.error('Failed to delete period history:', error);
                         showToast(error.message, true);
@@ -384,7 +385,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (popover.classList.contains('visible')) {
                     closePopover();
                 } else {
-                    popover.style.top = `${icon.offsetTop + icon.offsetHeight + 8}px`; 
+                    popover.style.top = `${icon.offsetTop + icon.offsetHeight + 8}px`;
                     popover.style.left = `${icon.offsetLeft + (icon.offsetWidth / 2) - (popover.offsetWidth / 2)}px`;
                     popover.classList.add('visible');
                     setTimeout(() => {
@@ -402,13 +403,13 @@ document.addEventListener('DOMContentLoaded', function() {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ months: months })
                     });
-                    
+
                     const data = await response.json();
 
                     if (!response.ok) {
                         throw new Error(data.error || 'خطا در درخواست گزارش از سرور.');
                     }
-                    
+
                     showToast(data.message);
 
                 } catch (error) {
@@ -486,20 +487,35 @@ document.addEventListener('DOMContentLoaded', function() {
                 logModal.classList.add('visible');
                 document.getElementById('log-notes').dispatchEvent(new Event('input'));
             },
-            openDatePicker(targetInputId) {
+            // *** START: MODIFICATION to accept period history ***
+            openDatePicker(targetInputId, periodHistory = []) {
                 const targetInput = document.getElementById(targetInputId);
                 const initialDate = targetInput.dataset.value ? moment(targetInput.dataset.value, 'YYYY-MM-DD') : moment();
                 datepickerState.targetInputId = targetInputId;
                 datepickerState.currentDate = initialDate.clone();
+                datepickerState.periodHistory = periodHistory; // Store history
                 this.renderDatePicker();
                 datepickerModal.classList.add('visible');
             },
             renderDatePicker() {
-                const { currentDate, targetInputId } = datepickerState;
+                const { currentDate, targetInputId, periodHistory } = datepickerState;
                 const targetInput = document.getElementById(targetInputId);
                 const selectedDate = targetInput.dataset.value ? moment(targetInput.dataset.value, 'YYYY-MM-DD') : null;
                 const monthStart = currentDate.clone().startOf('jMonth');
                 const today = moment();
+
+                // *** START: MODIFICATION to create a set of recorded period days ***
+                const recordedPeriodDays = new Set();
+                if (periodHistory) {
+                    periodHistory.forEach(record => {
+                        const start = moment(record.start_date, 'YYYY-MM-DD');
+                        for (let i = 0; i < record.duration; i++) {
+                            recordedPeriodDays.add(start.clone().add(i, 'days').format('YYYY-MM-DD'));
+                        }
+                    });
+                }
+                // *** END: MODIFICATION ***
+
                 let html = `<div class="datepicker-header"><button class="p-2 rounded-full hover:bg-gray-100" onclick="window.app.changeDatePickerMonth(-1)">&lt;</button><span class="font-bold">${toPersian(currentDate.format('jMMMM jYYYY'))}</span><button class="p-2 rounded-full hover:bg-gray-100" onclick="window.app.changeDatePickerMonth(1)">&gt;</button></div><div class="grid grid-cols-7 text-center text-xs text-gray-500 mb-2">${['ش','ی','د','س','چ','پ','ج'].map(d=>`<span>${d}</span>`).join('')}</div><div class="datepicker-grid">`;
                 for (let i = 0; i < monthStart.jDay(); i++) html += '<div></div>';
                 for (let i = 1; i <= currentDate.jDaysInMonth(); i++) {
@@ -509,12 +525,21 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (isDisabled) classes += ' disabled';
                     if (dayMoment.isSame(today, 'day')) classes += ' today';
                     if (selectedDate && dayMoment.isSame(selectedDate, 'day')) classes += ' selected';
+
+                    // *** START: MODIFICATION to add period-day class ***
+                    const dayKey = dayMoment.format('YYYY-MM-DD');
+                    if (recordedPeriodDays.has(dayKey)) {
+                        classes += ' period-day';
+                    }
+                    // *** END: MODIFICATION ***
+
                     const clickHandler = isDisabled ? '' : `onclick="window.app.selectDate('${dayMoment.format('YYYY-MM-DD')}')"`;
                     html += `<div class="${classes}" ${clickHandler}>${toPersian(i)}</div>`;
                 }
                 html += `</div>`;
                 datepickerModalContent.innerHTML = html;
             },
+            // *** END: MODIFICATION ***
             changeDatePickerMonth(direction) {
                 datepickerState.currentDate.add(direction, 'jMonth');
                 this.renderDatePicker();
@@ -534,10 +559,17 @@ document.addEventListener('DOMContentLoaded', function() {
                       </button>`
                     : '';
                 const modalHeader = `<div class="flex items-center mb-6"><div class="flex-1 flex justify-start">${deleteButton}</div><div class="flex-shrink-0"><h3 class="text-xl font-bold">ثبت زمان پریود</h3></div><div class="flex-1"></div></div>`;
-                const modalBody = `<div class="space-y-6"><div><label class="block text-gray-600 mb-2">تاریخ شروع خون‌ریزی</label><input type="text" id="edit-period-date-input" readonly class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg cursor-pointer" onclick="window.app.openDatePicker('edit-period-date-input')"></div><div><div class="flex justify-between items-center mb-2"><label class="text-gray-600">طول دوره پریود (خون‌ریزی)</label><span id="edit-period-length-value" class="font-semibold text-pink-500"></span></div><input type="range" id="edit-period-length" min="2" max="12" step="1" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"></div></div>`;
+                // *** START: MODIFICATION to remove inline onclick ***
+                const modalBody = `<div class="space-y-6"><div><label class="block text-gray-600 mb-2">تاریخ شروع خون‌ریزی</label><input type="text" id="edit-period-date-input" readonly class="w-full p-3 bg-gray-100 rounded-lg text-center text-lg cursor-pointer"></div><div><div class="flex justify-between items-center mb-2"><label class="text-gray-600">طول دوره پریود (خون‌ریزی)</label><span id="edit-period-length-value" class="font-semibold text-pink-500"></span></div><input type="range" id="edit-period-length" min="2" max="12" step="1" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"></div></div>`;
+                // *** END: MODIFICATION ***
                 const modalFooter = `<div class="flex gap-4"><button onclick="window.app.savePeriodUpdate()" class="w-full bg-pink-500 text-white font-bold py-3 rounded-lg">ذخیره و تحلیل</button><button onclick="document.getElementById('edit-period-modal').classList.remove('visible')" class="w-full bg-gray-200 text-gray-700 font-bold py-3 rounded-lg">انصراف</button></div>`;
                 editPeriodModalContent.innerHTML = `<div class="modal-body">${modalHeader}${modalBody}</div><div class="modal-footer">${modalFooter}</div>`;
+                
                 const dateInput = document.getElementById('edit-period-date-input');
+                // *** START: MODIFICATION to add event listener programmatically ***
+                dateInput.addEventListener('click', () => window.app.openDatePicker('edit-period-date-input', userData.period_history));
+                // *** END: MODIFICATION ***
+
                 const today = moment();
                 dateInput.value = toPersian(today.format('jYYYY/jM/jD'));
                 dateInput.dataset.value = today.format('YYYY-MM-DD');
@@ -576,7 +608,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         editPeriodModal.addEventListener('click', (e) => {
             if (e.target.closest('#delete-history-btn')) {
-                window.app.openDeletePeriodChoiceModal(); 
+                window.app.openDeletePeriodChoiceModal();
             }
             if (e.target.classList.contains('modal-overlay')) {
                 editPeriodModal.classList.remove('visible');
