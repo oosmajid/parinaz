@@ -213,6 +213,10 @@ const renderDashboard = (userData) => {
     const editPeriodBtn = document.getElementById('edit-period-btn');
     const nextPeriodContainer = document.getElementById('next-period-container');
 
+    // --- NEW: Reset font-size class to default ---
+    daysLeftEl.classList.remove('text-4xl');
+    daysLeftEl.classList.add('text-5xl');
+
     // --- NEW --- Handle state where there is no period history
     if (!userData.user.last_period_date) {
         daysLeftEl.textContent = '—';
@@ -260,9 +264,14 @@ const renderDashboard = (userData) => {
         pmsCountdownEl.textContent = '';
         editPeriodBtn.classList.add('animate-heartbeat');
     } else if (dayOfCycle >= 1 && dayOfCycle <= periodLength) {
+        // *** START: MODIFICATION FOR PERIOD DAY DISPLAY ***
+        daysLeftEl.textContent = `روز ${toPersian(dayOfCycle)} پریود`;
+        daysLeftEl.classList.remove('text-5xl');
+        daysLeftEl.classList.add('text-4xl'); // Make font smaller to fit the text
+
         const daysToEnd = periodLength - dayOfCycle + 1;
-        daysLeftEl.textContent = toPersian(daysToEnd);
-        daysUnitEl.textContent = 'روز تا پایان پریود';
+        daysUnitEl.textContent = `${toPersian(daysToEnd)} روز تا پایان پریود`;
+        // *** END: MODIFICATION ***
         pmsCountdownEl.textContent = '';
         editPeriodBtn.classList.remove('animate-heartbeat');
     } else {
