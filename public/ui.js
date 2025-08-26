@@ -247,6 +247,8 @@ const renderDashboard = (userData) => {
         dayOfCycle = today.diff(lastPeriodStart, 'days') + 1;
     }
     
+    let finalDayForChart = dayOfCycle; // By default, use the calculated day of cycle
+
     // --- Display Logic ---
     if (daysDelayed > 0) {
         // 1. Handle delayed period
@@ -258,6 +260,10 @@ const renderDashboard = (userData) => {
     } else if ((dayOfCycle >= 1 && dayOfCycle <= periodLength) || daysToPeriod === 0) {
         // 2. Handle being IN the period (either already logged or predicted for today)
         const currentPeriodDay = (daysToPeriod === 0 && dayOfCycle > periodLength) ? 1 : dayOfCycle;
+        
+        // *** START: FIX FOR CHART INDICATOR ***
+        finalDayForChart = currentPeriodDay;
+        // *** END: FIX FOR CHART INDICATOR ***
         
         daysLeftEl.textContent = `روز ${toPersian(currentPeriodDay)} پریود`;
         daysLeftEl.classList.remove('text-5xl');
@@ -289,7 +295,7 @@ const renderDashboard = (userData) => {
     }
     
     document.getElementById('next-period-date').textContent = toPersian(expectedNextPeriodStart.format('dddd، jD jMMMM'));
-    renderCycleChart(dayOfCycle, cycleLength, periodLength, userData, daysDelayed, isFirstRender);
+    renderCycleChart(finalDayForChart, cycleLength, periodLength, userData, daysDelayed, isFirstRender);
     isFirstRender = false;
     window.app.renderCalendar(moment());
     
@@ -297,6 +303,7 @@ const renderDashboard = (userData) => {
     document.getElementById('analysis-btn').classList.remove('hidden');
     document.getElementById('back-btn').classList.add('hidden');
 };
+
 
 const renderCycleChart = (dayOfCycle, cycleLength, periodLength, userData, daysDelayed = 0, isInitialAnimation = false) => {
     const svg = document.getElementById('cycle-chart');
@@ -588,7 +595,7 @@ const renderSettings = (userData) => {
 const renderAnalysis = (userData, charts) => {
     render(templates.analysis());
     let currentFilter = { months: 1, phase: 'all' };
-
+    
     const createBarChart = (canvasId, data, label) => {
         const container = document.getElementById(canvasId)?.parentElement;
         if (!container) return;
@@ -617,7 +624,7 @@ const renderAnalysis = (userData, charts) => {
 
     const updateAnalysisCharts = (months, phase) => {
         const startDate = moment().subtract(months, 'months');
-
+        
         const historyContainer = document.getElementById('cycle-history-summary');
         if (historyContainer) {
             const history = userData.period_history;
