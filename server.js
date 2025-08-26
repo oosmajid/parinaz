@@ -422,28 +422,28 @@ app.delete('/api/logs', async (req, res) => {
 
 app.post('/api/user/:telegram_id/period', async (req, res) => {
     const { telegram_id } = req.params;
-    const { start_date, duration } = req.body;
+    const { start_date, duration } = req.body; // start_date is Jalali: "YYYY-MM-DD"
     const client = await pool.connect();
 
     try {
         await client.query('BEGIN');
 
-        const userRes = await client.query('SELECT id, telegram_firstname, period_length FROM users WHERE telegram_id = $1', [telegram_id]);
+        const userRes = await client.query('SELECT id, telegram_firstname, period_length, telegram_id as user_telegram_id FROM users WHERE telegram_id = $1', [telegram_id]);
         if (userRes.rows.length === 0) {
             return res.status(404).json({ error: 'کاربر یافت نشد.' });
         }
-        const userId = userRes.rows[0].id;
-        const userFirstName = userRes.rows[0].telegram_firstname;
+        const { id: userId, telegram_firstname: userFirstName, user_telegram_id: userTelegramId } = userRes.rows[0];
 
-        // Add to history
+        // The incoming date is Jalali, convert it to Gregorian for DB storage
+        const gregorian_start_date = jalaliMoment(start_date, 'jYYYY-jMM-jDD').format('YYYY-MM-DD');
+
         await client.query(
             `INSERT INTO period_history (user_id, start_date, duration)
              VALUES ($1, $2, $3)
              ON CONFLICT (user_id, start_date) DO UPDATE SET duration = EXCLUDED.duration`,
-            [userId, start_date, duration]
+            [userId, gregorian_start_date, duration]
         );
 
-        // Recalculate averages and update last_period_date
         const historyRes = await client.query(
             'SELECT start_date, duration FROM period_history WHERE user_id = $1 ORDER BY start_date DESC',
             [userId]
@@ -452,56 +452,52 @@ app.post('/api/user/:telegram_id/period', async (req, res) => {
         const history = historyRes.rows;
         let avg_cycle_length = null;
         let avg_period_length = null;
-        const last_period_date = history.length > 0 ? history[0].start_date : start_date;
+        const last_period_date = history.length > 0 ? history[0].start_date : gregorian_start_date;
 
-        // *** START: MODIFICATION FOR SKIPPED CYCLES ***
         if (history.length > 1) {
             let cycleSum = 0;
             let validCycleCount = 0;
-            const CYCLE_LENGTH_THRESHOLD = 45; // Threshold for a normal cycle length in days
+            const CYCLE_LENGTH_THRESHOLD = 45;
 
             for (let i = 0; i < history.length - 1; i++) {
-                const current = new Date(history[i].start_date);
-                const previous = new Date(history[i + 1].start_date);
-                const diffTime = Math.abs(current - previous);
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                const current = moment(history[i].start_date);
+                const previous = moment(history[i + 1].start_date);
+                const diffDays = Math.abs(current.diff(previous, 'days'));
 
-                // Only include cycles within the normal threshold
                 if (diffDays <= CYCLE_LENGTH_THRESHOLD) {
                     cycleSum += diffDays;
                     validCycleCount++;
                 }
             }
-            
             if (validCycleCount > 0) {
                 avg_cycle_length = cycleSum / validCycleCount;
             }
         }
-        // *** END: MODIFICATION ***
 
         if (history.length > 0) {
             const periodSum = history.reduce((sum, record) => sum + record.duration, 0);
             avg_period_length = periodSum / history.length;
         }
 
-        // Update users table
         await client.query(
-            `UPDATE users SET 
-                last_period_date = $1, 
-                avg_cycle_length = $2, 
-                avg_period_length = $3
-             WHERE id = $4`,
+            `UPDATE users SET last_period_date = $1, avg_cycle_length = $2, avg_period_length = $3 WHERE id = $4`,
             [last_period_date, avg_cycle_length, avg_period_length, userId]
         );
-        
-        // Notify companions that period has started
-        const today = moment().tz('Asia/Tehran').format('YYYY-MM-DD');
-        if (start_date === today) {
-            const companionsRes = await client.query('SELECT companion_telegram_id FROM companions WHERE user_id = $1', [userId]);
-            companionsRes.rows.forEach(c => {
-                const message = getRandomMessage('companion', 'period_started').replace('{FIRST_NAME}', userFirstName);
-                bot.sendMessage(c.companion_telegram_id, message);
-            });
+
+        // Notify user and companions if period started "today"
+        const todayJalali = jalaliMoment().tz('Asia/Tehran').format('jYYYY-jMM-jDD');
+        if (start_date === todayJalali) {
+            try {
+                bot.sendMessage(userTelegramId, getRandomMessage('user', 'period_day_warning'));
+
+                const companionsRes = await client.query('SELECT companion_telegram_id FROM companions WHERE user_id = $1', [userId]);
+                companionsRes.rows.forEach(c => {
+                    const message = getRandomMessage('companion', 'period_started').replace('{FIRST_NAME}', userFirstName);
+                    bot.sendMessage(c.companion_telegram_id, message);
+                });
+            } catch (botError) {
+                console.error("Bot failed to send message, but continuing transaction:", botError);
+            }
         }
 
         await client.query('COMMIT');
@@ -691,9 +687,10 @@ const scheduleRandomly = (cronExpression, task) => {
 
 // Daily Log Reminder (18:00 - 21:00)
 scheduleRandomly(`${Math.floor(Math.random() * 60)} ${Math.floor(Math.random() * 4) + 18} * * *`, async () => {
+    // This logic correctly uses Gregorian dates for comparison as log_date is also stored as Gregorian.
     const query = `
         SELECT u.telegram_id FROM users u
-        LEFT JOIN daily_logs dl ON u.id = dl.user_id AND dl.log_date = CURRENT_DATE
+        LEFT JOIN daily_logs dl ON u.id = dl.user_id AND dl.log_date = (now() AT TIME ZONE 'Asia/Tehran')::date
         WHERE u.reminder_logs = TRUE AND dl.id IS NULL;
     `;
     const { rows } = await pool.query(query);
@@ -704,7 +701,7 @@ scheduleRandomly(`${Math.floor(Math.random() * 60)} ${Math.floor(Math.random() *
 
 // Companion daily summary (21:00 - 22:00)
 scheduleRandomly(`${Math.floor(Math.random() * 60)} 21 * * *`, async () => {
-    const today = moment().format('YYYY-MM-DD');
+    const today = moment().tz('Asia/Tehran').format('YYYY-MM-DD'); // Gregorian date for log_date comparison
     const query = `
         SELECT 
             c.companion_telegram_id, 
@@ -728,45 +725,32 @@ scheduleRandomly(`${Math.floor(Math.random() * 60)} 21 * * *`, async () => {
     });
 });
 
-// Period late notification for companion (20:00 - 21:00)
-scheduleRandomly(`${Math.floor(Math.random() * 60)} 20 * * *`, async () => {
-    const usersRes = await pool.query(`
-        SELECT * FROM users 
-        WHERE last_period_date IS NOT NULL 
-        AND reminder_cycle = TRUE
-        AND (last_period_date + (floor(COALESCE(avg_cycle_length, cycle_length)) * INTERVAL '1 day'))::date = ((now() AT TIME ZONE 'Asia/Tehran') - INTERVAL '3 day')::date
-    `);
-    for (const user of usersRes.rows) {
-        const companionsRes = await pool.query('SELECT companion_telegram_id FROM companions WHERE user_id = $1', [user.id]);
-        companionsRes.rows.forEach(c => bot.sendMessage(c.companion_telegram_id, getRandomMessage('companion', 'period_late').replace('{FIRST_NAME}', user.telegram_firstname)));
-    }
-});
 
-// Daily Cycle Notifications (runs once a day at a random time for each category)
+// *** START: FULLY REVISED AND CORRECTED CYCLE NOTIFICATION LOGIC ***
 const scheduleDailyCycleChecks = () => {
     const randomHourAndMinute = (start, end) => `${Math.floor(Math.random()*60)} ${Math.floor(Math.random()*(end-start+1))+start} * * *`;
 
-    // A helper function to get users whose next period is on a specific day relative to today
-    const getUsersForCycleDay = async (dayOffset) => {
-        const targetDate = moment().tz('Asia/Tehran').add(dayOffset, 'days').format('YYYY-MM-DD');
-        
+    const getMatchingUsers = async (dayOffset) => {
+        const todayJalali = jalaliMoment().tz('Asia/Tehran');
+        const targetJalaliDate = todayJalali.add(dayOffset, 'days').format('jYYYY-jMM-jDD');
+
         const allUsers = await pool.query(`
             SELECT id, telegram_id, telegram_firstname, last_period_date, cycle_length, avg_cycle_length 
             FROM users 
             WHERE last_period_date IS NOT NULL AND reminder_cycle = TRUE
         `);
-
+        
         return allUsers.rows.filter(user => {
             const cycleLength = Math.round(user.avg_cycle_length || user.cycle_length);
-            // We must use jalaliMoment here because last_period_date was set based on Jalali input
-            const nextPeriodStart = jalaliMoment(user.last_period_date).add(cycleLength, 'days').format('YYYY-MM-DD');
-            return nextPeriodStart === targetDate;
+            // Since last_period_date is Jalali, we calculate the next period in Jalali calendar
+            const nextPeriodJalali = jalaliMoment(user.last_period_date, 'jYYYY-jMM-jDD').add(cycleLength, 'days').format('jYYYY-jMM-jDD');
+            return nextPeriodJalali === targetJalaliDate;
         });
     };
-    
-    // Pre-period (1 day before)
+
+    // Pre-period warning (1 day before)
     cron.schedule(randomHourAndMinute(10, 18), async () => {
-        const users = await getUsersForCycleDay(1); // Next period is tomorrow
+        const users = await getMatchingUsers(1); // Target date is tomorrow
         for (const user of users) {
             bot.sendMessage(user.telegram_id, getRandomMessage('user', 'pre_period_warning'));
             const companionsRes = await pool.query('SELECT companion_telegram_id FROM companions WHERE user_id = $1', [user.id]);
@@ -774,35 +758,31 @@ const scheduleDailyCycleChecks = () => {
         }
     }, { timezone: "Asia/Tehran" });
 
-    // Period day warning for user (already handled in the POST request for real-time notification)
-    // We keep a scheduled one as a backup.
-    cron.schedule(randomHourAndMinute(7, 8), async () => {
-        const users = await getUsersForCycleDay(0); // Next period is today
-        for (const user of users) {
-            bot.sendMessage(user.telegram_id, getRandomMessage('user', 'period_day_warning'));
-        }
-    }, { timezone: "Asia/Tehran" });
-
     // PMS start (4 days before)
     cron.schedule(randomHourAndMinute(10, 18), async () => {
-         const users = await getUsersForCycleDay(4); // Period is in 4 days, so PMS starts today
-         for (const user of users) {
-             bot.sendMessage(user.telegram_id, getRandomMessage('user', 'pms_start'));
+        // We need to find users whose period is in 4 days.
+        const users = await getMatchingUsers(4);
+        for (const user of users) {
+            bot.sendMessage(user.telegram_id, getRandomMessage('user', 'pms_start'));
             const companionsRes = await pool.query('SELECT companion_telegram_id FROM companions WHERE user_id = $1', [user.id]);
             companionsRes.rows.forEach(c => bot.sendMessage(c.companion_telegram_id, getRandomMessage('companion', 'pms_start').replace('{FIRST_NAME}', user.telegram_firstname)));
         }
     }, { timezone: "Asia/Tehran" });
 
-    // Period is late by 3 days
+    // Period is late by 3 days (for user and companions)
     cron.schedule(randomHourAndMinute(10, 20), async () => {
-        const users = await getUsersForCycleDay(-3); // Period was 3 days ago
+        const users = await getMatchingUsers(-3); // Target date was 3 days ago
         for (const user of users) {
-             bot.sendMessage(user.telegram_id, getRandomMessage('user', 'period_late'));
+            bot.sendMessage(user.telegram_id, getRandomMessage('user', 'period_late'));
+            const companionsRes = await pool.query('SELECT companion_telegram_id FROM companions WHERE user_id = $1', [user.id]);
+            companionsRes.rows.forEach(c => bot.sendMessage(c.companion_telegram_id, getRandomMessage('companion', 'period_late').replace('{FIRST_NAME}', user.telegram_firstname)));
         }
     }, { timezone: "Asia/Tehran" });
 };
 
 scheduleDailyCycleChecks();
+
+// *** END: REVISED NOTIFICATION LOGIC ***
 
 
 app.listen(PORT, () => {
