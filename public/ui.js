@@ -99,7 +99,6 @@ const templates = {
 
 // --- PHASE CALCULATION LOGIC ---
 const getPhaseInfoForDate = (date, user) => {
-    // --- MODIFIED --- Handle null last_period_date
     if (!user.last_period_date) return { class: 'normal-day' };
 
     const cycleLength = user.avg_cycle_length ? Math.round(user.avg_cycle_length) : parseInt(user.cycle_length);
@@ -135,7 +134,6 @@ const getPhaseInfoForDate = (date, user) => {
     return { class: 'normal-day' };
 };
 
-// --- FIX START ---
 const getPhaseInfoForPastDate = (date, history, userData) => {
     if (!history || history.length === 0) return { class: 'normal-day' };
 
@@ -145,7 +143,6 @@ const getPhaseInfoForPastDate = (date, history, userData) => {
     const firstPeriodStart = moment(sortedHistory[0].start_date);
 
     if (date.isBefore(firstPeriodStart)) {
-        // Estimate cycle length for the cycle before the very first recorded period
         const estimatedCycleLength = sortedHistory.length > 1
             ? moment(sortedHistory[1].start_date).diff(firstPeriodStart, 'days')
             : (userData.user.avg_cycle_length || userData.user.cycle_length);
@@ -155,10 +152,9 @@ const getPhaseInfoForPastDate = (date, history, userData) => {
         if (date.isSameOrAfter(estimatedCycleStart)) {
             cycleStartDate = estimatedCycleStart;
             cycleLength = estimatedCycleLength;
-            periodLength = 0; // Not in a recorded period
+            periodLength = 0;
         }
     } else {
-        // Original logic for dates after the first period started
         for (let i = 0; i < sortedHistory.length; i++) {
             const currentPeriodStart = moment(sortedHistory[i].start_date);
             const nextPeriodStart = i + 1 < sortedHistory.length ? moment(sortedHistory[i+1].start_date) : null;
@@ -190,7 +186,6 @@ const getPhaseInfoForPastDate = (date, history, userData) => {
 
     return { class: 'normal-day' };
 };
-// --- FIX END ---
 
 
 // --- RENDER FUNCTIONS ---
@@ -198,11 +193,7 @@ const render = (html) => {
     document.getElementById('app-content').innerHTML = html;
 };
 
-/**
- * Renders the main dashboard view with corrected logic for period delay.
- * @param {object} userData - The complete user data object.
- */
-// --- MODIFIED --- Added handling for the "no data" state and period day display
+// *** THIS IS THE FULLY REVISED FUNCTION ***
 const renderDashboard = (userData) => {
     if (!userData || !userData.user) return;
     render(templates.home());
@@ -218,7 +209,6 @@ const renderDashboard = (userData) => {
     daysLeftEl.classList.add('text-5xl');
     daysUnitEl.classList.remove('period-end-text');
 
-
     // --- Handle state where there is no period history ---
     if (!userData.user.last_period_date) {
         daysLeftEl.textContent = '—';
@@ -227,8 +217,7 @@ const renderDashboard = (userData) => {
         pmsCountdownEl.textContent = '';
         nextPeriodContainer.classList.add('hidden');
         editPeriodBtn.classList.add('animate-heartbeat');
-
-        // Render an empty gray chart
+        
         renderCycleChart(0, 0, 0, userData, 0, isFirstRender);
         isFirstRender = false;
 
@@ -239,13 +228,14 @@ const renderDashboard = (userData) => {
         return;
     }
 
-    // Existing logic for when data is present
+    // Calculations for when data is present
     const today = moment().startOf('day');
     const cycleLength = userData.user.avg_cycle_length ? Math.round(userData.user.avg_cycle_length) : parseInt(userData.user.cycle_length);
     const periodLength = userData.user.avg_period_length ? Math.round(userData.user.avg_period_length) : parseInt(userData.user.period_length);
     const lastPeriodStart = moment(userData.user.last_period_date, 'YYYY-MM-DD');
-
+    
     const expectedNextPeriodStart = lastPeriodStart.clone().add(cycleLength, 'days');
+    const daysToPeriod = expectedNextPeriodStart.diff(today, 'days');
 
     let dayOfCycle;
     let daysDelayed = 0;
@@ -256,78 +246,70 @@ const renderDashboard = (userData) => {
     } else {
         dayOfCycle = today.diff(lastPeriodStart, 'days') + 1;
     }
-
-    let finalDayForChart = dayOfCycle;
-    let delayForChart = daysDelayed;
-
+    
+    // --- Display Logic ---
     if (daysDelayed > 0) {
+        // 1. Handle delayed period
         daysLeftEl.textContent = toPersian(daysDelayed);
         daysUnitEl.textContent = 'روز تأخیر پریود';
         pmsCountdownEl.textContent = '';
         editPeriodBtn.classList.add('animate-heartbeat');
-    } else if (dayOfCycle >= 0 && dayOfCycle <= periodLength) {
-        // *** START: MODIFICATION FOR PERIOD DAY DISPLAY ***
-        daysLeftEl.textContent = `روز ${toPersian(dayOfCycle)} پریود`;
-        daysLeftEl.classList.remove('text-5xl');
-        daysLeftEl.classList.add('text-4xl'); // Make font smaller to fit the text
 
-        const daysToEnd = periodLength - dayOfCycle + 1;
-        daysUnitEl.textContent = `${toPersian(daysToEnd)} روز تا پایان پریود`;
-        daysUnitEl.classList.add('period-end-text'); // Add class for styling
-        // *** END: MODIFICATION ***
+    } else if ((dayOfCycle >= 1 && dayOfCycle <= periodLength) || daysToPeriod === 0) {
+        // 2. Handle being IN the period (either already logged or predicted for today)
+        const currentPeriodDay = (daysToPeriod === 0 && dayOfCycle > periodLength) ? 1 : dayOfCycle;
+        
+        daysLeftEl.textContent = `روز ${toPersian(currentPeriodDay)} پریود`;
+        daysLeftEl.classList.remove('text-5xl');
+        daysLeftEl.classList.add('text-4xl');
+
+        const daysToEnd = periodLength - currentPeriodDay;
+        
+        if (daysToEnd > 0) {
+            daysUnitEl.textContent = `${toPersian(daysToEnd)} روز تا پایان پریود`;
+        } else if (daysToEnd === 0) {
+            daysUnitEl.textContent = 'روز آخر پریود';
+        } else {
+            daysUnitEl.textContent = ''; 
+        }
+
+        daysUnitEl.classList.add('period-end-text'); 
         pmsCountdownEl.textContent = '';
         editPeriodBtn.classList.remove('animate-heartbeat');
+
     } else {
-        const daysToPeriod = expectedNextPeriodStart.diff(today, 'days');
+        // 3. Handle time before period
         daysLeftEl.textContent = toPersian(daysToPeriod);
         daysUnitEl.textContent = 'روز تا پریود بعدی';
-
+        
         const pmsStartDay = cycleLength - 4;
-        if (dayOfCycle > pmsStartDay) {
-            pmsCountdownEl.textContent = '';
-        } else {
-            const daysToPms = pmsStartDay - dayOfCycle;
-            pmsCountdownEl.textContent = `${toPersian(daysToPms)} روز تا PMS`;
-        }
+        const daysToPms = pmsStartDay - dayOfCycle;
+        pmsCountdownEl.textContent = (daysToPms > 0) ? `${toPersian(daysToPms)} روز تا PMS` : '';
         editPeriodBtn.classList.remove('animate-heartbeat');
     }
-
+    
     document.getElementById('next-period-date').textContent = toPersian(expectedNextPeriodStart.format('dddd، jD jMMMM'));
-
-    renderCycleChart(finalDayForChart, cycleLength, periodLength, userData, delayForChart, isFirstRender);
+    renderCycleChart(dayOfCycle, cycleLength, periodLength, userData, daysDelayed, isFirstRender);
     isFirstRender = false;
-
     window.app.renderCalendar(moment());
-
+    
     document.getElementById('settings-btn').classList.remove('hidden');
     document.getElementById('analysis-btn').classList.remove('hidden');
     document.getElementById('back-btn').classList.add('hidden');
 };
 
-/**
- * Renders the circular cycle chart with new logic for delay arc.
- * @param {number} dayOfCycle - The current day of the user's cycle (can be > cycleLength if delayed).
- * @param {number} cycleLength - The user's average cycle length.
- * @param {number} periodLength - The user's average period length.
- * @param {object} userData - The complete user data object.
- * @param {number} daysDelayed - The number of days the period is late.
- * @param {boolean} isInitialAnimation - Flag to trigger the drawing animation.
- */
-// --- MODIFIED --- Added handling for empty/no-data state
 const renderCycleChart = (dayOfCycle, cycleLength, periodLength, userData, daysDelayed = 0, isInitialAnimation = false) => {
     const svg = document.getElementById('cycle-chart');
     if (!svg) return;
-    svg.innerHTML = '';
+    svg.innerHTML = ''; 
 
     const center = 110, radius = 85;
 
-    // Draw background circle first
     const bgCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     bgCircle.setAttribute('cx', center); bgCircle.setAttribute('cy', center); bgCircle.setAttribute('r', radius);
     bgCircle.setAttribute('class', 'cycle-chart-path cycle-chart-bg');
     svg.appendChild(bgCircle);
 
-    // --- NEW --- If there's no cycle length, it's the "no data" state. Just show the gray circle and stop.
     if (!cycleLength || cycleLength <= 0) {
         return;
     }
@@ -341,7 +323,7 @@ const renderCycleChart = (dayOfCycle, cycleLength, periodLength, userData, daysD
         fertile: { start: Math.max(1, ovulationDay - 5), end: ovulationDay + 2, class: 'cycle-chart-fertile', label: 'باروری', labelClass: 'label-fertile' },
         pms: { start: cycleLength - 4, end: cycleLength, class: 'cycle-chart-pms', label: 'PMS', labelClass: 'label-pms' }
     };
-
+    
     const polarToCartesian = (centerX, centerY, r, angleInDegrees) => {
         const angleInRadians = (angleInDegrees - 90) * Math.PI / 180.0;
         return { x: centerX + (r * Math.cos(angleInRadians)), y: centerY + (r * Math.sin(angleInRadians)) };
@@ -355,9 +337,8 @@ const renderCycleChart = (dayOfCycle, cycleLength, periodLength, userData, daysD
     };
 
     svg.innerHTML = `<defs><filter id="shadow"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-color="#000000" flood-opacity="0.2"/></filter></defs>`;
-    svg.appendChild(bgCircle); // Re-append after clearing innerHTML
+    svg.appendChild(bgCircle); 
 
-    // --- NEW: Helper function to apply animation ---
     const applyAnimation = (element) => {
         if (isInitialAnimation) {
             const length = element.getTotalLength();
@@ -374,7 +355,7 @@ const renderCycleChart = (dayOfCycle, cycleLength, periodLength, userData, daysD
         arcPath.setAttribute('d', describeArc(center, center, radius, startAngle, endAngle));
         arcPath.setAttribute('class', `cycle-chart-path ${phase.class}`);
         svg.appendChild(arcPath);
-
+        
         applyAnimation(arcPath);
 
         const textRadius = radius + 20;
@@ -397,7 +378,7 @@ const renderCycleChart = (dayOfCycle, cycleLength, periodLength, userData, daysD
         delayArc.setAttribute('d', describeArc(center, center, radius, startAngle, endAngle));
         delayArc.setAttribute('class', 'cycle-chart-path cycle-chart-delay');
         svg.appendChild(delayArc);
-
+        
         applyAnimation(delayArc);
 
         const textRadius = radius + 20;
@@ -430,22 +411,22 @@ const renderCycleChart = (dayOfCycle, cycleLength, periodLength, userData, daysD
     const indicatorPos = polarToCartesian(center, center, radius, todayAngle);
     const indicatorGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     indicatorGroup.setAttribute('filter', 'url(#shadow)');
-
+    
     const indicatorCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     indicatorCircle.setAttribute('cx', indicatorPos.x); indicatorCircle.setAttribute('cy', indicatorPos.y);
     indicatorCircle.setAttribute('r', 12); indicatorCircle.setAttribute('class', 'today-indicator-circle');
-
+    
     const todayPhaseInfo = getPhaseInfoForDate(moment(), userData.user);
     const phaseColorMap = { 'period-day': '#f87171', 'fertile-day': '#4ade80', 'ovulation-day': '#4ade80', 'pms-day': '#facc15', 'normal-day': '#e5e7eb' };
-
+    
     indicatorCircle.style.stroke = daysDelayed > 0 ? '#4b5563' : phaseColorMap[todayPhaseInfo.class];
-
+    
     const indicatorText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     indicatorText.setAttribute('x', indicatorPos.x); indicatorText.setAttribute('y', indicatorPos.y);
     indicatorText.setAttribute('class', 'today-indicator-text');
-
+    
     indicatorText.innerHTML = `<tspan dy="-0.4em" style="font-size: 6px;">روز</tspan><tspan x="${indicatorPos.x}" dy="1.2em" style="font-size: 8px; font-weight: bold;">${toPersian(dayOfCycle)}</tspan>`;
-
+    
     indicatorGroup.appendChild(indicatorCircle);
     indicatorGroup.appendChild(indicatorText);
     svg.appendChild(indicatorGroup);
@@ -458,7 +439,7 @@ const renderCalendar = (calendarDate, userData) => {
     calendarGrid.innerHTML = '';
     const monthStart = calendarDate.clone().startOf('jMonth');
     const monthEnd = calendarDate.clone().endOf('jMonth');
-
+    
     const recordedPeriodDays = new Set();
     if (userData.period_history) {
         userData.period_history.forEach(record => {
@@ -475,15 +456,15 @@ const renderCalendar = (calendarDate, userData) => {
         const recordEnd = recordStart.clone().add(record.duration - 1, 'days');
         return recordStart.isSameOrBefore(monthEnd) && recordEnd.isSameOrAfter(monthStart);
     });
-
+    
     for (let i = 0; i < monthStart.jDay(); i++) { calendarGrid.innerHTML += '<div></div>'; }
-
+    
     for (let day = monthStart.clone(); day.isSameOrBefore(monthEnd); day.add(1, 'days')) {
         const dayKey = day.format('YYYY-MM-DD');
         const canLog = day.isSameOrBefore(moment(), 'day');
-
+        
         let phaseInfo = { class: 'normal-day' };
-
+        
         if (recordedPeriodDays.has(dayKey)) {
             phaseInfo = { class: 'period-day' };
         } else if (isPastMonth && hasRecordInMonth) {
@@ -493,10 +474,10 @@ const renderCalendar = (calendarDate, userData) => {
         }
 
         let classes = `calendar-day ${phaseInfo.class} `;
-
+        
         if (day.isSame(moment(), 'day')) classes += ' today';
         if (!canLog) classes += ' disabled';
-
+        
         const logData = userData.logs?.[dayKey];
         const hasLog = logData && Object.values(logData).some(v => (Array.isArray(v) && v.length > 0) || (typeof v === 'string' && v) || (typeof v === 'number' && v !== ''));
         const logIndicator = hasLog ? '<div class="log-indicator"></div>' : '';
@@ -572,7 +553,7 @@ const renderSettings = (userData) => {
                         می‌تونی پارتنر یا خانواده یا دوستت رو به پریناز دعوت کنی تا از تغییرات چرخه پریودت باخبر بشه.
                     </div>
                 </div>
-
+                
                 ${companionsHTML}
 
                 <div class="flex gap-3 pt-2">
@@ -637,9 +618,6 @@ const renderAnalysis = (userData, charts) => {
     const updateAnalysisCharts = (months, phase) => {
         const startDate = moment().subtract(months, 'months');
 
-        // --- MODIFIED: Cycle History and Chart Logic moved here ---
-
-        // 1. Render Cycle History Summary based on selected months
         const historyContainer = document.getElementById('cycle-history-summary');
         if (historyContainer) {
             const history = userData.period_history;
@@ -649,19 +627,18 @@ const renderAnalysis = (userData, charts) => {
                 const sortedHistory = [...history]
                     .map(p => ({ ...p, startDateMoment: moment(p.start_date, 'YYYY-MM-DD') }))
                     .sort((a, b) => b.startDateMoment - a.startDateMoment);
-
+                
                 let completedCycles = [];
                 for (let i = 0; i < sortedHistory.length - 1; i++) {
                     const cycle = {
                         currentPeriod: sortedHistory[i],
                         previousPeriod: sortedHistory[i+1]
                     };
-                    // Filter cycles that started within the selected time frame
                     if(cycle.currentPeriod.startDateMoment.isSameOrAfter(startDate)) {
                         completedCycles.push(cycle);
                     }
                 }
-
+                
                 if (completedCycles.length === 0) {
                      historyContainer.innerHTML = `<div class="p-4 bg-gray-100 rounded-lg text-center text-gray-500 text-sm">هیچ سیکل کاملی در این بازه زمانی ثبت نشده است.</div>`;
                 } else {
@@ -674,7 +651,7 @@ const renderAnalysis = (userData, charts) => {
 
                         const isPeriodLengthNormal = periodLength >= 2 && periodLength <= 8;
                         const isCycleLengthNormal = cycleLength >= 21 && cycleLength <= 35;
-
+                        
                         let statusText = '';
                         let statusIcon = '';
                         const greenIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>`;
@@ -693,7 +670,7 @@ const renderAnalysis = (userData, charts) => {
                             statusText = 'طول پریود خارج از بازه طبیعی است.';
                             statusIcon = yellowIcon;
                         }
-
+                        
                         const statusTextColor = (isPeriodLengthNormal && isCycleLengthNormal) ? 'text-green-600' : 'text-yellow-600';
                         const periodPercentage = (periodLength / cycleLength) * 100;
 
@@ -725,11 +702,10 @@ const renderAnalysis = (userData, charts) => {
                 }
             }
         }
-
-        // 2. Chart Logic (existing code)
+        
         const recordedPeriodDays = new Set();
         const periodHistorySorted = [...(userData.period_history || [])].sort((a,b) => new Date(a.start_date) - new Date(b.start_date));
-
+        
         periodHistorySorted.forEach(record => {
             const start = moment(record.start_date, 'YYYY-MM-DD');
             for (let i = 0; i < record.duration; i++) {
@@ -741,19 +717,16 @@ const renderAnalysis = (userData, charts) => {
             const dateStr = logDate.format('YYYY-MM-DD');
             if (recordedPeriodDays.has(dateStr)) return 'period';
 
-            // اگر هیچ تاریخچه‌ای نباشد، فازی هم وجود ندارد
             if (!periodHistorySorted || periodHistorySorted.length === 0) {
                 return 'other';
             }
 
             const firstPeriodStart = moment(periodHistorySorted[0].start_date, 'YYYY-MM-DD');
-
-            // --- START: بلوک جدید برای محاسبه سیکل اول ---
+            
             if (logDate.isBefore(firstPeriodStart)) {
                 const cycleLength = Math.round(userData.user.avg_cycle_length || userData.user.cycle_length);
                 const estimatedCycleStart = firstPeriodStart.clone().subtract(cycleLength, 'days');
 
-                // چک می‌کنیم که تاریخ لاگ در محدوده سیکل تخمینی ما باشد
                 if (logDate.isSameOrAfter(estimatedCycleStart)) {
                     const pmsStartDay = cycleLength - 4;
                     const dayOfCycle = logDate.diff(estimatedCycleStart, 'days') + 1;
@@ -761,30 +734,27 @@ const renderAnalysis = (userData, charts) => {
                         return 'pms';
                     }
                 }
-            }
-            // --- END: بلوک جدید ---
-
-            // --- منطق قبلی برای سیکل‌های بعدی که به درستی کار می‌کند ---
+            } 
             else {
                 let relevantCycleStart, cycleLength;
                 for (let i = 0; i < periodHistorySorted.length; i++) {
                     const currentPeriodStart = moment(periodHistorySorted[i].start_date);
                     const nextPeriodStart = i + 1 < periodHistorySorted.length ? moment(periodHistorySorted[i+1].start_date) : null;
-
+                    
                     if (logDate.isSameOrAfter(currentPeriodStart) && (!nextPeriodStart || logDate.isBefore(nextPeriodStart))) {
                         relevantCycleStart = currentPeriodStart;
                         cycleLength = nextPeriodStart ? nextPeriodStart.diff(currentPeriodStart, 'days') : Math.round(userData.user.avg_cycle_length || userData.user.cycle_length);
                         break;
                     }
                 }
-
+                
                 if (relevantCycleStart) {
                     const pmsStartDay = cycleLength - 4;
                     const dayOfCycle = logDate.diff(relevantCycleStart, 'days') + 1;
                     if (dayOfCycle >= pmsStartDay && dayOfCycle <= cycleLength) return 'pms';
                 }
             }
-
+            
             return 'other';
         };
 
@@ -819,7 +789,7 @@ const renderAnalysis = (userData, charts) => {
             metricData.sort((a, b) => a.date - b.date);
             return { labels: metricData.map(d => d.date.format('YYYY-MM-DD')), data: metricData.map(d => d.value) };
         };
-
+        
         const chartContainer = document.getElementById('analysis-charts');
         chartContainer.innerHTML = `
             <div><h3 class="text-xl font-bold text-gray-800 mb-2">علائم پرتکرار</h3><div class="bg-gray-100 p-4 rounded-lg"><canvas id="symptoms-chart"></canvas></div></div>
@@ -828,7 +798,7 @@ const renderAnalysis = (userData, charts) => {
             <div><h3 class="text-xl font-bold text-gray-800 mb-2">روند نوشیدن آب</h3><div class="bg-gray-100 p-4 rounded-lg"><canvas id="water-chart"></canvas></div></div>
             <div><h3 class="text-xl font-bold text-gray-800 mb-2">روند وضعیت خواب</h3><div class="bg-gray-100 p-4 rounded-lg"><canvas id="sleep-chart"></canvas></div></div>
         `;
-
+        
         createBarChart('symptoms-chart', processLogs(ALL_SYMPTOM_CATEGORIES), 'تعداد روزها');
         createBarChart('moods-chart', processLogs(['moods']), 'تعداد روزها');
         createLineChart('weight-chart', processMetricLogs('weight'), 'وزن', 'kg');
