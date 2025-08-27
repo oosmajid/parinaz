@@ -12,7 +12,7 @@ const moment = require('moment-timezone');
 const jalaliMoment = require('jalali-moment');
 require('moment-jalaali');
 const PDFDocument = require('pdfkit');
-const reshapeArabic = require('arabic-reshaper');
+const arabicReshaper = require('arabic-reshaper');
 const { bidi } = require('bidi-js');
 
 // --- START: BOT & DB Initialization ---
@@ -725,15 +725,17 @@ const rtl = (s) => {
   if (s === null || s === undefined) return '';
   const str = String(s);
 
-  // تبدیل ارقام لاتین به فارسی (اختیاری ولی توصیه می‌شود)
   const toFaDigits = (t) => t.replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
 
-  // 1) شکل‌دهی حروف عربی/فارسی (برای اتصال حروف)
-  const reshaped = reshapeArabic(toFaDigits(str));
+  // اگر ماژول متد reshape داشت، از همون استفاده کن؛
+  // اگر نبود و خود ماژول تابع بود (برخی فورک‌ها)، مستقیم صدا بزن.
+  const reshaper = arabicReshaper && typeof arabicReshaper.reshape === 'function'
+    ? (x) => arabicReshaper.reshape(x)
+    : (typeof arabicReshaper === 'function' ? arabicReshaper : (x) => x);
 
-  // 2) مرتب‌سازی بصری مطابق الگوریتم دوجهته
+  const reshaped = reshaper(toFaDigits(str));
+
   const visual = bidi.fromString(reshaped).reorder_visually().string;
-
   return visual;
 };
 
