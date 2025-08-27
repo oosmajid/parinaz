@@ -14,6 +14,7 @@ const jalaliMoment = require('jalali-moment');
 require('moment-jalaali'); // adds jYYYY formats on moment
 const PdfPrinter = require('pdfmake');
 const { getBidiText } = require('bidi-js'); // اضافه کردن bidi-js
+const path = require('path');
 
 
 // --- START: BOT & DB Initialization ---
@@ -722,6 +723,24 @@ app.delete('/api/companion/:companion_id', async (req, res) => {
     }
 });
 
+const bidi = (s) => getBidiText(String(s ?? ''));
+const toArrayMaybe = (v) => {
+  if (!v) return [];
+  if (Array.isArray(v)) return v;
+  if (typeof v === 'string') {
+    // text[] مثل {a,b} یا "[...]" jsonb
+    if (v.startsWith('{') && v.endsWith('}')) {
+      return v.slice(1, -1).split(',').map(s => s.trim().replace(/^"|"$/g, '')).filter(Boolean);
+    }
+    try {
+      const j = JSON.parse(v);
+      return Array.isArray(j) ? j : (j ? [j] : []);
+    } catch {
+      return [v];
+    }
+  }
+  return [v];
+};
 
 // Modified PDF report endpoint
 app.post('/api/user/:telegram_id/report', async (req, res) => {
@@ -737,9 +756,12 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
     const user = userRes.rows[0];
 
     const logsRes = await client.query('SELECT * FROM daily_logs WHERE user_id = $1', [user.id]);
-    const historyRes = await client.query('SELECT start_date, duration FROM period_history WHERE user_id = $1 ORDER BY start_date ASC', [user.id]);
+    const historyRes = await client.query(
+      'SELECT start_date, duration FROM period_history WHERE user_id = $1 ORDER BY start_date ASC',
+      [user.id]
+    );
 
-    // 2) بازه زمانی: محاسبات با گرگوریانی
+    // 2) بازه زمانی (میلادی)
     const endG = moment().startOf('day');
     const startG = endG.clone().subtract(m, 'months');
 
@@ -750,57 +772,55 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
 
     const periodHistory = historyRes.rows;
 
-    // 3) فازها: period / pms / other
+    // 3) مرتب‌سازی تاریخچه
     const sortedHist = periodHistory
       .map(p => ({ ...p, mStart: moment(p.start_date, 'YYYY-MM-DD') }))
       .sort((a, b) => a.mStart - b.mStart);
 
-    // This is the new, robust function to determine phase
+    // 4) تعیین فاز برای هر تاریخ
     function getPhaseForDate(dG) {
-        // Check if the date is a recorded period day
-        for (const rec of sortedHist) {
-            const start = rec.mStart.clone();
-            const end = start.clone().add(rec.duration - 1, 'days');
-            if (dG.isSameOrAfter(start, 'day') && dG.isSameOrBefore(end, 'day')) {
-                return 'period';
-            }
+      // روزهای داخل پریود ثبت‌شده
+      for (const rec of sortedHist) {
+        const start = rec.mStart.clone();
+        const end = start.clone().add(rec.duration - 1, 'days');
+        if (dG.isSameOrAfter(start, 'day') && dG.isSameOrBefore(end, 'day')) {
+          return 'period';
         }
-    
-        if (sortedHist.length === 0) return 'other';
-    
-        // Find the cycle the log date belongs to
-        let cycleStart = null;
-        let cycleEnd = null;
-        for (let i = 0; i < sortedHist.length; i++) {
-            const currentPeriodStart = sortedHist[i].mStart.clone();
-            const nextPeriodStart = sortedHist[i + 1]?.mStart ? sortedHist[i + 1].mStart.clone() : null;
-    
-            if (dG.isSameOrAfter(currentPeriodStart, 'day') && (!nextPeriodStart || dG.isBefore(nextPeriodStart, 'day'))) {
-                cycleStart = currentPeriodStart;
-                cycleEnd = nextPeriodStart ? nextPeriodStart.clone().subtract(1, 'day') : null;
-                break;
-            }
+      }
+      if (sortedHist.length === 0) return 'other';
+
+      // چرخه‌ای که تاریخ داخل آن است
+      let cycleStart = null;
+      let cycleEnd = null;
+      for (let i = 0; i < sortedHist.length; i++) {
+        const currentStart = sortedHist[i].mStart.clone();
+        const nextStart = sortedHist[i + 1]?.mStart ? sortedHist[i + 1].mStart.clone() : null;
+
+        if (dG.isSameOrAfter(currentStart, 'day') && (!nextStart || dG.isBefore(nextStart, 'day'))) {
+          cycleStart = currentStart;
+          cycleEnd = nextStart ? nextStart.clone().subtract(1, 'day') : null;
+          break;
         }
-    
-        if (!cycleStart) return 'other'; // Date is before any recorded cycle
-    
-        const cycleLength = cycleEnd ? cycleEnd.diff(cycleStart, 'days') + 1 : Math.round(user.avg_cycle_length || user.cycle_length || 28);
-        const pmsWindow = 4;
-        const pmsStartDay = cycleLength - pmsWindow + 1;
-        const dayOfCycle = dG.diff(cycleStart, 'days') + 1;
-    
-        if (dayOfCycle >= pmsStartDay && dayOfCycle <= cycleLength) {
-            return 'pms';
-        }
-    
-        return 'other';
+      }
+      if (!cycleStart) return 'other';
+
+      const cycleLength = cycleEnd
+        ? cycleEnd.diff(cycleStart, 'days') + 1
+        : Math.round(user.avg_cycle_length || user.cycle_length || 28);
+
+      const PMS_WINDOW = 4;
+      const pmsStartDay = cycleLength - PMS_WINDOW + 1;
+      const dayOfCycle = dG.diff(cycleStart, 'days') + 1;
+
+      if (dayOfCycle >= pmsStartDay && dayOfCycle <= cycleLength) return 'pms';
+      return 'other';
     }
 
-    // 4) وضعیت چرخه‌ها در بازه
+    // 5) چرخه‌های کامل در بازه
     const completedCycles = [];
     for (let i = 1; i < sortedHist.length; i++) {
       const prev = sortedHist[i - 1].mStart.clone();
-      const cur = sortedHist[i].mStart.clone();
+      const cur  = sortedHist[i].mStart.clone();
       if (cur.isSameOrAfter(startG, 'day') && cur.isSameOrBefore(endG, 'day')) {
         completedCycles.push({
           start: prev,
@@ -810,22 +830,19 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
         });
       }
     }
-    const avgCycleInRange = completedCycles.length ? (completedCycles.reduce((s, c) => s + c.cycleLength, 0) / completedCycles.length) : null;
+    const avgCycleInRange  = completedCycles.length ? (completedCycles.reduce((s, c) => s + c.cycleLength, 0) / completedCycles.length) : null;
     const avgPeriodInRange = completedCycles.length ? (completedCycles.reduce((s, c) => s + c.periodLength, 0) / completedCycles.length) : null;
 
-    // 5) شمارش علائم و حالات روحی
-    function buildCounts(logs, phaseFilter = null) {
-        const c = { symptoms: {}, moods: {} };
-        const phaseLogMap = {};
+    // 6) شمارش‌ها با نرمال‌سازی آرایه‌ها
+    function buildCounts(theLogs, phaseFilter = null) {
+      const c = { symptoms: {}, moods: {} };
+      theLogs.forEach(l => {
+        const dG = moment(l.log_date, 'YYYY-MM-DD');
+        const phase = getPhaseForDate(dG);
+        if (phaseFilter && phase !== phaseFilter) return;
 
-        logs.forEach(l => {
-            const dG = moment(l.log_date, 'YYYY-MM-DD');
-            const phase = getPhaseForDate(dG);
-            if (phaseFilter && phase !== phaseFilter) return;
-            (Array.isArray(l.symptoms) ? l.symptoms : (l.symptoms ? [l.symptoms] : []))
-            .forEach(s => s && (c.symptoms[s] = (c.symptoms[s] || 0) + 1));
-            (Array.isArray(l.moods) ? l.moods : (l.moods ? [l.moods] : []))
-            .forEach(s => s && (c.moods[s] = (c.moods[s] || 0) + 1));
+        toArrayMaybe(l.symptoms).forEach(s => s && (c.symptoms[s] = (c.symptoms[s] || 0) + 1));
+        toArrayMaybe(l.moods).forEach(m => m && (c.moods[m] = (c.moods[m] || 0) + 1));
       });
       return c;
     }
@@ -833,65 +850,82 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
     const cPer = buildCounts(logs, 'period');
     const cPms = buildCounts(logs, 'pms');
 
-    const topN = (obj, n = 20) => Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, n);
+    const topN    = (obj, n = 20) => Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, n);
     const toLines = (pairs) => pairs.length ? pairs.map(([k, v]) => `${k}: ${v} بار`) : ['داده‌ای ثبت نشده است.'];
 
-    // 6) PDF (pdfmake)
+    // 7) PDF (pdfmake) — بدون direction/rtl، با bidi و راست‌چین سراسری
     const fonts = {
       vazirmatn: {
-        normal: path.join(__dirname, 'public/Vazirmatn-Regular.ttf'),
-        bold: path.join(__dirname, 'public/Vazirmatn-Bold.ttf'),
+        normal: path.join(__dirname, 'public', 'Vazirmatn-Regular.ttf'),
+        bold:   path.join(__dirname, 'public', 'Vazirmatn-Bold.ttf'),
+        italics: path.join(__dirname, 'public', 'Vazirmatn-Regular.ttf'),
+        bolditalics: path.join(__dirname, 'public', 'Vazirmatn-Bold.ttf'),
       }
     };
     const printer = new PdfPrinter(fonts);
+
     const fmtJ = (mObj) => mObj.clone().format('jYYYY/jMM/jDD');
+
     const cycleLines = [];
     completedCycles.forEach((c, idx) => {
-      cycleLines.push(`سیکل ${idx + 1}: ${fmtJ(c.start)} تا ${fmtJ(c.end)} — طول سیکل: ${c.cycleLength} روز — طول پریود: ${c.periodLength} روز`);
+      cycleLines.push(
+        `سیکل ${idx + 1}: ${fmtJ(c.start)} تا ${fmtJ(c.end)} — طول سیکل: ${c.cycleLength} روز — طول پریود: ${c.periodLength} روز`
+      );
     });
-    if (avgCycleInRange) cycleLines.push(`میانگین طول سیکل‌ها: ${avgCycleInRange.toFixed(1)} روز`);
+    if (avgCycleInRange)  cycleLines.push(`میانگین طول سیکل‌ها: ${avgCycleInRange.toFixed(1)} روز`);
     if (avgPeriodInRange) cycleLines.push(`میانگین طول پریودها: ${avgPeriodInRange.toFixed(1)} روز`);
     if (cycleLines.length === 0) cycleLines.push('برای این بازه سیکل کامل ثبت نشده است.');
 
+    const SOFT_YELLOW = '#FFF7C2'; // جایگزین رنگ ۸رقمی
+
     const docDefinition = {
-        pageSize: 'A4',
-        pageMargins: [28, 28, 28, 28],
-        defaultStyle: { font: 'vazirmatn' },
-        direction: 'rtl', // A new property for overall RTL support
-        content: [
-            { text: 'گزارش تحلیلی چرخه قاعدگی', style: 'h1', alignment: 'right', rtl: true, margin: [0, 0, 0, 6] },
-            { text: `بازه: ${fmtJ(startG)} تا ${fmtJ(endG)}`, style: 'muted', alignment: 'right', rtl: true, margin: [0, 4, 0, 12] },
-    
-            { text: 'نام کاربر', style: 'boxTitle', alignment: 'right', rtl: true, margin: [0, 4, 0, 2] },
-            { text: (user.telegram_firstname || 'کاربر'), style: 'box', fillColor: '#F3F4F6', alignment: 'right', rtl: true, margin: [0, 0, 0, 6] },
-    
-            { text: 'وضعیت چرخه‌های قاعدگی', style: 'boxTitle', alignment: 'right', rtl: true, margin: [0, 10, 0, 2] },
-            {
-                stack: cycleLines.length ? cycleLines.map(l => ({ text: l, alignment: 'right', rtl: true })) : [{ text: 'برای این بازه سیکل کامل ثبت نشده است.', alignment: 'right', rtl: true }],
-                style: 'box', fillColor: '#F3F4F6', alignment: 'right', rtl: true
-            },
-    
-            { text: 'علائم پرتکرار (کلی)', style: 'boxTitle', alignment: 'right', rtl: true, margin: [0, 10, 0, 2] },
-            { ul: toLines(topN(cAll.symptoms, 20)), style: 'box', fillColor: '#FEF3F2', alignment: 'right', rtl: true },
-    
-            { text: 'حالات روحی پرتکرار (کلی)', style: 'boxTitle', alignment: 'right', rtl: true, margin: [0, 10, 0, 2] },
-            { ul: toLines(topN(cAll.moods, 20)), style: 'box', fillColor: '#EEF2FF', alignment: 'right', rtl: true },
-    
-            { text: 'علائم پرتکرار در حالت پریود', style: 'boxTitle', alignment: 'right', rtl: true, margin: [0, 10, 0, 2] },
-            { ul: toLines(topN(cPer.symptoms, 20)), style: 'box', fillColor: '#FFE4E6', alignment: 'right', rtl: true },
-    
-            { text: 'حالات روحی پرتکرار در حالت PMS', style: 'boxTitle', alignment: 'right', rtl: true, margin: [0, 10, 0, 2] },
-            { ul: toLines(topN(cPms.moods, 20)), style: 'box', fillColor: '#FEF08A33', alignment: 'right', rtl: true },
-        ],
-        styles: {
-            h1: { fontSize: 16, bold: true, color: '#111827', margin: [0, 0, 0, 6] },
-            muted: { fontSize: 9, color: '#6B7280' },
-            boxTitle: { fontSize: 12, bold: true, color: '#111827' },
-            box: { fontSize: 11, margin: [8, 8, 8, 8] },
+      pageSize: 'A4',
+      pageMargins: [28, 28, 28, 28],
+      defaultStyle: { font: 'vazirmatn', alignment: 'right' },
+      content: [
+        { text: bidi('گزارش تحلیلی چرخه قاعدگی'), style: 'h1', margin: [0, 0, 0, 6] },
+        { text: bidi(`بازه: ${fmtJ(startG)} تا ${fmtJ(endG)}`), style: 'muted', margin: [0, 4, 0, 12] },
+
+        { text: bidi('نام کاربر'), style: 'boxTitle', margin: [0, 4, 0, 2] },
+        { text: bidi(user.telegram_firstname || 'کاربر'), style: 'box', fillColor: '#F3F4F6', margin: [0, 0, 0, 6] },
+
+        { text: bidi('وضعیت چرخه‌های قاعدگی'), style: 'boxTitle', margin: [0, 10, 0, 2] },
+        {
+          stack: cycleLines.length
+            ? cycleLines.map(l => ({ text: bidi(l) }))
+            : [{ text: bidi('برای این بازه سیکل کامل ثبت نشده است.') }],
+          style: 'box',
+          fillColor: '#F3F4F6'
         },
+
+        { text: bidi('علائم پرتکرار (کلی)'), style: 'boxTitle', margin: [0, 10, 0, 2] },
+        { ul: toLines(topN(cAll.symptoms, 20)).map(t => bidi(t)), style: 'box', fillColor: '#FEF3F2' },
+
+        { text: bidi('حالات روحی پرتکرار (کلی)'), style: 'boxTitle', margin: [0, 10, 0, 2] },
+        { ul: toLines(topN(cAll.moods, 20)).map(t => bidi(t)), style: 'box', fillColor: '#EEF2FF' },
+
+        { text: bidi('علائم پرتکرار در حالت پریود'), style: 'boxTitle', margin: [0, 10, 0, 2] },
+        { ul: toLines(topN(cPer.symptoms, 20)).map(t => bidi(t)), style: 'box', fillColor: '#FFE4E6' },
+
+        { text: bidi('حالات روحی پرتکرار در حالت PMS'), style: 'boxTitle', margin: [0, 10, 0, 2] },
+        { ul: toLines(topN(cPms.moods, 20)).map(t => bidi(t)), style: 'box', fillColor: SOFT_YELLOW },
+      ],
+      styles: {
+        h1: { fontSize: 16, bold: true, color: '#111827' },
+        muted: { fontSize: 9, color: '#6B7280' },
+        boxTitle: { fontSize: 12, bold: true, color: '#111827' },
+        box: { fontSize: 11, margin: [8, 8, 8, 8] },
+      },
     };
 
     const pdfDoc = printer.createPdfKitDocument(docDefinition);
+
+    // گرفتن خطای رندر (اگر فونت/رنگ/کانتنت مشکل داشته باشد)
+    pdfDoc.on('error', (err) => {
+      console.error('PDF generation error:', err);
+      try { res.status(500).json({ error: 'خطا در تولید PDF' }); } catch {}
+    });
+
     const chunks = [];
     pdfDoc.on('data', d => chunks.push(d));
     pdfDoc.on('end', async () => {
@@ -908,6 +942,7 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
       }
     });
     pdfDoc.end();
+
   } catch (error) {
     console.error('[ERROR] report generation:', error);
     res.status(500).json({ error: 'خطا در تولید گزارش.' });
