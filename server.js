@@ -754,14 +754,15 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
     // ورودی می‌تواند جلالیِ 'jYYYY-MM-DD' یا میلادیِ 'YYYY-MM-DD' باشد.
     const toG = (str) => {
         if (!str) return null;
-        // اگر سال کوچک بود (<= 1700) یعنی به احتمال زیاد جلالی است
-        const y = Number(String(str).slice(0, 4));
-        if (!isNaN(y) && y <= 1700) {
-            // فرض: 'YYYY-MM-DD' اما جلالی → با jYYYY پارس کن
-            return jalaliMoment(str, 'jYYYY-MM-DD').toDate(); // JS Date میلادی
+        const jalali = jalaliMoment(str, 'jYYYY-jM-jD');
+        if (jalali.isValid()) {
+            return jalali.toDate(); // Returns a standard JS Date object
         }
-        // در غیر این صورت میلادی فرض کن
-        return moment(str, 'YYYY-MM-DD').toDate();
+        const gregorian = moment(str, 'YYYY-MM-DD');
+        if (gregorian.isValid()) {
+            return gregorian.toDate(); // Returns a standard JS Date object
+        }
+        return null;
     };
 
     const fmtFa = (dateG) => {
