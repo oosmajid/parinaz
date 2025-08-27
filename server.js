@@ -11,9 +11,6 @@ const cron = require('node-cron');
 const moment = require('moment-timezone');
 const jalaliMoment = require('jalali-moment');
 require('moment-jalaali');
-const PDFDocument = require('pdfkit');
-const arabicReshaper = require('arabic-reshaper');
-const bidi = require('bidi-js');
 
 // --- START: BOT & DB Initialization ---
 types.setTypeParser(1082, (dateString) => dateString);
@@ -746,305 +743,193 @@ const t = (s) => rtl(s);
 
 // START: REVISED PDF report endpoint
 app.post('/api/user/:telegram_id/report', async (req, res) => {
-  const { telegram_id } = req.params;
-  const { months } = req.body;
-  const client = await pool.connect();
+    const { telegram_id } = req.params;
+    const { months } = req.body;
+    const client = await pool.connect();
 
-  const toPersian = num => num.toString().replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
+    // تبدیل ارقام به فارسی
+    const toPersian = num => String(num).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
 
-  // Helper to get phase for a given date
-  const getPhaseForDate = (date, periodHistory) => {
-    const periodStart = periodHistory.find(p => p.start_date === date);
-    if (periodStart) return 'period';
+    // تعیین فاز روز (PMS/Period/Other)
+    const getPhaseForDate = (date, periodHistory) => {
+        const periodStart = periodHistory.find(p => p.start_date === date);
+        if (periodStart) return 'period';
 
-    const sortedHistory = [...periodHistory].sort((a, b) =>
-    jalaliMoment(a.start_date, 'jYYYY-jMM-jDD').toDate() -
-    jalaliMoment(b.start_date, 'jYYYY-jMM-jDD').toDate()
- );
+        const sortedHistory = [...periodHistory].sort((a, b) => moment(a.start_date).unix() - moment(b.start_date).unix());
 
-    let cycleStartDate;
-    let cycleLength;
+        let cycleStartDate;
+        let cycleLength;
 
-    for (let i = 0; i < sortedHistory.length - 1; i++) {
-      const currentPeriodStart = jalaliMoment(sortedHistory[i].start_date, 'jYYYY-jMM-jDD');
-      const nextPeriodStart    = jalaliMoment(sortedHistory[i + 1].start_date, 'jYYYY-jMM-jDD');
-      if (moment(date).isSameOrAfter(currentPeriodStart) && moment(date).isBefore(nextPeriodStart)) {
-        cycleStartDate = currentPeriodStart;
-        cycleLength = nextPeriodStart.diff(currentPeriodStart, 'days');
-        break;
-      }
-    }
+        for (let i = 0; i < sortedHistory.length - 1; i++) {
+            const currentPeriodStart = moment(sortedHistory[i].start_date);
+            const nextPeriodStart = moment(sortedHistory[i + 1].start_date);
+            if (moment(date).isSameOrAfter(currentPeriodStart) && moment(date).isBefore(nextPeriodStart)) {
+                cycleStartDate = currentPeriodStart;
+                cycleLength = nextPeriodStart.diff(currentPeriodStart, 'days');
+                break;
+            }
+        }
 
-    if (!cycleStartDate || !cycleLength) return 'other';
+        if (!cycleStartDate || !cycleLength) return 'other';
 
-    const pmsStartDay = cycleLength - 4;
-    const dayOfCycle = moment(date).diff(cycleStartDate, 'days') + 1;
+        const pmsStartDay = cycleLength - 4;
+        const dayOfCycle = moment(date).diff(cycleStartDate, 'days') + 1;
 
-    if (dayOfCycle >= pmsStartDay && dayOfCycle <= cycleLength) return 'pms';
+        if (dayOfCycle >= pmsStartDay && dayOfCycle <= cycleLength) return 'pms';
 
-    return 'other';
-  };
-
-  try {
-    const userRes = await client.query('SELECT * FROM users WHERE telegram_id = $1', [telegram_id]);
-    if (userRes.rows.length === 0) {
-      return res.status(404).json({ error: 'کاربر یافت نشد.' });
-    }
-    const user = userRes.rows[0];
-
-    const monthsInt = Number.isFinite(Number(months)) ? Number(months) : 1;
-    const reportStartDate = moment().subtract(monthsInt, 'months').startOf('day');
-    const logsRes = await client.query(
-      'SELECT * FROM daily_logs WHERE user_id = $1 AND log_date >= $2',
-      [user.id, reportStartDate.format('YYYY-MM-DD')]
-    );
-    const historyRes = await client.query(
-    'SELECT * FROM period_history WHERE user_id = $1 ORDER BY start_date ASC',
-    [user.id]
-    );
-    const periodHistory = historyRes.rows;
-    const dailyLogs = logsRes.rows;
-
-    const doc = new PDFDocument({
-      size: 'A4',
-      margin: 50,
-      layout: 'portrait',
-      info: {
-        Title: 'گزارش پریود پریناز',
-        Author: 'Parinaz App',
-      },
-    });
-
-    const fontPath = path.join(__dirname, 'public', 'Vazirmatn-Regular.ttf');
-    const fontPathBold = path.join(__dirname, 'public', 'Vazirmatn-Bold.ttf');
-    doc.registerFont('Vazirmatn', fontPath);
-    doc.registerFont('Vazirmatn-Bold', fontPathBold);
-    doc.font('Vazirmatn');
-
-    const generateTitle = () => {
-        doc.font('Vazirmatn-Bold').fontSize(24).fillColor('#E53F71')
-            .text(t('گزارش دوره قاعدگی'), { align: 'center' });
-        doc.moveDown(0.5);
+        return 'other';
     };
 
-    const generateUserInfo = () => {
-        const userName = user.telegram_firstname || 'کاربر گرامی';
-        const startDateJalali = jalaliMoment(reportStartDate).locale('fa').format('jD jMMMM jYYYY');
-        const endDateJalali   = jalaliMoment().locale('fa').format('jD jMMMM jYYYY');
-
-        doc.font('Vazirmatn-Bold').fontSize(16).fillColor('#333')
-            .text(t(`نام: ${userName}`), { align: 'right' });
-
-        doc.moveDown(0.2);
-
-        doc.font('Vazirmatn').fontSize(12).fillColor('#666')
-            .text(t(`بازه گزارش: از ${startDateJalali} تا ${endDateJalali}`), { align: 'right' });
-
-        doc.moveDown(1);
+    // کمک‌تابع برای تکه‌تکه‌کردن پیام‌های بلند تلگرام (حد ~۴۰۹۶ کاراکتر)
+    const sendInChunks = async (chatId, text, parse_mode = 'HTML') => {
+        const LIMIT = 3800; // کمی حاشیه امن
+        if (text.length <= LIMIT) {
+            await bot.sendMessage(chatId, text, { parse_mode });
+            return;
+        }
+        // بر اساس خطوط تکه‌کن
+        const lines = text.split('\n');
+        let buf = '';
+        for (const line of lines) {
+            if ((buf + '\n' + line).length > LIMIT) {
+                await bot.sendMessage(chatId, buf, { parse_mode });
+                buf = '';
+            }
+            buf += (buf ? '\n' : '') + line;
+        }
+        if (buf.trim()) {
+            await bot.sendMessage(chatId, buf, { parse_mode });
+        }
     };
 
-    doc.font('Vazirmatn').fontSize(12).text(t('---'), { align: 'center' });
+    // بولت‌گذاری زیبا
+    const bulletize = (arr) => arr.length
+        ? arr.map(item => `• ${item}`).join('\n')
+        : 'داده‌ای برای نمایش وجود ندارد.';
 
-    const generateSection = (title, content, color) => {
-      doc.moveDown(1);
-      const y = doc.y;
-      doc.roundedRect(doc.page.width - doc.page.margins.right, y, -(doc.page.width - 2 * doc.page.margins.right), 10, 10)
-        .fillAndStroke(color, color);
-      doc.fillColor('#333').font('Vazirmatn-Bold').fontSize(14).text(title, doc.page.margins.right, y + 15, { align: 'right', continued: true });
-      doc.moveDown(0.5);
+    try {
+        const userRes = await client.query('SELECT * FROM users WHERE telegram_id = $1', [telegram_id]);
+        if (userRes.rows.length === 0) {
+            return res.status(404).json({ error: 'کاربر یافت نشد.' });
+        }
+        const user = userRes.rows[0];
 
-      const contentY = doc.y;
-      doc.rect(doc.page.width - doc.page.margins.right, contentY, -(doc.page.width - 2 * doc.page.margins.right), doc.currentLineHeight() + 20)
-        .fill(color);
-      doc.fillColor('#333').font('Vazirmatn').fontSize(12).text(content, { align: 'right', continued: true });
-    };
+        const reportStartDate = moment().subtract(months, 'months').startOf('day');
 
-    const generateSectionWithList = (title, items, color) => {
-      doc.moveDown(1);
-      const startY = doc.y;
+        const logsRes = await client.query(
+            'SELECT * FROM daily_logs WHERE user_id = $1 AND log_date >= $2',
+            [user.id, reportStartDate.format('YYYY-MM-DD')]
+        );
+        const historyRes = await client.query(
+            'SELECT * FROM period_history WHERE user_id = $1 AND start_date >= $2 ORDER BY start_date ASC',
+            [user.id, reportStartDate.format('YYYY-MM-DD')]
+        );
 
-      const contentHeight = (items.length * (doc.currentLineHeight() + 5)) + 20;
+        const periodHistory = historyRes.rows;
+        const dailyLogs = logsRes.rows;
 
-      doc.fillColor(color).roundedRect(doc.page.width - doc.page.margins.right, startY, -(doc.page.width - 2 * doc.page.margins.right), contentHeight, 10).fill();
+        // محاسبه چرخه‌ها (از شروع تا روز قبل از شروع بعدی)
+        const sortedHistory = [...periodHistory].sort((a, b) => moment(a.start_date).unix() - moment(b.start_date).unix());
+        const cycles = [];
+        if (sortedHistory.length > 1) {
+            for (let i = 0; i < sortedHistory.length - 1; i++) {
+                const start = moment(sortedHistory[i].start_date);
+                const nextStart = moment(sortedHistory[i + 1].start_date);
+                const end = nextStart.clone().subtract(1, 'day');
+                const duration = nextStart.diff(start, 'days'); // طول واقعی چرخه
+                cycles.push({
+                    startFa: start.format('jD jMMMM jYYYY'),
+                    endFa: end.format('jD jMMMM jYYYY'),
+                    durationFa: toPersian(duration)
+                });
+            }
+        }
 
-      doc.y = startY + 10;
-      doc.x = doc.page.width - doc.page.margins.right - 10;
-      doc.fillColor('#333').font('Vazirmatn-Bold').fontSize(14).text(title, { align: 'right' });
-
-      doc.x = doc.page.width - doc.page.margins.right - 10;
-      doc.y += 10;
-
-      if (items.length === 0) {
-        doc.font('Vazirmatn').fontSize(12).fillColor('#666').text('داده‌ای برای نمایش وجود ندارد.', { align: 'right' });
-      } else {
-        items.forEach((item, index) => {
-          doc.x = doc.page.width - doc.page.margins.right - 10;
-          doc.font('Vazirmatn').fontSize(12).text(`- ${item}`, { align: 'right', lineGap: 5 });
+        // بازه‌های پریود
+        const periods = periodHistory.map(p => {
+            const start = jalaliMoment(p.start_date).locale('fa');
+            const end = start.clone().add(p.duration - 1, 'days');
+            return {
+                startFa: start.format('jD jMMMM jYYYY'),
+                endFa: end.format('jD jMMMM jYYYY'),
+                durationFa: toPersian(p.duration)
+            };
         });
-      }
-    };
 
-    const sortedHistory = [...periodHistory].sort((a, b) =>
-    jalaliMoment(a.start_date, 'jYYYY-jMM-jDD').toDate() -
-    jalaliMoment(b.start_date, 'jYYYY-jMM-jDD').toDate()
-    );
+        // شمارش علائم در کل، PMS و Period
+        const symptomCounts = {};
+        const pmsSymptomCounts = {};
+        const periodSymptomCounts = {};
 
-    const cycles = [];
-    if (sortedHistory.length > 1) {
-    for (let i = 0; i < sortedHistory.length - 1; i++) {
-        const start = jalaliMoment(sortedHistory[i].start_date, 'jYYYY-jMM-jDD');
-        const next  = jalaliMoment(sortedHistory[i + 1].start_date, 'jYYYY-jMM-jDD');
-        const end   = next.clone().subtract(1, 'day');
-        const duration = next.diff(start, 'days');
-
-        cycles.push({
-        start: rtl(jalaliMoment(start).locale('fa').format('jD jMMMM jYYYY')),
-        end:   rtl(jalaliMoment(end).locale('fa').format('jD jMMMM jYYYY')),
-        duration
+        dailyLogs.forEach(log => {
+            const phase = getPhaseForDate(log.log_date, periodHistory);
+            if (Array.isArray(log.symptoms) && log.symptoms.length > 0) {
+                log.symptoms.forEach(symptom => {
+                    symptomCounts[symptom] = (symptomCounts[symptom] || 0) + 1;
+                    if (phase === 'pms') pmsSymptomCounts[symptom] = (pmsSymptomCounts[symptom] || 0) + 1;
+                    if (phase === 'period') periodSymptomCounts[symptom] = (periodSymptomCounts[symptom] || 0) + 1;
+                });
+            }
         });
-    }
-    }
 
-    const periods = periodHistory.map(p => ({
-    start: rtl(jalaliMoment(p.start_date).locale('fa').format('jD jMMMM jYYYY')),
-    end:   rtl(jalaliMoment(p.start_date).locale('fa').add(p.duration - 1, 'days').format('jD jMMMM jYYYY')),
-    duration: p.duration,
-    }));
+        const top20 = (counts) =>
+            Object.entries(counts)
+                .sort(([, a], [, b]) => b - a)
+                .slice(0, 20)
+                .map(([symptom, count]) => `${symptom} (${toPersian(count)} بار)`);
 
-    const symptomCounts = {};
-    const pmsSymptomCounts = {};
-    const periodSymptomCounts = {};
+        const allSymptoms = top20(symptomCounts);
+        const pmsSymptoms = top20(pmsSymptomCounts);
+        const periodSymptoms = top20(periodSymptomCounts);
 
-    dailyLogs.forEach(log => {
-      const logDateMoment = jalaliMoment(log.log_date, 'YYYY-MM-DD');
-      const phase = getPhaseForDate(log.log_date, periodHistory);
+        // ساخت بدنه‌ی پیام‌ها (HTML parse_mode برای بولد آسان‌تر است)
+        const nameFa = user.telegram_firstname || 'کاربر گرامی';
+        const rangeFrom = jalaliMoment(reportStartDate).locale('fa').format('jD jMMMM jYYYY');
+        const rangeTo   = jalaliMoment().locale('fa').format('jD jMMMM jYYYY');
 
-      if (log.symptoms && log.symptoms.length > 0) {
-        log.symptoms.forEach(symptom => {
-          symptomCounts[symptom] = (symptomCounts[symptom] || 0) + 1;
-          if (phase === 'pms') {
-            pmsSymptomCounts[symptom] = (pmsSymptomCounts[symptom] || 0) + 1;
-          }
-          if (phase === 'period') {
-            periodSymptomCounts[symptom] = (periodSymptomCounts[symptom] || 0) + 1;
-          }
-        });
-      }
-    });
+        const header =
+            `<b>📑 گزارش دوره قاعدگی</b>\n` +
+            `👤 نام: <b>${nameFa}</b>\n` +
+            `\n<b>📆 بازه گزارش</b>\n` +
+            `از <b>${rangeFrom}</b> تا <b>${rangeTo}</b>`;
 
-    const getTopSymptoms = (counts) => {
-      return Object.entries(counts)
-        .sort(([, a], [, b]) => b - a)
-        .slice(0, 20)
-        .map(([symptom, count]) => `${symptom} (${toPersian(count)} بار)`);
-    };
+        const cyclesSection =
+            `<b>🔁 طول چرخه‌ها</b>\n` +
+            bulletize(cycles.map(c => `از ${c.startFa} تا ${c.endFa}: ${c.durationFa} روز`));
 
-    const allSymptoms = getTopSymptoms(symptomCounts);
-    const pmsSymptoms = getTopSymptoms(pmsSymptomCounts);
-    const periodSymptoms = getTopSymptoms(periodSymptomCounts);
+        const periodsSection =
+            `<b>🩸 طول پریودها</b>\n` +
+            bulletize(periods.map(p => `از ${p.startFa} تا ${p.endFa}: ${p.durationFa} روز`));
 
-    generateTitle();
-    generateUserInfo();
-    doc.font('Vazirmatn').fontSize(12).text('---', { align: 'center' });
+        const allSymptomsSection =
+            `<b>🩺 علائم پرتکرار (کلی)</b>\n` +
+            bulletize(allSymptoms);
 
-    doc.moveDown(1);
-    doc.font('Vazirmatn-Bold').fontSize(14).fillColor('#333')
-    .text(t('طول چرخه‌ها'), { align: 'right' });
+        const pmsSymptomsSection =
+            `<b>😣 علائم پرتکرار در حالت پی‌ام‌اس</b>\n` +
+            bulletize(pmsSymptoms);
 
-    if (cycles.length > 0) {
-    cycles.forEach(cycle => {
-        doc.font('Vazirmatn').fontSize(12).fillColor('#666')
-        .text(t(`از ${cycle.start} تا ${cycle.end}: ${toPersian(cycle.duration)} روز`), { align: 'right' });
-        doc.moveDown(0.2);
-    });
-    } else {
-    doc.font('Vazirmatn').fontSize(12).fillColor('#999')
-        .text(t('اطلاعات کافی برای تحلیل طول چرخه‌ها وجود ندارد.'), { align: 'right' });
-    }
+        const periodSymptomsSection =
+            `<b>🩸 علائم پرتکرار در حالت پریود</b>\n` +
+            bulletize(periodSymptoms);
 
-    doc.moveDown(1);
-    doc.font('Vazirmatn-Bold').fontSize(14).fillColor('#333')
-    .text(t('طول پریودها'), { align: 'right' });
+        // برای رعایت محدودیت طول پیام، در چند پیام ارسال می‌کنیم
+        const msg1 = [header, '', cyclesSection, '', periodsSection].join('\n');
+        const msg2 = [allSymptomsSection].join('\n');
+        const msg3 = [pmsSymptomsSection, '', periodSymptomsSection].join('\n');
 
-    if (periods.length > 0) {
-    periods.forEach(period => {
-        doc.font('Vazirmatn').fontSize(12).fillColor('#666')
-        .text(t(`از ${period.start} تا ${period.end}: ${toPersian(period.duration)} روز`), { align: 'right' });
-        doc.moveDown(0.2);
-    });
-    } else {
-    doc.font('Vazirmatn').fontSize(12).fillColor('#999')
-        .text(t('اطلاعات کافی برای تحلیل طول پریودها وجود ندارد.'), { align: 'right' });
-    }
+        await sendInChunks(telegram_id, msg1, 'HTML');
+        await sendInChunks(telegram_id, msg2, 'HTML');
+        await sendInChunks(telegram_id, msg3, 'HTML');
 
-    doc.moveDown(1);
-    doc.font('Vazirmatn-Bold').fontSize(14).fillColor('#333')
-    .text(t('علائم پرتکرار (کلی)'), { align: 'right' });
+        res.status(200).json({ message: 'گزارش متنی با موفقیت برای شما ارسال شد.' });
 
-    if (allSymptoms.length > 0) {
-    allSymptoms.forEach(symptom => {
-        doc.font('Vazirmatn').fontSize(12).fillColor('#666')
-        .text(t(`• ${symptom}`), { align: 'right' });
-    });
-    } else {
-    doc.font('Vazirmatn').fontSize(12).fillColor('#999')
-        .text(t('داده‌ای برای نمایش وجود ندارد.'), { align: 'right' });
-    }
-
-    doc.moveDown(1);
-    doc.font('Vazirmatn-Bold').fontSize(14).fillColor('#333')
-    .text(t('علائم پرتکرار در حالت PMS'), { align: 'right' });
-
-    if (pmsSymptoms.length > 0) {
-    pmsSymptoms.forEach(symptom => {
-        doc.font('Vazirmatn').fontSize(12).fillColor('#666')
-        .text(t(`• ${symptom}`), { align: 'right' });
-    });
-    } else {
-    doc.font('Vazirmatn').fontSize(12).fillColor('#999')
-        .text(t('داده‌ای برای نمایش وجود ندارد.'), { align: 'right' });
-    }
-
-    doc.moveDown(1);
-    doc.font('Vazirmatn-Bold').fontSize(14).fillColor('#333')
-    .text(t('علائم پرتکرار در حالت پریود'), { align: 'right' });
-
-    if (periodSymptoms.length > 0) {
-    periodSymptoms.forEach(symptom => {
-        doc.font('Vazirmatn').fontSize(12).fillColor('#666')
-        .text(t(`• ${symptom}`), { align: 'right' });
-    });
-    } else {
-    doc.font('Vazirmatn').fontSize(12).fillColor('#999')
-        .text(t('داده‌ای برای نمایش وجود ندارد.'), { align: 'right' });
-    }
-
-    // جایگزینی کدهای مربوط به stream
-    const chunks = [];
-    doc.on('data', chunk => chunks.push(chunk));
-    doc.on('end', async () => {
-      const pdfBuffer = Buffer.concat(chunks);
-      try {
-        await bot.sendDocument(telegram_id, pdfBuffer, {}, {
-          filename: `Parinaz-Report-${jalaliMoment().locale('fa').format('jYYYY-jMM-jDD')}.pdf`,
-          contentType: 'application/pdf',
-        });
-        res.status(200).json({ message: 'گزارش با موفقیت برای شما ارسال شد.' });
-      } catch (err) {
-        console.error('Error sending PDF via bot:', err);
-        res.status(500).json({ error: 'خطا در ارسال گزارش از طریق ربات.' });
-      } finally {
+    } catch (err) {
+        console.error('Error generating text report:', err);
+        res.status(500).json({ error: 'خطایی در تهیه گزارش رخ داد.' });
+    } finally {
         client.release();
-      }
-    });
-
-    doc.end();
-
-  } catch (err) {
-    console.error('Error generating PDF report:', err);
-    res.status(500).json({ error: 'خطایی در تهیه گزارش رخ داد.' });
-    client.release();
-  }
+    }
 });
 
 // END: REVISED PDF report endpoint
