@@ -773,13 +773,15 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
     // تشخیص فاز (PMS/Period/Other) بر اساس تاریخ میلادی و تاریخچه (با تاریخ‌های میلادی)
     const getPhaseForDateG = (dateG, periodHistoryG, userCycleLen) => {
         const m = moment(dateG).startOf('day');
+        
+        // Check for Period
+        if (periodHistoryG.some(p => moment(p.start_g).isSame(m, 'day') || (moment(p.start_g).isBefore(m) && moment(p.start_g).add(p.duration - 1, 'days').isSameOrAfter(m)))) {
+            return 'period';
+        }
 
-        // اگر امروز دقیقا روز شروع یکی از پریودهاست
-        if (periodHistoryG.some(p => moment(p.start_g).isSame(m, 'day'))) return 'period';
-
-        // بازه بین دو شروع پریود را پیدا کن
+        // Find the cycle the date belongs to
         const sorted = [...periodHistoryG].sort((a, b) => a.start_g - b.start_g);
-        let cycleStart = null, cycleLen = null;
+        let cycleStart = null, cycleLen = userCycleLen;
 
         for (let i = 0; i < sorted.length - 1; i++) {
             const a = moment(sorted[i].start_g).startOf('day');
@@ -790,11 +792,28 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
                 break;
             }
         }
-        if (!cycleStart) return 'other';
-
+        
+        // If no cycle found in between, use the last period start to calculate
+        if (!cycleStart && sorted.length > 0 && m.isAfter(moment(sorted[sorted.length-1].start_g))) {
+            cycleStart = moment(sorted[sorted.length-1].start_g);
+            // cycleLen remains the default userCycleLen
+        }
+        
+        if (!cycleStart) {
+            // If the date is before all recorded periods, calculate an approximate cycle start
+            if (sorted.length > 0 && m.isBefore(moment(sorted[0].start_g))) {
+                const diffDays = moment(sorted[0].start_g).diff(m, 'days');
+                const numCycles = Math.ceil(diffDays / userCycleLen);
+                cycleStart = moment(sorted[0].start_g).subtract(numCycles * userCycleLen, 'days');
+            } else {
+                return 'other'; // No relevant cycle found
+            }
+        }
+        
         const pmsStartDay = cycleLen - 4;
         const dayOfCycle = m.diff(cycleStart, 'days') + 1;
         if (dayOfCycle >= pmsStartDay && dayOfCycle <= cycleLen) return 'pms';
+        
         return 'other';
     };
 
@@ -896,7 +915,14 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
             const isPeriod = periodDaysSet.has(dayKey);
             const phase = isPeriod ? 'period' : getPhaseForDateG(log.log_g, sortedH, fallBackCycleLen);
 
-            const list = Array.isArray(log.symptoms) ? log.symptoms : [];
+            const list = [];
+            const symptomCategories = ['symptoms', 'breasts', 'discharge', 'hair', 'nails', 'skin'];
+            symptomCategories.forEach(cat => {
+                if (log[cat]) {
+                    const items = Array.isArray(log[cat]) ? log[cat] : [log[cat]];
+                    list.push(...items);
+                }
+            });
             list.forEach(s => {
                 symptomCounts[s] = (symptomCounts[s] || 0) + 1;
                 if (phase === 'pms') pmsCounts[s] = (pmsCounts[s] || 0) + 1;
