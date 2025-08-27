@@ -13,6 +13,8 @@ const jalaliMoment = require('jalali-moment');
 require('moment-jalaali');
 const XLSX = require('xlsx');
 
+const { LOG_CONFIG } = require('./config.js');
+
 // --- START: BOT & DB Initialization ---
 types.setTypeParser(1082, (dateString) => dateString);
 moment.tz.setDefault('Asia/Tehran');
