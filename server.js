@@ -795,8 +795,8 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
       },
     });
 
-    const fontPath = path.join(__dirname, 'fonts', 'Vazirmatn-Regular.ttf');
-    const fontPathBold = path.join(__dirname, 'fonts', 'Vazirmatn-Bold.ttf');
+    const fontPath = path.join(__dirname, 'public', 'Vazirmatn-Regular.ttf');
+    const fontPathBold = path.join(__dirname, 'public', 'Vazirmatn-Bold.ttf');
     doc.registerFont('Vazirmatn', fontPath);
     doc.registerFont('Vazirmatn-Bold', fontPathBold);
     doc.font('Vazirmatn');
