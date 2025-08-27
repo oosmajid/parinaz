@@ -5,7 +5,6 @@ const cors = require('cors');
 const path = require('path');
 const { Pool, types } = require('pg');
 const fs = require('fs');
-const PDFDocument = require('pdfkit');
 const TelegramBot = require('node-telegram-bot-api');
 const crypto = require('crypto');
 const cron = require('node-cron');
@@ -13,7 +12,8 @@ const moment = require('moment-timezone');
 const jalaliMoment = require('jalali-moment');
 require('moment-jalaali'); // adds jYYYY formats on moment
 const PdfPrinter = require('pdfmake');
-const { getBidiText } = require('bidi-js'); // اضافه کردن bidi-js
+const bidiFactory = require('bidi-js');
+const bidiEngine = bidiFactory();
 
 
 // --- START: BOT & DB Initialization ---
@@ -722,23 +722,25 @@ app.delete('/api/companion/:companion_id', async (req, res) => {
     }
 });
 
-const bidi = (s) => getBidiText(String(s ?? ''));
-const toArrayMaybe = (v) => {
-  if (!v) return [];
-  if (Array.isArray(v)) return v;
-  if (typeof v === 'string') {
-    // text[] مثل {a,b} یا "[...]" jsonb
-    if (v.startsWith('{') && v.endsWith('}')) {
-      return v.slice(1, -1).split(',').map(s => s.trim().replace(/^"|"$/g, '')).filter(Boolean);
-    }
-    try {
-      const j = JSON.parse(v);
-      return Array.isArray(j) ? j : (j ? [j] : []);
-    } catch {
-      return [v];
-    }
-  }
-  return [v];
+const bidi = (s) => {
+  const text = String(s ?? '');
+
+  // 1) محاسبه‌ی سطوح bidi
+  const embedding = bidiEngine.getEmbeddingLevels(text); // {levels, paragraphs}
+
+  // 2) بازآرایی کاراکترها با توجه به محدوده‌های معکوس‌شونده
+  const chars = Array.from(text);
+  const flips = bidiEngine.getReorderSegments(text, embedding); // [ [start,end], ... ]
+  flips.forEach(([start, end]) => {
+    const slice = chars.slice(start, end + 1).reverse();
+    for (let i = start; i <= end; i++) chars[i] = slice[i - start];
+  });
+
+  // 3) آینه‌کردن کاراکترهای جفت‌نشان (مثل پرانتزها) در محدوده‌های RTL
+  const mirrors = bidiEngine.getMirroredCharactersMap(text, embedding); // Map<index, char>
+  mirrors.forEach((replacement, idx) => { chars[idx] = replacement; });
+
+  return chars.join('');
 };
 
 // Modified PDF report endpoint
