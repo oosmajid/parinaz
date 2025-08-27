@@ -516,6 +516,26 @@ app.post('/api/user/:telegram_id/period', async (req, res) => {
     }
 });
 
+app.delete('/api/user/:telegram_id', async (req, res) => {
+    const { telegram_id } = req.params;
+    const client = await pool.connect();
+
+    try {
+        const result = await client.query('DELETE FROM users WHERE telegram_id = $1', [telegram_id]);
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: 'کاربر برای حذف یافت نشد.' });
+        }
+
+        res.status(200).json({ message: 'حساب کاربری با موفقیت حذف شد.' });
+    } catch (error) {
+        console.error('Error deleting user account:', error);
+        res.status(500).json({ error: 'خطای داخلی سرور' });
+    } finally {
+        client.release();
+    }
+});
+
 app.delete('/api/user/:telegram_id/period', async (req, res) => {
     const { telegram_id } = req.params;
     const { scope } = req.body; // 'last' or 'all'
