@@ -372,27 +372,66 @@ app.post('/api/logs', async (req, res) => {
             return res.status(400).json({ error: 'اطلاعات ضروری ارسال نشده است.' });
         }
 
-        const columns = ['user_id', 'log_date'];
-        const values = [user_id, log_date];
-        const updates = [];
-        
-        Object.keys(logData).forEach((key, index) => {
-            columns.push(key);
-            values.push(logData[key]);
-            updates.push(`${key} = $${index + 3}`);
-        });
+        const existingLogRes = await client.query(
+            'SELECT id FROM daily_logs WHERE user_id = $1 AND log_date = $2',
+            [user_id, log_date]
+        );
 
-        const query = `
-            INSERT INTO daily_logs (${columns.join(', ')})
-            VALUES (${values.map((_, i) => `$${i + 1}`).join(', ')})
-            ON CONFLICT (user_id, log_date) DO UPDATE SET
-                ${updates.join(', ')}
-            RETURNING *;
-        `;
-        
-        const result = await client.query(query, values);
-        res.status(200).json({ message: 'گزارش با موفقیت ذخیره شد', log: result.rows[0] });
+        const hasDataToLog = Object.keys(logData).length > 0;
 
+        if (existingLogRes.rows.length > 0) {
+            // Log for this day exists
+            if (hasDataToLog) {
+                // UPDATE the existing log
+                const allPossibleColumns = [
+                    'weight', 'water', 'sleep', 'sex', 'libido', 'moods', 'symptoms',
+                    'activity', 'breasts', 'discharge', 'blood_color', 'flow',
+                    'hair', 'nails', 'skin', 'other', 'notes'
+                ];
+                const updates = [];
+                const values = [];
+                let valueCounter = 1;
+
+                allPossibleColumns.forEach(col => {
+                    updates.push(`${col} = $${valueCounter}`);
+                    values.push(logData.hasOwnProperty(col) ? logData[col] : null);
+                    valueCounter++;
+                });
+                
+                values.push(user_id, log_date);
+
+                const query = `
+                    UPDATE daily_logs SET ${updates.join(', ')}
+                    WHERE user_id = $${valueCounter} AND log_date = $${valueCounter + 1}
+                    RETURNING *;
+                `;
+                const result = await client.query(query, values);
+                res.status(200).json({ message: 'گزارش با موفقیت به‌روزرسانی شد', log: result.rows[0] });
+
+            } else {
+                // DELETE the existing log because no data was provided
+                await client.query('DELETE FROM daily_logs WHERE id = $1', [existingLogRes.rows[0].id]);
+                res.status(200).json({ message: 'گزارش با موفقیت حذف شد.', log: null });
+            }
+        } else {
+            // No log for this day, INSERT a new one if there's data
+            if (hasDataToLog) {
+                const columns = ['user_id', 'log_date', ...Object.keys(logData)];
+                const values = [user_id, log_date, ...Object.values(logData)];
+                const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
+
+                const query = `
+                    INSERT INTO daily_logs (${columns.join(', ')})
+                    VALUES (${placeholders})
+                    RETURNING *;
+                `;
+                const result = await client.query(query, values);
+                res.status(200).json({ message: 'گزارش با موفقیت ذخیره شد', log: result.rows[0] });
+            } else {
+                // No existing log and no new data, do nothing
+                 res.status(200).json({ message: 'داده‌ای برای ثبت وجود نداشت.', log: null });
+            }
+        }
     } catch (error) {
         console.error('خطا در ذخیره گزارش:', error);
         res.status(500).json({ error: 'خطای داخلی سرور' });
@@ -708,14 +747,14 @@ const scheduleRandomly = (cronExpression, task) => {
 // Daily Log Reminder (18:00 - 21:00) - No changes needed here, kept for context
 scheduleRandomly(`${Math.floor(Math.random() * 60)} ${Math.floor(Math.random() * 4) + 18} * * *`, async () => {
     // گرفتن تاریخ امروز به فرمت میلادی برای مقایسه با دیتابیس
-    const todayGregorian = jalaliMoment().locale("fa").format("YYYY-MM-DD");
+    const today = jalaliMoment().locale("fa").format("YYYY-MM-DD");
     
     const query = `
         SELECT u.telegram_id FROM users u
         LEFT JOIN daily_logs dl ON u.id = dl.user_id AND dl.log_date = $1
         WHERE u.reminder_logs = TRUE AND dl.id IS NULL;
     `;
-    const { rows } = await pool.query(query, [todayGregorian]);
+    const { rows } = await pool.query(query, [today]);
     rows.forEach(user => {
         bot.sendMessage(user.telegram_id, getRandomMessage('user', 'log_reminder'));
     });
