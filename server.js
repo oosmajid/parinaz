@@ -852,46 +852,43 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
     if (cycleLines.length === 0) cycleLines.push('برای این بازه سیکل کامل ثبت نشده است.');
 
     const docDefinition = {
-      pageSize: 'A4',
-      pageMargins: [28, 28, 28, 28],
-      defaultStyle: { font: 'vazirmatn', alignment: 'right' },
-      content: [
-        { text: 'گزارش تحلیلی چرخه قاعدگی', style: 'h1' },
-        { text: `بازه: ${startG.clone().format('jYYYY/jMM/jDD')} تا ${endG.clone().format('jYYYY/jMM/jDD')}`, style: 'muted', margin: [0, 4, 0, 12] },
+    pageSize: 'A4',
+    pageMargins: [28, 28, 28, 28],
+    defaultStyle: { font: 'vazirmatn' }, // فقط فونت
+    content: [
+        { text: 'گزارش تحلیلی چرخه قاعدگی', style: 'h1', rtl: true, alignment: 'right' },
+        { text: `بازه: ${startG.clone().format('jYYYY/jMM/jDD')} تا ${endG.clone().format('jYYYY/jMM/jDD')}`, style: 'muted', margin: [0, 4, 0, 12], rtl: true, alignment: 'right' },
 
-        { text: 'نام کاربر', style: 'boxTitle', margin: [0, 4, 0, 2] },
-        { text: (user.telegram_firstname || 'کاربر'), style: 'box', fillColor: '#F3F4F6', margin: [0, 0, 0, 6] },
+        { text: 'نام کاربر', style: 'boxTitle', margin: [0, 4, 0, 2], rtl: true, alignment: 'right' },
+        { text: (user.telegram_firstname || 'کاربر'), style: 'box', fillColor: '#F3F4F6', margin: [0, 0, 0, 6], rtl: true, alignment: 'right' },
 
-        { text: 'بازه گزارش', style: 'boxTitle', margin: [0, 6, 0, 2] },
-        { text: `از تاریخ ${startG.clone().format('jYYYY/jMM/jDD')} تا تاریخ ${endG.clone().format('jYYYY/jMM/jDD')}`, style: 'box', fillColor: '#F3F4F6' },
+        { text: 'بازه گزارش', style: 'boxTitle', margin: [0, 6, 0, 2], rtl: true, alignment: 'right' },
+        { text: `از تاریخ ${fmtJ(startG)} تا تاریخ ${fmtJ(endG)}`, style: 'box', fillColor: '#F3F4F6', rtl: true, alignment: 'right' },
 
-        { text: 'وضعیت چرخه‌های قاعدگی', style: 'boxTitle', margin: [0, 10, 0, 2] },
-        { stack: cycleLines.map(l => ({ text: l })), style: 'box', fillColor: '#F3F4F6' },
+        { text: 'وضعیت چرخه‌های قاعدگی', style: 'boxTitle', margin: [0, 10, 0, 2], rtl: true, alignment: 'right' },
+        {
+        stack: cycleLines.length ? cycleLines.map(l => ({ text: l, rtl: true, alignment: 'right' })) : [{ text: 'برای این بازه سیکل کامل ثبت نشده است.', rtl: true, alignment: 'right' }],
+        style: 'box', fillColor: '#F3F4F6', rtl: true, alignment: 'right'
+        },
 
-        { text: 'علائم پرتکرار (کلی)', style: 'boxTitle', margin: [0, 10, 0, 2] },
-        { ul: toLines(topN(cAll.symptoms, 20)), style: 'box', fillColor: '#FEF3F2' },
+        { text: 'علائم پرتکرار (کلی)', style: 'boxTitle', margin: [0, 10, 0, 2], rtl: true, alignment: 'right' },
+        { ul: toLines(topN(cAll.symptoms, 20)), style: 'box', fillColor: '#FEF3F2', rtl: true, alignment: 'right' },
 
-        { text: 'حالات روحی پرتکرار (کلی)', style: 'boxTitle', margin: [0, 10, 0, 2] },
-        { ul: toLines(topN(cAll.moods, 20)), style: 'box', fillColor: '#EEF2FF' },
+        { text: 'حالات روحی پرتکرار (کلی)', style: 'boxTitle', margin: [0, 10, 0, 2], rtl: true, alignment: 'right' },
+        { ul: toLines(topN(cAll.moods, 20)), style: 'box', fillColor: '#EEF2FF', rtl: true, alignment: 'right' },
 
-        { text: 'علائم پرتکرار در حالت پریود', style: 'boxTitle', margin: [0, 10, 0, 2] },
-        { ul: toLines(topN(cPer.symptoms, 20)), style: 'box', fillColor: '#FFE4E6' },
+        { text: 'علائم پرتکرار در حالت پریود', style: 'boxTitle', margin: [0, 10, 0, 2], rtl: true, alignment: 'right' },
+        { ul: toLines(topN(cPer.symptoms, 20)), style: 'box', fillColor: '#FFE4E6', rtl: true, alignment: 'right' },
 
-        { text: 'حالات روحی پرتکرار در حالت پریود', style: 'boxTitle', margin: [0, 10, 0, 2] },
-        { ul: toLines(topN(cPer.moods, 20)), style: 'box', fillColor: '#FFE4E6' },
-
-        { text: 'علائم پرتکرار در حالت PMS', style: 'boxTitle', margin: [0, 10, 0, 2] },
-        { ul: toLines(topN(cPms.symptoms, 20)), style: 'box', fillColor: '#FEF08A33' },
-
-        { text: 'حالات روحی پرتکرار در حالت PMS', style: 'boxTitle', margin: [0, 10, 0, 2] },
-        { ul: toLines(topN(cPms.moods, 20)), style: 'box', fillColor: '#FEF08A33' },
-      ],
-      styles: {
+        { text: 'حالات روحی پرتکرار در حالت PMS', style: 'boxTitle', margin: [0, 10, 0, 2], rtl: true, alignment: 'right' },
+        { ul: toLines(topN(cPms.moods, 20)), style: 'box', fillColor: '#FEF08A33', rtl: true, alignment: 'right' },
+    ],
+    styles: {
         h1: { fontSize: 16, bold: true, color: '#111827', margin: [0, 0, 0, 6] },
         muted: { fontSize: 9, color: '#6B7280' },
         boxTitle: { fontSize: 12, bold: true, color: '#111827' },
         box: { fontSize: 11, margin: [8, 8, 8, 8] },
-      },
+    },
     };
 
     const pdfDoc = printer.createPdfKitDocument(docDefinition);
