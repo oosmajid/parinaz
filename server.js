@@ -10,9 +10,12 @@ const crypto = require('crypto');
 const cron = require('node-cron');
 const moment = require('moment-timezone');
 const jalaliMoment = require('jalali-moment');
-require('moment-jalaali'); // adds jYYYY formats on moment
+require('moment-jalaali');
 const PDFDocument = require('pdfkit');
-const getStream = require('get-stream');
+let getStream;
+import('get-stream').then(module => {
+  getStream = module.default;
+});
 
 
 // --- START: BOT & DB Initialization ---
