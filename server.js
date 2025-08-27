@@ -747,47 +747,63 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
     const { months } = req.body;
     const client = await pool.connect();
 
-    // تبدیل ارقام به فارسی
+    // --- Utils ---
     const toPersian = num => String(num).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
 
-    // تعیین فاز روز (PMS/Period/Other)
-    const getPhaseForDate = (date, periodHistory) => {
-        const periodStart = periodHistory.find(p => p.start_date === date);
-        if (periodStart) return 'period';
+    // تاریخِ ورودی (string) را به Moment میلادی نرمال می‌کند
+    // ورودی می‌تواند جلالیِ 'jYYYY-MM-DD' یا میلادیِ 'YYYY-MM-DD' باشد.
+    const toG = (str) => {
+        if (!str) return null;
+        // اگر سال کوچک بود (<= 1700) یعنی به احتمال زیاد جلالی است
+        const y = Number(String(str).slice(0, 4));
+        if (!isNaN(y) && y <= 1700) {
+            // فرض: 'YYYY-MM-DD' اما جلالی → با jYYYY پارس کن
+            return jalaliMoment(str, 'jYYYY-MM-DD').toDate(); // JS Date میلادی
+        }
+        // در غیر این صورت میلادی فرض کن
+        return moment(str, 'YYYY-MM-DD').toDate();
+    };
 
-        const sortedHistory = [...periodHistory].sort((a, b) => moment(a.start_date).unix() - moment(b.start_date).unix());
+    const fmtFa = (dateG) => {
+        // نمایش جلالی خوش‌خوان
+        return jalaliMoment(dateG).locale('fa').format('jD jMMMM jYYYY');
+    };
 
-        let cycleStartDate;
-        let cycleLength;
+    // تشخیص فاز (PMS/Period/Other) بر اساس تاریخ میلادی و تاریخچه (با تاریخ‌های میلادی)
+    const getPhaseForDateG = (dateG, periodHistoryG, userCycleLen) => {
+        const m = moment(dateG).startOf('day');
 
-        for (let i = 0; i < sortedHistory.length - 1; i++) {
-            const currentPeriodStart = moment(sortedHistory[i].start_date);
-            const nextPeriodStart = moment(sortedHistory[i + 1].start_date);
-            if (moment(date).isSameOrAfter(currentPeriodStart) && moment(date).isBefore(nextPeriodStart)) {
-                cycleStartDate = currentPeriodStart;
-                cycleLength = nextPeriodStart.diff(currentPeriodStart, 'days');
+        // اگر امروز دقیقا روز شروع یکی از پریودهاست
+        if (periodHistoryG.some(p => moment(p.start_g).isSame(m, 'day'))) return 'period';
+
+        // بازه بین دو شروع پریود را پیدا کن
+        const sorted = [...periodHistoryG].sort((a, b) => a.start_g - b.start_g);
+        let cycleStart = null, cycleLen = null;
+
+        for (let i = 0; i < sorted.length - 1; i++) {
+            const a = moment(sorted[i].start_g).startOf('day');
+            const b = moment(sorted[i + 1].start_g).startOf('day');
+            if (m.isSameOrAfter(a) && m.isBefore(b)) {
+                cycleStart = a;
+                cycleLen = b.diff(a, 'days');
                 break;
             }
         }
+        if (!cycleStart) return 'other';
 
-        if (!cycleStartDate || !cycleLength) return 'other';
-
-        const pmsStartDay = cycleLength - 4;
-        const dayOfCycle = moment(date).diff(cycleStartDate, 'days') + 1;
-
-        if (dayOfCycle >= pmsStartDay && dayOfCycle <= cycleLength) return 'pms';
-
+        const pmsStartDay = cycleLen - 4;
+        const dayOfCycle = m.diff(cycleStart, 'days') + 1;
+        if (dayOfCycle >= pmsStartDay && dayOfCycle <= cycleLen) return 'pms';
         return 'other';
     };
 
-    // کمک‌تابع برای تکه‌تکه‌کردن پیام‌های بلند تلگرام (حد ~۴۰۹۶ کاراکتر)
+    // برای شکستن پیام‌های طولانی
     const sendInChunks = async (chatId, text, parse_mode = 'HTML') => {
-        const LIMIT = 3800; // کمی حاشیه امن
-        if (text.length <= LIMIT) {
+        const LIMIT = 3800;
+        if ((text || '').length <= LIMIT) {
             await bot.sendMessage(chatId, text, { parse_mode });
             return;
         }
-        // بر اساس خطوط تکه‌کن
         const lines = text.split('\n');
         let buf = '';
         for (const line of lines) {
@@ -797,130 +813,138 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
             }
             buf += (buf ? '\n' : '') + line;
         }
-        if (buf.trim()) {
-            await bot.sendMessage(chatId, buf, { parse_mode });
-        }
+        if (buf.trim()) await bot.sendMessage(chatId, buf, { parse_mode });
     };
 
-    // بولت‌گذاری زیبا
-    const bulletize = (arr) => arr.length
-        ? arr.map(item => `• ${item}`).join('\n')
-        : 'داده‌ای برای نمایش وجود ندارد.';
+    const bulletize = (arr) => arr.length ? arr.map(i => `• ${i}`).join('\n') : 'داده‌ای برای نمایش وجود ندارد.';
 
     try {
-        const userRes = await client.query('SELECT * FROM users WHERE telegram_id = $1', [telegram_id]);
-        if (userRes.rows.length === 0) {
-            return res.status(404).json({ error: 'کاربر یافت نشد.' });
-        }
-        const user = userRes.rows[0];
+        // 1) User
+        const uRes = await client.query('SELECT * FROM users WHERE telegram_id = $1', [telegram_id]);
+        if (uRes.rows.length === 0) return res.status(404).json({ error: 'کاربر یافت نشد.' });
+        const user = uRes.rows[0];
 
-        const reportStartDate = moment().subtract(months, 'months').startOf('day');
+        // 2) مرز بازه گزارش به میلادی
+        const reportStartG = moment().subtract(Number(months || 1), 'months').startOf('day');
 
-        const logsRes = await client.query(
-            'SELECT * FROM daily_logs WHERE user_id = $1 AND log_date >= $2',
-            [user.id, reportStartDate.format('YYYY-MM-DD')]
-        );
-        const historyRes = await client.query(
-            'SELECT * FROM period_history WHERE user_id = $1 AND start_date >= $2 ORDER BY start_date ASC',
-            [user.id, reportStartDate.format('YYYY-MM-DD')]
-        );
+        // 3) همه تاریخچه و همه لاگ‌ها را بگیر (بدون فیلتر تاریخ در SQL)
+        const histRes = await client.query('SELECT * FROM period_history WHERE user_id = $1', [user.id]);
+        const logsRes = await client.query('SELECT * FROM daily_logs WHERE user_id = $1', [user.id]);
 
-        const periodHistory = historyRes.rows;
-        const dailyLogs = logsRes.rows;
+        // 4) تاریخ‌ها را به میلادی نرمال کن
+        const historyG = histRes.rows
+            .map(r => ({ ...r, start_g: toG(r.start_date) }))
+            .filter(r => r.start_g);
 
-        // محاسبه چرخه‌ها (از شروع تا روز قبل از شروع بعدی)
-        const sortedHistory = [...periodHistory].sort((a, b) => moment(a.start_date).unix() - moment(b.start_date).unix());
+        const logsG = logsRes.rows
+            .map(r => ({ ...r, log_g: toG(r.log_date) }))
+            .filter(r => r.log_g);
+
+        // 5) حالا در Node فیلتر بازه را اعمال کن
+        const historyInRange = historyG.filter(r => moment(r.start_g).isSameOrAfter(reportStartG));
+        const logsInRange = logsG.filter(r => moment(r.log_g).isSameOrAfter(reportStartG));
+
+        // 6) محاسبه چرخه‌ها (بین شروع‌ها)
+        const sortedH = [...historyInRange].sort((a, b) => a.start_g - b.start_g);
         const cycles = [];
-        if (sortedHistory.length > 1) {
-            for (let i = 0; i < sortedHistory.length - 1; i++) {
-                const start = moment(sortedHistory[i].start_date);
-                const nextStart = moment(sortedHistory[i + 1].start_date);
-                const end = nextStart.clone().subtract(1, 'day');
-                const duration = nextStart.diff(start, 'days'); // طول واقعی چرخه
+        if (sortedH.length > 1) {
+            for (let i = 0; i < sortedH.length - 1; i++) {
+                const a = moment(sortedH[i].start_g);
+                const b = moment(sortedH[i + 1].start_g);
+                const duration = b.diff(a, 'days');
+                const end = b.clone().subtract(1, 'day');
                 cycles.push({
-                    startFa: start.format('jD jMMMM jYYYY'),
-                    endFa: end.format('jD jMMMM jYYYY'),
+                    startFa: fmtFa(a),
+                    endFa: fmtFa(end),
                     durationFa: toPersian(duration)
                 });
             }
         }
 
-        // بازه‌های پریود
-        const periods = periodHistory.map(p => {
-            const start = jalaliMoment(p.start_date).locale('fa');
-            const end = start.clone().add(p.duration - 1, 'days');
+        // 7) بازه‌های پریود (start + duration)
+        const periods = sortedH.map(p => {
+            const start = moment(p.start_g);
+            const end = start.clone().add((p.duration || 0) - 1, 'days');
             return {
-                startFa: start.format('jD jMMMM jYYYY'),
-                endFa: end.format('jD jMMMM jYYYY'),
-                durationFa: toPersian(p.duration)
+                startFa: fmtFa(start),
+                endFa: fmtFa(end),
+                durationFa: toPersian(p.duration || 0),
             };
         });
 
-        // شمارش علائم در کل، PMS و Period
+        // 8) علائم پرتکرار (کلی، PMS، Period)
         const symptomCounts = {};
-        const pmsSymptomCounts = {};
-        const periodSymptomCounts = {};
+        const pmsCounts = {};
+        const periodCounts = {};
 
-        dailyLogs.forEach(log => {
-            const phase = getPhaseForDate(log.log_date, periodHistory);
-            if (Array.isArray(log.symptoms) && log.symptoms.length > 0) {
-                log.symptoms.forEach(symptom => {
-                    symptomCounts[symptom] = (symptomCounts[symptom] || 0) + 1;
-                    if (phase === 'pms') pmsSymptomCounts[symptom] = (pmsSymptomCounts[symptom] || 0) + 1;
-                    if (phase === 'period') periodSymptomCounts[symptom] = (periodSymptomCounts[symptom] || 0) + 1;
-                });
+        // برای تشخیص Period، روزهای بین start و start+duration-1 را علامت بزنیم
+        const periodDaysSet = new Set();
+        sortedH.forEach(p => {
+            const s = moment(p.start_g).startOf('day');
+            const dur = Number(p.duration || 0);
+            for (let i = 0; i < dur; i++) {
+                periodDaysSet.add(s.clone().add(i, 'days').format('YYYY-MM-DD'));
             }
+        });
+
+        // طول چرخه‌ی fallback (موقع محاسبه PMS)
+        const fallBackCycleLen = Math.round(user.avg_cycle_length || user.cycle_length || 28);
+
+        logsInRange.forEach(log => {
+            const dayKey = moment(log.log_g).format('YYYY-MM-DD');
+            const isPeriod = periodDaysSet.has(dayKey);
+            const phase = isPeriod ? 'period' : getPhaseForDateG(log.log_g, sortedH, fallBackCycleLen);
+
+            const list = Array.isArray(log.symptoms) ? log.symptoms : [];
+            list.forEach(s => {
+                symptomCounts[s] = (symptomCounts[s] || 0) + 1;
+                if (phase === 'pms') pmsCounts[s] = (pmsCounts[s] || 0) + 1;
+                if (phase === 'period') periodCounts[s] = (periodCounts[s] || 0) + 1;
+            });
         });
 
         const top20 = (counts) =>
             Object.entries(counts)
                 .sort(([, a], [, b]) => b - a)
                 .slice(0, 20)
-                .map(([symptom, count]) => `${symptom} (${toPersian(count)} بار)`);
+                .map(([sym, cnt]) => `${sym} (${toPersian(cnt)} بار)`);
 
         const allSymptoms = top20(symptomCounts);
-        const pmsSymptoms = top20(pmsSymptomCounts);
-        const periodSymptoms = top20(periodSymptomCounts);
+        const pmsSymptoms = top20(pmsCounts);
+        const periodSymptoms = top20(periodCounts);
 
-        // ساخت بدنه‌ی پیام‌ها (HTML parse_mode برای بولد آسان‌تر است)
+        // 9) ساخت پیام‌ها
         const nameFa = user.telegram_firstname || 'کاربر گرامی';
-        const rangeFrom = jalaliMoment(reportStartDate).locale('fa').format('jD jMMMM jYYYY');
-        const rangeTo   = jalaliMoment().locale('fa').format('jD jMMMM jYYYY');
+        const rangeFromFa = fmtFa(reportStartG);
+        const rangeToFa = fmtFa(moment());
 
         const header =
             `<b>📑 گزارش دوره قاعدگی</b>\n` +
-            `👤 نام: <b>${nameFa}</b>\n` +
-            `\n<b>📆 بازه گزارش</b>\n` +
-            `از <b>${rangeFrom}</b> تا <b>${rangeTo}</b>`;
+            `👤 نام: <b>${nameFa}</b>\n\n` +
+            `<b>📆 بازه گزارش</b>\n` +
+            `از <b>${rangeFromFa}</b> تا <b>${rangeToFa}</b>`;
 
         const cyclesSection =
             `<b>🔁 طول چرخه‌ها</b>\n` +
-            bulletize(cycles.map(c => `از ${c.startFa} تا ${c.endFa}: ${c.durationFa} روز`));
+            (cycles.length ? cycles.map(c => `• از ${c.startFa} تا ${c.endFa}: ${c.durationFa} روز`).join('\n') : 'داده‌ای برای نمایش وجود ندارد.');
 
         const periodsSection =
             `<b>🩸 طول پریودها</b>\n` +
-            bulletize(periods.map(p => `از ${p.startFa} تا ${p.endFa}: ${p.durationFa} روز`));
+            (periods.length ? periods.map(p => `• از ${p.startFa} تا ${p.endFa}: ${p.durationFa} روز`).join('\n') : 'داده‌ای برای نمایش وجود ندارد.');
 
         const allSymptomsSection =
-            `<b>🩺 علائم پرتکرار (کلی)</b>\n` +
-            bulletize(allSymptoms);
+            `<b>🩺 علائم پرتکرار (کلی)</b>\n${bulletize(allSymptoms)}`;
 
         const pmsSymptomsSection =
-            `<b>😣 علائم پرتکرار در حالت پی‌ام‌اس</b>\n` +
-            bulletize(pmsSymptoms);
+            `<b>😣 علائم پرتکرار در حالت پی‌ام‌اس</b>\n${bulletize(pmsSymptoms)}`;
 
         const periodSymptomsSection =
-            `<b>🩸 علائم پرتکرار در حالت پریود</b>\n` +
-            bulletize(periodSymptoms);
+            `<b>🩸 علائم پرتکرار در حالت پریود</b>\n${bulletize(periodSymptoms)}`;
 
-        // برای رعایت محدودیت طول پیام، در چند پیام ارسال می‌کنیم
-        const msg1 = [header, '', cyclesSection, '', periodsSection].join('\n');
-        const msg2 = [allSymptomsSection].join('\n');
-        const msg3 = [pmsSymptomsSection, '', periodSymptomsSection].join('\n');
-
-        await sendInChunks(telegram_id, msg1, 'HTML');
-        await sendInChunks(telegram_id, msg2, 'HTML');
-        await sendInChunks(telegram_id, msg3, 'HTML');
+        // 10) ارسال
+        await sendInChunks(telegram_id, [header, '', cyclesSection, '', periodsSection].join('\n'), 'HTML');
+        await sendInChunks(telegram_id, allSymptomsSection, 'HTML');
+        await sendInChunks(telegram_id, [pmsSymptomsSection, '', periodSymptomsSection].join('\n'), 'HTML');
 
         res.status(200).json({ message: 'گزارش متنی با موفقیت برای شما ارسال شد.' });
 
