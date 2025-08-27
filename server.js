@@ -848,8 +848,8 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
         const reportStartG = moment().subtract(Number(months || 1), 'months').startOf('day');
 
         // 3) همه تاریخچه و همه لاگ‌ها را بگیر (بدون فیلتر تاریخ در SQL)
-        const histRes = await client.query('SELECT * FROM period_history WHERE user_id = $1', [user.id]);
-        const logsRes = await client.query('SELECT * FROM daily_logs WHERE user_id = $1', [user.id]);
+        const histRes = await client.query('SELECT * FROM period_history WHERE user_id = $1 ORDER BY start_date DESC', [user.id]);
+        const logsRes = await client.query('SELECT * FROM daily_logs WHERE user_id = $1 ORDER BY log_date DESC', [user.id]);
 
         // 4) تاریخ‌ها را به میلادی نرمال کن
         const historyG = histRes.rows
