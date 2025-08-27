@@ -956,7 +956,7 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
         const periodSymptoms = top20(periodSymptomCounts);
         const allMoods = top20(moodCounts);
         const pmsMoods = top20(pmsMoodCounts);
-        const periodMoods = top20(periodMoods);
+        const periodMoods = top20(periodMoodCounts);
 
         // 9) ساخت پیام‌ها
         const nameFa = user.telegram_firstname || 'کاربر گرامی';
