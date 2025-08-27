@@ -813,24 +813,39 @@ const renderAnalysis = (userData, charts) => {
         createLineChart('sleep-chart', processMetricLogs('sleep'), 'خواب', 'ساعت');
     };
 
-    const tabs = document.querySelectorAll('.analysis-tab');
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            if (tab.classList.contains('time-tab')) {
-                document.querySelectorAll('.time-tab').forEach(t => t.classList.remove('active-tab'));
-                currentFilter.months = parseInt(tab.dataset.months);
-            }
-            if (tab.classList.contains('phase-tab')) {
-                document.querySelectorAll('.phase-tab').forEach(t => t.classList.remove('active-tab'));
-                currentFilter.phase = tab.dataset.phase;
-            }
-            tab.classList.add('active-tab');
-            updateAnalysisCharts(currentFilter.months, currentFilter.phase);
-        });
+    // const tabs = document.querySelectorAll('.analysis-tab');
+    // tabs.forEach(tab => {
+    //     tab.addEventListener('click', () => {
+    //         if (tab.classList.contains('time-tab')) {
+    //             document.querySelectorAll('.time-tab').forEach(t => t.classList.remove('active-tab'));
+    //             currentFilter.months = parseInt(tab.dataset.months);
+    //         }
+    //         if (tab.classList.contains('phase-tab')) {
+    //             document.querySelectorAll('.phase-tab').forEach(t => t.classList.remove('active-tab'));
+    //             currentFilter.phase = tab.dataset.phase;
+    //         }
+    //         tab.classList.add('active-tab');
+    //         updateAnalysisCharts(currentFilter.months, currentFilter.phase);
+    //     });
+    // });
+
+    // document.getElementById('export-pdf-btn').addEventListener('click', () => {
+    //     window.app.exportToPDF(currentFilter.months);
+    // });
+
+    const tabs = Array.from(document.querySelectorAll('.analysis-tab.time-tab'));
+    let currentMonths = 1;
+    tabs.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+        tabs.forEach(b=>b.classList.remove('active-tab'));
+        btn.classList.add('active-tab');
+        currentMonths = parseInt(btn.dataset.months, 10);
+        updateAnalysisCharts(currentMonths, currentFilter.phase); // موجود در کدت
+    });
     });
 
-    document.getElementById('export-pdf-btn').addEventListener('click', () => {
-        window.app.exportToPDF(currentFilter.months);
+    document.getElementById('export-pdf-btn').addEventListener('click', ()=>{
+    window.app.exportToPDF(currentMonths);
     });
 
     updateAnalysisCharts(currentFilter.months, currentFilter.phase);

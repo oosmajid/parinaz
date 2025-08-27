@@ -720,15 +720,241 @@ app.delete('/api/companion/:companion_id', async (req, res) => {
 
 // Modified PDF report endpoint
 app.post('/api/user/:telegram_id/report', async (req, res) => {
-    const { telegram_id } = req.params;
-    try {
-        await bot.sendMessage(telegram_id, 'قابلیت دانلود گزارش pdf هنوز در حال آماده‌سازیه و به زودی آماده می‌شه');
-        res.status(200).json({ message: 'پیام با موفقیت ارسال شد.' });
-    } catch (error) {
-        console.error('[ERROR] Failed to send message via bot:', error.message);
-        res.status(500).json({ error: 'خطا در ارسال پیام از طریق ربات.' });
+  const { telegram_id } = req.params;
+  const { months } = req.body; // 1 | 3 | 6 | 12
+  const m = parseInt(months, 10) || 1;
+
+  const client = await pool.connect();
+  try {
+    // 1) دریافت کاربر + لاگ‌ها + تاریخچه پریود + همراهان
+    const userRes = await client.query('SELECT * FROM users WHERE telegram_id = $1', [telegram_id]);
+    if (userRes.rows.length === 0) return res.status(404).json({ error: 'کاربر یافت نشد.' });
+    const user = userRes.rows[0];
+
+    const logsRes = await client.query('SELECT * FROM daily_logs WHERE user_id = $1', [user.id]);
+    const historyRes = await client.query('SELECT start_date, duration FROM period_history WHERE user_id = $1 ORDER BY start_date ASC', [user.id]);
+
+    // 2) فیلتر بازهٔ زمانی (تاریخ‌ها در DB جلالیِ متنی هستند؛ در JS فیلتر می‌کنیم)
+    const endJ = jalaliMoment().locale('fa').startOf('day');
+    const startJ = endJ.clone().subtract(m, 'months');
+
+    const logs = logsRes.rows.filter(r => {
+      const d = jalaliMoment(r.log_date, 'YYYY-MM-DD').locale('fa');
+      return d.isSameOrAfter(startJ, 'day') && d.isSameOrBefore(endJ, 'day');
+    });
+
+    const periodHistory = historyRes.rows;
+
+    // 3) توابع کمکی برای فاز روز (period / pms / other)
+    const sortedHist = [...periodHistory].map(p => ({
+      ...p,
+      mStart: jalaliMoment(p.start_date, 'YYYY-MM-DD').locale('fa')
+    })).sort((a,b)=>a.mStart.valueOf()-b.mStart.valueOf());
+
+    const avgCycleLen = Math.round(user.avg_cycle_length || user.cycle_length);
+    const cycleLenSafe = Math.max(21, Math.min(60, avgCycleLen || 28));
+    const pmsWindow = 4; // چهار روز قبل از پریود بعدی
+
+    // مجموعه روزهای «پریود» از روی history
+    const periodDaysSet = new Set();
+    sortedHist.forEach(rec => {
+      for (let i=0;i<rec.duration;i++){
+        periodDaysSet.add(rec.mStart.clone().add(i,'days').format('YYYY-MM-DD'));
+      }
+    });
+
+    // تعیین فاز یک تاریخ لاگ
+    function getPhaseForDate(dJ) {
+      const key = dJ.format('YYYY-MM-DD');
+      if (periodDaysSet.has(key)) return 'period';
+
+      if (sortedHist.length === 0) return 'other';
+
+      // پیدا کردن سیکلِ شامل این روز (یا تخمین)
+      let cycleStart = null;
+      let cycleEndNextStart = null;
+
+      for (let i=0;i<sortedHist.length;i++){
+        const cur = sortedHist[i].mStart.clone();
+        const next = sortedHist[i+1]?.mStart ? sortedHist[i+1].mStart.clone() : null;
+        if (dJ.isSameOrAfter(cur,'day') && (!next || dJ.isBefore(next,'day'))) {
+          cycleStart = cur.clone();
+          cycleEndNextStart = next;
+          break;
+        }
+      }
+      if (!cycleStart) {
+        // قبل از اولین سابقه: یک سیکل فرضی قبل از اولین تاریخ
+        const first = sortedHist[0].mStart.clone();
+        cycleStart = first.clone().subtract(cycleLenSafe,'days');
+        cycleEndNextStart = first.clone();
+      }
+
+      const cycleLength = cycleEndNextStart ? cycleEndNextStart.diff(cycleStart,'days') : cycleLenSafe;
+      const pmsStart = (cycleLength - pmsWindow);
+      const dayOfCycle = dJ.diff(cycleStart,'days') + 1; // 1-based
+
+      if (dayOfCycle >= pmsStart+1 && dayOfCycle <= cycleLength) return 'pms';
+      return 'other';
     }
+
+    // 4) محاسبه‌ی وضعیت چرخه‌ها:
+    //   - طول هر سیکل کامل در بازه
+    //   - میانگین طول سیکل‌ها
+    //   - میانگین طول پریودها
+    const completedCycles = [];
+    for (let i=1;i<sortedHist.length;i++){
+      const prev = sortedHist[i-1].mStart.clone();
+      const cur  = sortedHist[i].mStart.clone();
+      // اگر «پایان سیکل» داخل بازه باشد، این سیکل را در نظر بگیر
+      if (cur.isSameOrAfter(startJ,'day') && cur.isSameOrBefore(endJ,'day')){
+        completedCycles.push({
+          start: prev, end: cur.clone().subtract(1,'day'),
+          cycleLength: cur.diff(prev,'days'),
+          periodLength: periodHistory[i-1].duration
+        });
+      }
+    }
+    const avgCycleInRange = completedCycles.length ? (completedCycles.reduce((s,c)=>s+c.cycleLength,0)/completedCycles.length) : null;
+    const avgPeriodInRange = completedCycles.length ? (completedCycles.reduce((s,c)=>s+c.periodLength,0)/completedCycles.length) : null;
+
+    // 5) شمارش علائم و حالات روحی (کلی/در پریود/در PMS) — محدود به ۲۰ مورد
+    function tallyStrings(arr){ const c={}; arr.forEach(v=>{ if(!v) return; (c[v]= (c[v]||0)+1);}); return c; }
+    function topN(counts, n=20){ return Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,n); }
+
+    const countsAll = { symptoms:{}, moods:{} };
+    const countsPeriod = { symptoms:{}, moods:{} };
+    const countsPms = { symptoms:{}, moods:{} };
+
+    logs.forEach(l=>{
+      const dJ = jalaliMoment(l.log_date,'YYYY-MM-DD').locale('fa');
+      const phase = getPhaseForDate(dJ);
+
+      const moods = Array.isArray(l.moods) ? l.moods : (l.moods ? [l.moods] : []);
+      const symptoms = Array.isArray(l.symptoms) ? l.symptoms : (l.symptoms ? [l.symptoms] : []);
+
+      // کلی
+      Object.assign(countsAll.symptoms, tallyStrings(symptoms));
+      Object.assign(countsAll.moods,    tallyStrings(moods));
+
+      // فازها
+      if (phase==='period') {
+        Object.assign(countsPeriod.symptoms, tallyStrings(symptoms));
+        Object.assign(countsPeriod.moods,    tallyStrings(moods));
+      } else if (phase==='pms') {
+        Object.assign(countsPms.symptoms, tallyStrings(symptoms));
+        Object.assign(countsPms.moods,    tallyStrings(moods));
+      }
+    });
+
+    // merge helper (برای شمارنده‌های مرحله‌ای)
+    function mergeCounts(target, src){
+      Object.entries(src).forEach(([k,v])=>{
+        target[k]=(target[k]||0)+v;
+      });
+    }
+    // شمارنده‌های بالا را باید جمع کنیم (چون چند بار Object.assign می‌شوند)
+    // ساده‌تر: از اول با حلقه بسازیم:
+    function buildCounts(logs, phaseFilter=null){
+      const c = {symptoms:{}, moods:{}};
+      logs.forEach(l=>{
+        const dJ = jalaliMoment(l.log_date,'YYYY-MM-DD').locale('fa');
+        const phase = getPhaseForDate(dJ);
+        if (phaseFilter && phase!==phaseFilter) return;
+        (Array.isArray(l.symptoms)? l.symptoms : (l.symptoms?[l.symptoms]:[]))
+          .forEach(s=> s && (c.symptoms[s]=(c.symptoms[s]||0)+1));
+        (Array.isArray(l.moods)? l.moods : (l.moods?[l.moods]:[]))
+          .forEach(s=> s && (c.moods[s]=(c.moods[s]||0)+1));
+      });
+      return c;
+    }
+    const cAll   = buildCounts(logs, null);
+    const cPer   = buildCounts(logs, 'period');
+    const cPms   = buildCounts(logs, 'pms');
+
+    // 6) ساخت PDF با PDFKit
+    const doc = new PDFDocument({ size: 'A4', margin: 36 });
+    const chunks = [];
+    doc.on('data', (c)=>chunks.push(c));
+    doc.on('end', async ()=>{
+      const buffer = Buffer.concat(chunks);
+      // 7) ارسال در تلگرام
+      try {
+        await bot.sendDocument(telegram_id, buffer, {
+          filename: `parinaz-report-${m}m.pdf`,
+          caption: `گزارش ${m===12?'۱ سال': m===6?'۶ ماه': m===3?'۳ ماه':'۱ ماه'}`
+        });
+        res.status(200).json({ message: 'گزارش PDF در تلگرام ارسال شد.' });
+      } catch (e) {
+        console.error('Telegram sendDocument error:', e);
+        res.status(500).json({ error: 'ارسال فایل از طریق ربات ناموفق بود.' });
+      }
+    });
+
+    // فونت فارسی
+    const fontPath = path.join(__dirname, 'public', 'Vazirmatn-Regular.ttf');
+    if (fs.existsSync(fontPath)) {
+      doc.font(fontPath);
+    }
+
+    // Helperهای طراحی
+    const title = (t) => { doc.moveDown(0.6).fontSize(16).fillColor('#111827').text(t, {align:'right'}); };
+    const box = (label, lines, color='#F3F4F6') => {
+      const startY = doc.y;
+      // پس‌زمینه
+      doc.rect(36, startY, doc.page.width-72, Math.max(44, 22*lines.length + 34))
+         .fill(color);
+      doc.fillColor('#111827').fontSize(12);
+      doc.text(label, 48, startY+10, {align:'right'});
+      lines.forEach((line, idx)=>{
+        doc.text(line, 48, startY+34 + (idx*18), {align:'right'});
+      });
+      doc.moveDown( (Math.max(44, 22*lines.length + 34))/18 );
+      doc.moveDown(0.2);
+      doc.fillColor('#000000');
+    };
+
+    // هدر
+    title('گزارش تحلیلی چرخه قاعدگی');
+    doc.fontSize(10).fillColor('#6B7280').text(`بازه: ${startJ.format('YYYY/MM/DD')} تا ${endJ.format('YYYY/MM/DD')}`, {align:'left'});
+    doc.moveDown(0.6).fillColor('#000');
+
+    // باکس‌ها
+    box('نام کاربر', [ (user.telegram_firstname || 'کاربر') ]);
+    const rangeText = `از تاریخ ${startJ.format('YYYY/MM/DD')} تا تاریخ ${endJ.format('YYYY/MM/DD')}`;
+    box('بازه گزارش', [ rangeText ]);
+
+    // وضعیت چرخه‌ها
+    const cycleLines = [];
+    // هر سیکل در بازه
+    completedCycles.forEach((c,idx)=>{
+      cycleLines.push(`سیکل ${idx+1}: ${c.start.format('YYYY/MM/DD')} تا ${c.end.format('YYYY/MM/DD')} — طول سیکل: ${c.cycleLength} روز — طول پریود: ${c.periodLength} روز`);
+    });
+    if (avgCycleInRange) cycleLines.push(`میانگین طول سیکل‌ها: ${avgCycleInRange.toFixed(1)} روز`);
+    if (avgPeriodInRange) cycleLines.push(`میانگین طول پریودها: ${avgPeriodInRange.toFixed(1)} روز`);
+    if (cycleLines.length===0) cycleLines.push('برای این بازه سیکل کامل ثبت نشده است.');
+    box('وضعیت چرخه‌های قاعدگی', cycleLines);
+
+    // تاپ ۲۰
+    const toLines = (pairs) => pairs.length ? pairs.map(([k,v])=>`${k}: ${v} بار`) : ['داده‌ای ثبت نشده است.'];
+    box('علائم پرتکرار (کلی)', toLines(topN(cAll.symptoms, 20)), '#FEF3F2');
+    box('حالات روحی پرتکرار (کلی)', toLines(topN(cAll.moods, 20)), '#EEF2FF');
+
+    box('علائم پرتکرار در حالت پریود', toLines(topN(cPer.symptoms, 20)), '#FFE4E6');
+    box('حالات روحی پرتکرار در حالت پریود', toLines(topN(cPer.moods, 20)), '#FFE4E6');
+
+    box('علائم پرتکرار در حالت PMS', toLines(topN(cPms.symptoms, 20)), '#FEF08A33');
+    box('حالات روحی پرتکرار در حالت PMS', toLines(topN(cPms.moods, 20)), '#FEF08A33');
+
+    doc.end();
+  } catch (error) {
+    console.error('[ERROR] report generation:', error);
+    res.status(500).json({ error: 'خطا در تولید گزارش.' });
+  } finally {
+    client.release();
+  }
 });
+
 
 // --- NOTIFICATION LOGIC ---
 const notifications = JSON.parse(fs.readFileSync(path.join(__dirname, 'notifications.json'), 'utf8'));
