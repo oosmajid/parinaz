@@ -11,6 +11,7 @@ const cron = require('node-cron');
 const moment = require('moment-timezone');
 const jalaliMoment = require('jalali-moment');
 require('moment-jalaali');
+const XLSX = require('xlsx');
 
 // --- START: BOT & DB Initialization ---
 types.setTypeParser(1082, (dateString) => dateString);
@@ -718,29 +719,6 @@ app.delete('/api/companion/:companion_id', async (req, res) => {
     }
 });
 
-const rtl = (s) => {
-  if (s === null || s === undefined) return '';
-  const str = String(s);
-
-  const toFaDigits = (t) => t.replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
-
-  // اگر ماژول متد reshape داشت، از همون استفاده کن؛
-  // اگر نبود و خود ماژول تابع بود (برخی فورک‌ها)، مستقیم صدا بزن.
-  const reshaper = arabicReshaper && typeof arabicReshaper.reshape === 'function'
-    ? (x) => arabicReshaper.reshape(x)
-    : (typeof arabicReshaper === 'function' ? arabicReshaper : (x) => x);
-
-  const reshaped = reshaper(toFaDigits(str));
-
-  const visual = (bidi && typeof bidi.fromString === 'function')
-  ? bidi.fromString(reshaped).reorder_visually().string
-  : reshaped; 
-  return visual;
-};
-
-// برای کوتاه‌نویسی: هر متنی که می‌خوای چاپ کنی از t() عبور بده
-const t = (s) => rtl(s);
-
 // START: REVISED PDF report endpoint
 app.post('/api/user/:telegram_id/report', async (req, res) => {
     const { telegram_id } = req.params;
@@ -837,34 +815,35 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
     };
 
     const bulletize = (arr) => arr.length ? arr.map(i => `• ${i}`).join('\n') : 'داده‌ای برای نمایش وجود ندارد.';
-
+    
+    // --- MAIN LOGIC ---
     try {
         // 1) User
         const uRes = await client.query('SELECT * FROM users WHERE telegram_id = $1', [telegram_id]);
         if (uRes.rows.length === 0) return res.status(404).json({ error: 'کاربر یافت نشد.' });
         const user = uRes.rows[0];
 
-        // 2) مرز بازه گزارش به میلادی
+        // 2) Report range
         const reportStartG = moment().subtract(Number(months || 1), 'months').startOf('day');
 
-        // 3) همه تاریخچه و همه لاگ‌ها را بگیر (بدون فیلتر تاریخ در SQL)
-        const histRes = await client.query('SELECT * FROM period_history WHERE user_id = $1 ORDER BY start_date DESC', [user.id]);
-        const logsRes = await client.query('SELECT * FROM daily_logs WHERE user_id = $1 ORDER BY log_date DESC', [user.id]);
+        // 3) Fetch all logs
+        const logsRes = await client.query('SELECT * FROM daily_logs WHERE user_id = $1 ORDER BY log_date ASC', [user.id]);
 
-        // 4) تاریخ‌ها را به میلادی نرمال کن
+        // 4) Filter logs
+        const logsInRange = logsRes.rows
+            .map(r => ({ ...r, log_g: toG(r.log_date) }))
+            .filter(r => moment(r.log_g).isSameOrAfter(reportStartG));
+        
+        // 5) Fetch all period history
+        const histRes = await client.query('SELECT * FROM period_history WHERE user_id = $1 ORDER BY start_date ASC', [user.id]);
         const historyG = histRes.rows
             .map(r => ({ ...r, start_g: toG(r.start_date) }))
             .filter(r => r.start_g);
 
-        const logsG = logsRes.rows
-            .map(r => ({ ...r, log_g: toG(r.log_date) }))
-            .filter(r => r.log_g);
-
-        // 5) حالا در Node فیلتر بازه را اعمال کن
+        // --- Generate and Send Text Report ---
+        
+        // Calculation for text report sections
         const historyInRange = historyG.filter(r => moment(r.start_g).isSameOrAfter(reportStartG));
-        const logsInRange = logsG.filter(r => moment(r.log_g).isSameOrAfter(reportStartG));
-
-        // 6) محاسبه چرخه‌ها (بین شروع‌ها)
         const sortedH = [...historyInRange].sort((a, b) => a.start_g - b.start_g);
         const cycles = [];
         if (sortedH.length > 1) {
@@ -877,13 +856,12 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
                     startFa: fmtFa(a),
                     endFa: fmtFa(end),
                     durationFa: toPersian(duration),
-                    startG: a.toDate(), // Add Gregorian start date
-                    durationG: duration // Add Gregorian duration
+                    startG: a.toDate(),
+                    durationG: duration
                 });
             }
         }
 
-        // 7) بازه‌های پریود (start + duration)
         const periods = sortedH.map(p => {
             const start = moment(p.start_g);
             const end = start.clone().add((p.duration || 0) - 1, 'days');
@@ -896,34 +874,19 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
             };
         });
 
-        // 8) علائم و حالات روحی پرتکرار (کلی، PMS، Period)
         const symptomCounts = {};
         const pmsSymptomCounts = {};
         const periodSymptomCounts = {};
-
         const moodCounts = {};
         const pmsMoodCounts = {};
         const periodMoodCounts = {};
 
-        // برای تشخیص Period، روزهای بین start و start+duration-1 را علامت بزنیم
-        const periodDaysSet = new Set();
-        sortedH.forEach(p => {
-            const s = moment(p.start_g).startOf('day');
-            const dur = Number(p.duration || 0);
-            for (let i = 0; i < dur; i++) {
-                periodDaysSet.add(s.clone().add(i, 'days').format('YYYY-MM-DD'));
-            }
-        });
-
-        // طول چرخه‌ی fallback (موقع محاسبه PMS)
         const fallBackCycleLen = Math.round(user.avg_cycle_length || user.cycle_length || 28);
         const symptomCategories = ['symptoms', 'breasts', 'discharge', 'hair', 'nails', 'skin', 'other'];
 
         logsInRange.forEach(log => {
-            const dayKey = moment(log.log_g).format('YYYY-MM-DD');
             const phase = getPhaseForDateG(log.log_g, sortedH, fallBackCycleLen);
 
-            // Process Symptoms
             symptomCategories.forEach(cat => {
                 if (log[cat]) {
                     const items = Array.isArray(log[cat]) ? log[cat] : [log[cat]];
@@ -935,7 +898,6 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
                 }
             });
 
-            // Process Moods
             if (log.moods && Array.isArray(log.moods)) {
                 log.moods.forEach(mood => {
                     moodCounts[mood] = (moodCounts[mood] || 0) + 1;
@@ -956,9 +918,8 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
         const periodSymptoms = top20(periodSymptomCounts);
         const allMoods = top20(moodCounts);
         const pmsMoods = top20(pmsMoodCounts);
-        const periodMoods = top20(periodMoodCounts);
+        const periodMoods = top20(periodMoods);
 
-        // 9) ساخت پیام‌ها
         const nameFa = user.telegram_firstname || 'کاربر گرامی';
         const rangeFromFa = fmtFa(reportStartG);
         const rangeToFa = fmtFa(moment());
@@ -1001,7 +962,6 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
         const periodMoodsSection =
             `<b>🩸 حالات روحی پرتکرار در حالت پریود</b>\n${bulletize(periodMoods)}`;
 
-        // 10) ارسال
         await sendInChunks(telegram_id, [header, '', cyclesSection, '', periodsSection].join('\n'), 'HTML');
         await sendInChunks(telegram_id, allSymptomsSection, 'HTML');
         await sendInChunks(telegram_id, allMoodsSection, 'HTML');
@@ -1010,10 +970,68 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
         await sendInChunks(telegram_id, periodSymptomsSection, 'HTML');
         await sendInChunks(telegram_id, periodMoodsSection, 'HTML');
 
-        res.status(200).json({ message: 'گزارش متنی با موفقیت برای شما ارسال شد.' });
+
+        // --- Generate Excel File ---
+        
+        // Map keys to their Persian titles
+        const logConfigTitles = {};
+        for (const cat in LOG_CONFIG) {
+            const category = LOG_CONFIG[cat];
+            for (const item in category.items) {
+                logConfigTitles[item] = category.items[item];
+            }
+        }
+
+        const flattenedData = [];
+        if (logsInRange.length > 0) {
+            
+            const allLogKeys = new Set(logsInRange.flatMap(log => Object.keys(log)));
+            const sortedLogKeys = Array.from(allLogKeys).filter(k => k !== 'id' && k !== 'user_id' && k !== 'created_at' && k !== 'log_date' && k !== 'log_g' && k !== 'notes').sort();
+            
+            const headers = ['تاریخ', 'فاز', ...sortedLogKeys.map(key => LOG_CONFIG.metrics.items[key]?.title || (Object.values(LOG_CONFIG).flatMap(c => c.items).find(item => Object.keys(LOG_CONFIG).some(cat => LOG_CONFIG[cat].items[key] === item)) || key))];
+            headers.push('توضیحات');
+
+            logsInRange.forEach(log => {
+                const row = {};
+                row['تاریخ'] = fmtFa(log.log_g);
+                row['فاز'] = getPhaseForDateG(log.log_g, historyG, user.avg_cycle_length || user.cycle_length);
+                row['توضیحات'] = log.notes || '';
+
+                sortedLogKeys.forEach(key => {
+                    let value = log[key];
+                    if (value !== null && value !== undefined) {
+                        const cellKey = LOG_CONFIG.metrics.items[key]?.title || logConfigTitles[key] || key;
+                        if (Array.isArray(value)) {
+                            row[cellKey] = value.map(item => LOG_CONFIG.moods.items[item] || LOG_CONFIG.symptoms.items[item] || LOG_CONFIG.activity.items[item] || LOG_CONFIG.breasts.items[item] || LOG_CONFIG.hair.items[item] || LOG_CONFIG.nails.items[item] || LOG_CONFIG.skin.items[item] || LOG_CONFIG.other.items[item] || item).join(', ');
+                        } else if (typeof value === 'string') {
+                             row[cellKey] = logConfigTitles[value] || value;
+                        } else if (typeof value === 'number') {
+                             row[cellKey] = value;
+                        }
+                    }
+                });
+                flattenedData.push(row);
+            });
+        }
+
+        const worksheet = XLSX.utils.json_to_sheet(flattenedData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Daily Report");
+        const filePath = path.join(__dirname, `report-${telegram_id}.xlsx`);
+        XLSX.writeFile(workbook, filePath);
+
+        // --- Send Excel File to Telegram ---
+        await bot.sendDocument(telegram_id, filePath, {
+            caption: 'گزارش روزانه شما آماده است.'
+        });
+
+        // Clean up the generated file
+        fs.unlinkSync(filePath);
+        
+        res.status(200).json({ message: 'گزارش با موفقیت برای شما ارسال شد.' });
 
     } catch (err) {
-        console.error('Error generating text report:', err);
+        console.error('Error generating report:', err);
         res.status(500).json({ error: 'خطایی در تهیه گزارش رخ داد.' });
     } finally {
         client.release();
