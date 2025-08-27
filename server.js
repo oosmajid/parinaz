@@ -13,7 +13,7 @@ const jalaliMoment = require('jalali-moment');
 require('moment-jalaali');
 const PDFDocument = require('pdfkit');
 const arabicReshaper = require('arabic-reshaper');
-const { bidi } = require('bidi-js');
+const bidi = require('bidi-js');
 
 // --- START: BOT & DB Initialization ---
 types.setTypeParser(1082, (dateString) => dateString);
@@ -735,7 +735,9 @@ const rtl = (s) => {
 
   const reshaped = reshaper(toFaDigits(str));
 
-  const visual = bidi.fromString(reshaped).reorder_visually().string;
+  const visual = (bidi && typeof bidi.fromString === 'function')
+  ? bidi.fromString(reshaped).reorder_visually().string
+  : reshaped; 
   return visual;
 };
 
