@@ -757,14 +757,17 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
     const periodStart = periodHistory.find(p => p.start_date === date);
     if (periodStart) return 'period';
 
-    const sortedHistory = [...periodHistory].sort((a, b) => moment(a.start_date).unix() - moment(b.start_date).unix());
+    const sortedHistory = [...periodHistory].sort((a, b) =>
+    jalaliMoment(a.start_date, 'jYYYY-jMM-jDD').toDate() -
+    jalaliMoment(b.start_date, 'jYYYY-jMM-jDD').toDate()
+ );
 
     let cycleStartDate;
     let cycleLength;
 
     for (let i = 0; i < sortedHistory.length - 1; i++) {
-      const currentPeriodStart = moment(sortedHistory[i].start_date);
-      const nextPeriodStart = moment(sortedHistory[i + 1].start_date);
+      const currentPeriodStart = jalaliMoment(sortedHistory[i].start_date, 'jYYYY-jMM-jDD');
+      const nextPeriodStart    = jalaliMoment(sortedHistory[i + 1].start_date, 'jYYYY-jMM-jDD');
       if (moment(date).isSameOrAfter(currentPeriodStart) && moment(date).isBefore(nextPeriodStart)) {
         cycleStartDate = currentPeriodStart;
         cycleLength = nextPeriodStart.diff(currentPeriodStart, 'days');
@@ -789,7 +792,7 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
     }
     const user = userRes.rows[0];
 
-    const monthsInt = Number(months) || 3;
+    const monthsInt = Number.isFinite(Number(months)) ? Number(months) : 1;
     const reportStartDate = moment().subtract(monthsInt, 'months').startOf('day');
     const logsRes = await client.query(
       'SELECT * FROM daily_logs WHERE user_id = $1 AND log_date >= $2',
@@ -882,14 +885,15 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
     };
 
     const sortedHistory = [...periodHistory].sort((a, b) =>
-    moment(a.start_date).unix() - moment(b.start_date).unix()
+    jalaliMoment(a.start_date, 'jYYYY-jMM-jDD').toDate() -
+    jalaliMoment(b.start_date, 'jYYYY-jMM-jDD').toDate()
     );
 
     const cycles = [];
     if (sortedHistory.length > 1) {
     for (let i = 0; i < sortedHistory.length - 1; i++) {
-        const start = moment(sortedHistory[i].start_date);
-        const next  = moment(sortedHistory[i + 1].start_date);
+        const start = jalaliMoment(sortedHistory[i].start_date, 'jYYYY-jMM-jDD');
+        const next  = jalaliMoment(sortedHistory[i + 1].start_date, 'jYYYY-jMM-jDD');
         const end   = next.clone().subtract(1, 'day');
         const duration = next.diff(start, 'days');
 
