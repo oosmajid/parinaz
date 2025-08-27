@@ -762,7 +762,7 @@ const scheduleDailyCycleChecks = () => {
 
             for (const user of users) {
                 const cycleLength = Math.round(user.avg_cycle_length || user.cycle_length);
-                const lastPeriodStart = user.last_period_date;
+                const lastPeriodStart = jalaliMoment(user.last_period_date, "YYYY-MM-DD");
 
                 if (!lastPeriodStart.isValid()) {
                     console.error(`Invalid last_period_date for user ${user.telegram_id}: ${user.last_period_date}`);
@@ -809,103 +809,210 @@ scheduleDailyCycleChecks();
 
 // *** END: REVISED NOTIFICATION LOGIC ***
 
+// --- TEST HELPERS (minimal & non-invasive) ---
 
-// --- NEW TEST ENDPOINT ---
-app.get('/api/test-notifications', async (req, res) => {
-    console.log('--- Running Manual Notification Test ---');
-    try {
-        // --- Daily Log Reminder Check ---
-        const todayGregorian = jalaliMoment().locale("fa").format("YYYY-MM-DD");
-        const logReminderQuery = `
-            SELECT u.telegram_id FROM users u
-            LEFT JOIN daily_logs dl ON u.id = dl.user_id AND dl.log_date = $1
-            WHERE u.reminder_logs = TRUE AND dl.id IS NULL;
-        `;
-        const { rows: logReminderUsers } = await pool.query(logReminderQuery, [todayGregorian]);
-        console.log(`Found ${logReminderUsers.length} users for log reminder.`);
-        logReminderUsers.forEach(user => {
-            bot.sendMessage(user.telegram_id, getRandomMessage('user', 'log_reminder'));
-        });
+/**
+ * اگر dryRun=true باشه فقط لاگ می‌کنه، وگرنه پیام رو می‌فرسته.
+ */
+const sendMaybe = async (chatId, text, dryRun = false) => {
+  if (dryRun) {
+    console.log(`[DRY] -> ${chatId}: ${text}`);
+    return;
+  }
+  try {
+    await bot.sendMessage(chatId, text);
+  } catch (e) {
+    console.error(`[ERROR] sendMessage to ${chatId}:`, e.message);
+  }
+};
 
-        // --- Companion Daily Summary Check ---
-        const companionSummaryQuery = `
-            SELECT 
-                c.companion_telegram_id, 
-                u.telegram_firstname,
-                dl.moods,
-                dl.symptoms
-            FROM companions c
-            JOIN users u ON c.user_id = u.id
-            JOIN daily_logs dl ON u.id = dl.user_id
-            WHERE c.notify_daily_symptoms = TRUE AND dl.log_date = $1;
-        `;
-        const { rows: summaryRows } = await pool.query(companionSummaryQuery, [todayGregorian]);
-        console.log(`Found ${summaryRows.length} companions for daily summary.`);
-        summaryRows.forEach(row => {
-            const moods = row.moods ? row.moods.join(', ') : 'ثبت نشده';
-            const symptoms = row.symptoms ? row.symptoms.join(', ') : 'ثبت نشده';
-            if(moods !== 'ثبت نشده' || symptoms !== 'ثبت نشده') {
-                let message = getRandomMessage('companion', 'daily_log_summary');
-                message = message.replace('{FIRST_NAME}', row.telegram_firstname).replace('{MOODS}', moods).replace('{SYMPTOMS}', symptoms);
-                bot.sendMessage(row.companion_telegram_id, message);
-            }
-        });
+/**
+ * اجرای منطق نوتیف چرخه برای یک تاریخ جلالی دلخواه (YYYY-MM-DD)
+ * بدون تغییر زمان‌بندی‌های cron اصلی
+ */
+const runCycleChecksForDate = async (dateJalali = null, dryRun = false) => {
+  try {
+    const { rows: users } = await pool.query(
+      `SELECT * FROM users WHERE last_period_date IS NOT NULL AND reminder_cycle = TRUE`
+    );
 
-        // --- Daily Cycle Checks ---
-        const cycleUsersQuery = `SELECT * FROM users WHERE last_period_date IS NOT NULL AND reminder_cycle = TRUE`;
-        const { rows: users } = await pool.query(cycleUsersQuery);
-        const todayJalali = jalaliMoment().locale("fa").format("YYYY-MM-DD");
-        console.log(`Checking cycle notifications for ${users.length} users.`);
+    // اگر تاریخ ندادیم، امروز جلالی
+    const todayJalali = dateJalali
+      ? jalaliMoment(dateJalali, "YYYY-MM-DD").locale("fa")
+      : jalaliMoment().locale("fa");
 
-        for (const user of users) {
-            const cycleLength = Math.round(user.avg_cycle_length || user.cycle_length);
-            const lastPeriodStart = user.last_period_date;
+    let notifiedCount = 0;
 
-            if (!lastPeriodStart.isValid()) {
-                console.error(`Invalid last_period_date for user ${user.telegram_id}: ${user.last_period_date}`);
-                continue;
-            }
+    for (const user of users) {
+      // توجه: last_period_date در DB به‌احتمال زیاد به صورت "YYYY-MM-DD" ذخیره می‌شه
+      const lastPeriodStart = jalaliMoment(user.last_period_date, "YYYY-MM-DD").locale("fa");
+      if (!lastPeriodStart.isValid()) {
+        console.error(`Invalid last_period_date for user ${user.telegram_id}: ${user.last_period_date}`);
+        continue;
+      }
 
-            const nextPeriodDate = lastPeriodStart.clone().add(cycleLength, 'days');
-            const pmsStartDate = nextPeriodDate.clone().subtract(4, 'days');
-            const lateDate = nextPeriodDate.clone().add(3, 'days');
+      const cycleLength = Math.round(user.avg_cycle_length || user.cycle_length);
+      if (!cycleLength || cycleLength <= 0) continue;
 
-            // 1. Pre-period warning (1 day before)
-            if (todayJalali.isSame(nextPeriodDate.clone().subtract(1, 'days'), 'day')) {
-                console.log(`Sending pre-period warning to user ${user.telegram_id}`);
-                bot.sendMessage(user.telegram_id, getRandomMessage('user', 'pre_period_warning'));
-                const companionsRes = await pool.query('SELECT companion_telegram_id FROM companions WHERE user_id = $1', [user.id]);
-                companionsRes.rows.forEach(c => bot.sendMessage(c.companion_telegram_id, getRandomMessage('companion', 'pre_period_warning').replace('{FIRST_NAME}', user.telegram_firstname)));
-            }
-            
-            // 2. Period day warning (on the predicted day)
-            if (todayJalali.isSame(nextPeriodDate, 'day')) {
-                 console.log(`Sending period day warning to user ${user.telegram_id}`);
-                 bot.sendMessage(user.telegram_id, getRandomMessage('user', 'period_day_warning'));
-            }
+      const nextPeriodDate = lastPeriodStart.clone().add(cycleLength, "days");
+      const pmsStartDate   = nextPeriodDate.clone().subtract(4, "days");
+      const lateDate       = nextPeriodDate.clone().add(3, "days");
 
-            // 3. PMS start (4 days before)
-            if (todayJalali.isSame(pmsStartDate, 'day')) {
-                console.log(`Sending PMS start warning to user ${user.telegram_id}`);
-                bot.sendMessage(user.telegram_id, getRandomMessage('user', 'pms_start'));
-                const companionsRes = await pool.query('SELECT companion_telegram_id FROM companions WHERE user_id = $1', [user.id]);
-                companionsRes.rows.forEach(c => bot.sendMessage(c.companion_telegram_id, getRandomMessage('companion', 'pms_start').replace('{FIRST_NAME}', user.telegram_firstname)));
-            }
-
-            // 4. Period is late by 3 days
-            if (todayJalali.isSame(lateDate, 'day')) {
-                console.log(`Sending period late warning to user ${user.telegram_id}`);
-                bot.sendMessage(user.telegram_id, getRandomMessage('user', 'period_late'));
-                const companionsRes = await pool.query('SELECT companion_telegram_id FROM companions WHERE user_id = $1', [user.id]);
-                companionsRes.rows.forEach(c => bot.sendMessage(c.companion_telegram_id, getRandomMessage('companion', 'period_late').replace('{FIRST_NAME}', user.telegram_firstname)));
-            }
+      // 1) یک روز قبل از پریود
+      if (todayJalali.isSame(nextPeriodDate.clone().subtract(1, "days"), "day")) {
+        await sendMaybe(user.telegram_id, getRandomMessage("user", "pre_period_warning"), dryRun);
+        const companionsRes = await pool.query(
+          "SELECT companion_telegram_id FROM companions WHERE user_id = $1",
+          [user.id]
+        );
+        for (const c of companionsRes.rows) {
+          const msg = getRandomMessage("companion", "pre_period_warning")
+            .replace("{FIRST_NAME}", user.telegram_firstname);
+          await sendMaybe(c.companion_telegram_id, msg, dryRun);
         }
-        res.status(200).send('Notification check triggered successfully!');
-    } catch (error) {
-        console.error('Error triggering test notifications:', error);
-        res.status(500).send('Failed to trigger notification check.');
+        notifiedCount++;
+      }
+
+      // 2) روز پیش‌بینی پریود
+      if (todayJalali.isSame(nextPeriodDate, "day")) {
+        await sendMaybe(user.telegram_id, getRandomMessage("user", "period_day_warning"), dryRun);
+        notifiedCount++;
+      }
+
+      // 3) شروع PMS (۴ روز قبل)
+      if (todayJalali.isSame(pmsStartDate, "day")) {
+        await sendMaybe(user.telegram_id, getRandomMessage("user", "pms_start"), dryRun);
+        const companionsRes = await pool.query(
+          "SELECT companion_telegram_id FROM companions WHERE user_id = $1",
+          [user.id]
+        );
+        for (const c of companionsRes.rows) {
+          const msg = getRandomMessage("companion", "pms_start")
+            .replace("{FIRST_NAME}", user.telegram_firstname);
+          await sendMaybe(c.companion_telegram_id, msg, dryRun);
+        }
+        notifiedCount++;
+      }
+
+      // 4) سه روز تأخیر
+      if (todayJalali.isSame(lateDate, "day")) {
+        await sendMaybe(user.telegram_id, getRandomMessage("user", "period_late"), dryRun);
+        const companionsRes = await pool.query(
+          "SELECT companion_telegram_id FROM companions WHERE user_id = $1",
+          [user.id]
+        );
+        for (const c of companionsRes.rows) {
+          const msg = getRandomMessage("companion", "period_late")
+            .replace("{FIRST_NAME}", user.telegram_firstname);
+          await sendMaybe(c.companion_telegram_id, msg, dryRun);
+        }
+        notifiedCount++;
+      }
     }
+
+    return { notifiedCount, date: todayJalali.format("YYYY-MM-DD") };
+  } catch (err) {
+    console.error("[TEST] Error in runCycleChecksForDate:", err);
+    throw err;
+  }
+};
+
+/**
+ * اجرای تست ریمایندر لاگ روزانه برای یک تاریخ جلالی دلخواه (همون کوئری کرون اصلی)
+ */
+const runLogReminderForDate = async (dateJalali = null, dryRun = false) => {
+  const date = dateJalali || jalaliMoment().locale("fa").format("YYYY-MM-DD");
+  const query = `
+    SELECT u.telegram_id
+    FROM users u
+    LEFT JOIN daily_logs dl ON u.id = dl.user_id AND dl.log_date = $1
+    WHERE u.reminder_logs = TRUE AND dl.id IS NULL;
+  `;
+  const { rows } = await pool.query(query, [date]);
+  for (const user of rows) {
+    await sendMaybe(user.telegram_id, getRandomMessage("user", "log_reminder"), dryRun);
+  }
+  return { sent: rows.length, date };
+};
+
+/**
+ * اجرای تست خلاصه روزانه برای همراه‌ها برای یک تاریخ جلالی دلخواه
+ */
+const runCompanionSummaryForDate = async (dateJalali = null, dryRun = false) => {
+  const date = dateJalali || jalaliMoment().locale("fa").format("YYYY-MM-DD");
+  const query = `
+    SELECT
+      c.companion_telegram_id,
+      u.telegram_firstname,
+      dl.moods,
+      dl.symptoms
+    FROM companions c
+    JOIN users u ON c.user_id = u.id
+    JOIN daily_logs dl ON u.id = dl.user_id
+    WHERE c.notify_daily_symptoms = TRUE AND dl.log_date = $1;
+  `;
+  const { rows } = await pool.query(query, [date]);
+  let sent = 0;
+  for (const row of rows) {
+    const moods = row.moods ? row.moods.join(", ") : "ثبت نشده";
+    const symptoms = row.symptoms ? row.symptoms.join(", ") : "ثبت نشده";
+    if (moods !== "ثبت نشده" || symptoms !== "ثبت نشده") {
+      let message = getRandomMessage("companion", "daily_log_summary");
+      message = message
+        .replace("{FIRST_NAME}", row.telegram_firstname)
+        .replace("{MOODS}", moods)
+        .replace("{SYMPTOMS}", symptoms);
+      await sendMaybe(row.companion_telegram_id, message, dryRun);
+      sent++;
+    }
+  }
+  return { sent, date };
+};
+
+// --- TEST ENDPOINTS ---
+
+/**
+ * POST /api/test/cycle-check
+ * body: { "date": "1403-06-10" (اختیاری، جلالی), "dryRun": true|false }
+ */
+app.post("/api/test/cycle-check", async (req, res) => {
+  try {
+    const { date, dryRun } = req.body || {};
+    const result = await runCycleChecksForDate(date, !!dryRun);
+    res.status(200).json({ ok: true, ...result });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
 });
+
+/**
+ * POST /api/test/log-reminder
+ * body: { "date": "1403-06-10" (اختیاری، جلالی), "dryRun": true|false }
+ */
+app.post("/api/test/log-reminder", async (req, res) => {
+  try {
+    const { date, dryRun } = req.body || {};
+    const result = await runLogReminderForDate(date, !!dryRun);
+    res.status(200).json({ ok: true, ...result });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+/**
+ * POST /api/test/companion-summary
+ * body: { "date": "1403-06-10" (اختیاری، جلالی), "dryRun": true|false }
+ */
+app.post("/api/test/companion-summary", async (req, res) => {
+  try {
+    const { date, dryRun } = req.body || {};
+    const result = await runCompanionSummaryForDate(date, !!dryRun);
+    res.status(200).json({ ok: true, ...result });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 
 app.listen(PORT, () => {
   console.log(`Server is running successfully on port ${PORT}`);
