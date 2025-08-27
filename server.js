@@ -14,7 +14,6 @@ const jalaliMoment = require('jalali-moment');
 require('moment-jalaali'); // adds jYYYY formats on moment
 const PdfPrinter = require('pdfmake');
 const { getBidiText } = require('bidi-js'); // اضافه کردن bidi-js
-const path = require('path');
 
 
 // --- START: BOT & DB Initialization ---
