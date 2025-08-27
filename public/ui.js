@@ -844,6 +844,16 @@ const renderAnalysis = (userData, charts) => {
     });
     });
 
+    const phaseTabs = Array.from(document.querySelectorAll('.analysis-tab.phase-tab'));
+    phaseTabs.forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+            phaseTabs.forEach(b=>b.classList.remove('active-tab'));
+            btn.classList.add('active-tab');
+            currentFilter.phase = btn.dataset.phase;
+            updateAnalysisCharts(currentFilter.months, currentFilter.phase);
+        });
+    });
+
     document.getElementById('export-pdf-btn').addEventListener('click', ()=>{
     window.app.exportToPDF(currentMonths);
     });
