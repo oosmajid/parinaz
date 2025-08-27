@@ -12,7 +12,12 @@ const moment = require('moment-timezone');
 const jalaliMoment = require('jalali-moment');
 require('moment-jalaali');
 const PDFDocument = require('pdfkit');
-const { buffer } = require('get-stream');
+let getStream;
+import('get-stream').then(module => {
+    getStream = module.default;
+}).catch(err => {
+    console.error('Failed to load get-stream ESM module:', err);
+});
 
 
 // --- START: BOT & DB Initialization ---
