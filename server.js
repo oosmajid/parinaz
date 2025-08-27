@@ -12,6 +12,8 @@ const moment = require('moment-timezone');
 const jalaliMoment = require('jalali-moment');
 require('moment-jalaali');
 const PDFDocument = require('pdfkit');
+const reshapeArabic = require('arabic-reshaper');
+const { bidi } = require('bidi-js');
 
 // --- START: BOT & DB Initialization ---
 types.setTypeParser(1082, (dateString) => dateString);
@@ -719,6 +721,25 @@ app.delete('/api/companion/:companion_id', async (req, res) => {
     }
 });
 
+const rtl = (s) => {
+  if (s === null || s === undefined) return '';
+  const str = String(s);
+
+  // تبدیل ارقام لاتین به فارسی (اختیاری ولی توصیه می‌شود)
+  const toFaDigits = (t) => t.replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
+
+  // 1) شکل‌دهی حروف عربی/فارسی (برای اتصال حروف)
+  const reshaped = reshapeArabic(toFaDigits(str));
+
+  // 2) مرتب‌سازی بصری مطابق الگوریتم دوجهته
+  const visual = bidi.fromString(reshaped).reorder_visually().string;
+
+  return visual;
+};
+
+// برای کوتاه‌نویسی: هر متنی که می‌خوای چاپ کنی از t() عبور بده
+const t = (s) => rtl(s);
+
 // START: REVISED PDF report endpoint
 app.post('/api/user/:telegram_id/report', async (req, res) => {
   const { telegram_id } = req.params;
@@ -764,14 +785,15 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
     }
     const user = userRes.rows[0];
 
-    const reportStartDate = moment().subtract(months, 'months').startOf('day');
+    const monthsInt = Number(months) || 3;
+    const reportStartDate = moment().subtract(monthsInt, 'months').startOf('day');
     const logsRes = await client.query(
       'SELECT * FROM daily_logs WHERE user_id = $1 AND log_date >= $2',
       [user.id, reportStartDate.format('YYYY-MM-DD')]
     );
     const historyRes = await client.query(
-      'SELECT * FROM period_history WHERE user_id = $1 AND start_date >= $2 ORDER BY start_date ASC',
-      [user.id, reportStartDate.format('YYYY-MM-DD')]
+    'SELECT * FROM period_history WHERE user_id = $1 ORDER BY start_date ASC',
+    [user.id]
     );
     const periodHistory = historyRes.rows;
     const dailyLogs = logsRes.rows;
@@ -793,21 +815,28 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
     doc.font('Vazirmatn');
 
     const generateTitle = () => {
-      const title = 'گزارش دوره قاعدگی';
-      doc.font('Vazirmatn-Bold').fontSize(24).fillColor('#E53F71').text(title, { align: 'center' });
-      doc.moveDown(0.5);
+        doc.font('Vazirmatn-Bold').fontSize(24).fillColor('#E53F71')
+            .text(t('گزارش دوره قاعدگی'), { align: 'center' });
+        doc.moveDown(0.5);
     };
 
     const generateUserInfo = () => {
-      const userName = user.telegram_firstname || 'کاربر گرامی';
-      const startDateJalali = jalaliMoment(reportStartDate).locale('fa').format('jD jMMMM jYYYY');
-      const endDateJalali = jalaliMoment().locale('fa').format('jD jMMMM jYYYY');
+        const userName = user.telegram_firstname || 'کاربر گرامی';
+        const startDateJalali = jalaliMoment(reportStartDate).locale('fa').format('jD jMMMM jYYYY');
+        const endDateJalali   = jalaliMoment().locale('fa').format('jD jMMMM jYYYY');
 
-      doc.font('Vazirmatn-Bold').fontSize(16).fillColor('#333').text(`نام: ${userName}`, { align: 'right' });
-      doc.moveDown(0.2);
-      doc.font('Vazirmatn').fontSize(12).fillColor('#666').text(`بازه گزارش: از ${startDateJalali} تا ${endDateJalali}`, { align: 'right' });
-      doc.moveDown(1);
+        doc.font('Vazirmatn-Bold').fontSize(16).fillColor('#333')
+            .text(t(`نام: ${userName}`), { align: 'right' });
+
+        doc.moveDown(0.2);
+
+        doc.font('Vazirmatn').fontSize(12).fillColor('#666')
+            .text(t(`بازه گزارش: از ${startDateJalali} تا ${endDateJalali}`), { align: 'right' });
+
+        doc.moveDown(1);
     };
+
+    doc.font('Vazirmatn').fontSize(12).text(t('---'), { align: 'center' });
 
     const generateSection = (title, content, color) => {
       doc.moveDown(1);
@@ -848,25 +877,30 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
       }
     };
 
-    const sortedHistory = [...periodHistory].sort((a, b) => moment(a.start_date).unix() - moment(b.start_date).unix());
+    const sortedHistory = [...periodHistory].sort((a, b) =>
+    moment(a.start_date).unix() - moment(b.start_date).unix()
+    );
+
     const cycles = [];
     if (sortedHistory.length > 1) {
-      for (let i = 0; i < sortedHistory.length - 1; i++) {
+    for (let i = 0; i < sortedHistory.length - 1; i++) {
         const start = moment(sortedHistory[i].start_date);
-        const end = moment(sortedHistory[i + 1].start_date).subtract(1, 'day');
-        const duration = start.diff(moment(sortedHistory[i + 1].start_date), 'days');
+        const next  = moment(sortedHistory[i + 1].start_date);
+        const end   = next.clone().subtract(1, 'day');
+        const duration = next.diff(start, 'days');
+
         cycles.push({
-          start: start.format('jD jMMMM jYYYY'),
-          end: end.format('jD jMMMM jYYYY'),
-          duration: Math.abs(duration),
+        start: rtl(jalaliMoment(start).locale('fa').format('jD jMMMM jYYYY')),
+        end:   rtl(jalaliMoment(end).locale('fa').format('jD jMMMM jYYYY')),
+        duration
         });
-      }
+    }
     }
 
     const periods = periodHistory.map(p => ({
-      start: jalaliMoment(p.start_date).locale('fa').format('jD jMMMM jYYYY'),
-      end: jalaliMoment(p.start_date).locale('fa').add(p.duration - 1, 'days').format('jD jMMMM jYYYY'),
-      duration: p.duration,
+    start: rtl(jalaliMoment(p.start_date).locale('fa').format('jD jMMMM jYYYY')),
+    end:   rtl(jalaliMoment(p.start_date).locale('fa').add(p.duration - 1, 'days').format('jD jMMMM jYYYY')),
+    duration: p.duration,
     }));
 
     const symptomCounts = {};
@@ -906,55 +940,75 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
     doc.font('Vazirmatn').fontSize(12).text('---', { align: 'center' });
 
     doc.moveDown(1);
-    doc.font('Vazirmatn-Bold').fontSize(14).fillColor('#333').text('طول چرخه‌ها', { align: 'right' });
+    doc.font('Vazirmatn-Bold').fontSize(14).fillColor('#333')
+    .text(t('طول چرخه‌ها'), { align: 'right' });
+
     if (cycles.length > 0) {
-      cycles.forEach(cycle => {
-        doc.font('Vazirmatn').fontSize(12).fillColor('#666').text(`از ${cycle.start} تا ${cycle.end}: ${toPersian(cycle.duration)} روز`, { align: 'right' });
+    cycles.forEach(cycle => {
+        doc.font('Vazirmatn').fontSize(12).fillColor('#666')
+        .text(t(`از ${cycle.start} تا ${cycle.end}: ${toPersian(cycle.duration)} روز`), { align: 'right' });
         doc.moveDown(0.2);
-      });
+    });
     } else {
-      doc.font('Vazirmatn').fontSize(12).fillColor('#999').text('اطلاعات کافی برای تحلیل طول چرخه‌ها وجود ندارد.', { align: 'right' });
+    doc.font('Vazirmatn').fontSize(12).fillColor('#999')
+        .text(t('اطلاعات کافی برای تحلیل طول چرخه‌ها وجود ندارد.'), { align: 'right' });
     }
 
     doc.moveDown(1);
-    doc.font('Vazirmatn-Bold').fontSize(14).fillColor('#333').text('طول پریودها', { align: 'right' });
+    doc.font('Vazirmatn-Bold').fontSize(14).fillColor('#333')
+    .text(t('طول پریودها'), { align: 'right' });
+
     if (periods.length > 0) {
-      periods.forEach(period => {
-        doc.font('Vazirmatn').fontSize(12).fillColor('#666').text(`از ${period.start} تا ${period.end}: ${toPersian(period.duration)} روز`, { align: 'right' });
+    periods.forEach(period => {
+        doc.font('Vazirmatn').fontSize(12).fillColor('#666')
+        .text(t(`از ${period.start} تا ${period.end}: ${toPersian(period.duration)} روز`), { align: 'right' });
         doc.moveDown(0.2);
-      });
+    });
     } else {
-      doc.font('Vazirmatn').fontSize(12).fillColor('#999').text('اطلاعات کافی برای تحلیل طول پریودها وجود ندارد.', { align: 'right' });
+    doc.font('Vazirmatn').fontSize(12).fillColor('#999')
+        .text(t('اطلاعات کافی برای تحلیل طول پریودها وجود ندارد.'), { align: 'right' });
     }
 
     doc.moveDown(1);
-    doc.font('Vazirmatn-Bold').fontSize(14).fillColor('#333').text('علائم پرتکرار (کلی)', { align: 'right' });
+    doc.font('Vazirmatn-Bold').fontSize(14).fillColor('#333')
+    .text(t('علائم پرتکرار (کلی)'), { align: 'right' });
+
     if (allSymptoms.length > 0) {
-      allSymptoms.forEach(symptom => {
-        doc.font('Vazirmatn').fontSize(12).fillColor('#666').text(`- ${symptom}`, { align: 'right' });
-      });
+    allSymptoms.forEach(symptom => {
+        doc.font('Vazirmatn').fontSize(12).fillColor('#666')
+        .text(t(`• ${symptom}`), { align: 'right' });
+    });
     } else {
-      doc.font('Vazirmatn').fontSize(12).fillColor('#999').text('داده‌ای برای نمایش وجود ندارد.', { align: 'right' });
+    doc.font('Vazirmatn').fontSize(12).fillColor('#999')
+        .text(t('داده‌ای برای نمایش وجود ندارد.'), { align: 'right' });
     }
 
     doc.moveDown(1);
-    doc.font('Vazirmatn-Bold').fontSize(14).fillColor('#333').text('علائم پرتکرار در حالت PMS', { align: 'right' });
+    doc.font('Vazirmatn-Bold').fontSize(14).fillColor('#333')
+    .text(t('علائم پرتکرار در حالت PMS'), { align: 'right' });
+
     if (pmsSymptoms.length > 0) {
-      pmsSymptoms.forEach(symptom => {
-        doc.font('Vazirmatn').fontSize(12).fillColor('#666').text(`- ${symptom}`, { align: 'right' });
-      });
+    pmsSymptoms.forEach(symptom => {
+        doc.font('Vazirmatn').fontSize(12).fillColor('#666')
+        .text(t(`• ${symptom}`), { align: 'right' });
+    });
     } else {
-      doc.font('Vazirmatn').fontSize(12).fillColor('#999').text('داده‌ای برای نمایش وجود ندارد.', { align: 'right' });
+    doc.font('Vazirmatn').fontSize(12).fillColor('#999')
+        .text(t('داده‌ای برای نمایش وجود ندارد.'), { align: 'right' });
     }
 
     doc.moveDown(1);
-    doc.font('Vazirmatn-Bold').fontSize(14).fillColor('#333').text('علائم پرتکرار در حالت پریود', { align: 'right' });
+    doc.font('Vazirmatn-Bold').fontSize(14).fillColor('#333')
+    .text(t('علائم پرتکرار در حالت پریود'), { align: 'right' });
+
     if (periodSymptoms.length > 0) {
-      periodSymptoms.forEach(symptom => {
-        doc.font('Vazirmatn').fontSize(12).fillColor('#666').text(`- ${symptom}`, { align: 'right' });
-      });
+    periodSymptoms.forEach(symptom => {
+        doc.font('Vazirmatn').fontSize(12).fillColor('#666')
+        .text(t(`• ${symptom}`), { align: 'right' });
+    });
     } else {
-      doc.font('Vazirmatn').fontSize(12).fillColor('#999').text('داده‌ای برای نمایش وجود ندارد.', { align: 'right' });
+    doc.font('Vazirmatn').fontSize(12).fillColor('#999')
+        .text(t('داده‌ای برای نمایش وجود ندارد.'), { align: 'right' });
     }
 
     // جایگزینی کدهای مربوط به stream
