@@ -14,6 +14,7 @@ require('moment-jalaali'); // adds jYYYY formats on moment
 const PdfPrinter = require('pdfmake');
 const bidiFactory = require('bidi-js');
 const bidiEngine = bidiFactory();
+const reshape = require('arabic-persian-reshaper');
 
 
 // --- START: BOT & DB Initialization ---
@@ -722,26 +723,35 @@ app.delete('/api/companion/:companion_id', async (req, res) => {
     }
 });
 
-const bidi = (s) => {
-  const text = String(s ?? '');
-
-  // 1) محاسبه‌ی سطوح bidi
-  const embedding = bidiEngine.getEmbeddingLevels(text); // {levels, paragraphs}
-
-  // 2) بازآرایی کاراکترها با توجه به محدوده‌های معکوس‌شونده
-  const chars = Array.from(text);
-  const flips = bidiEngine.getReorderSegments(text, embedding); // [ [start,end], ... ]
+const fa = (s) => {
+  const raw = String(s ?? '');
+  const shaped = reshape(raw);                // مرحله ۱: شکل‌دهی حروف
+  // مرحله ۲: bidi با engineای که ساختی
+  const embedding = bidiEngine.getEmbeddingLevels(shaped);
+  const chars = Array.from(shaped);
+  const flips = bidiEngine.getReorderSegments(shaped, embedding);
   flips.forEach(([start, end]) => {
     const slice = chars.slice(start, end + 1).reverse();
     for (let i = start; i <= end; i++) chars[i] = slice[i - start];
   });
-
-  // 3) آینه‌کردن کاراکترهای جفت‌نشان (مثل پرانتزها) در محدوده‌های RTL
-  const mirrors = bidiEngine.getMirroredCharactersMap(text, embedding); // Map<index, char>
+  const mirrors = bidiEngine.getMirroredCharactersMap(shaped, embedding);
   mirrors.forEach((replacement, idx) => { chars[idx] = replacement; });
-
   return chars.join('');
 };
+
+// helper لیست راست‌به‌چپ با بولتِ سمت راست
+const rtlList = (lines, boxFill) => ({
+  stack: lines.map(t => ({
+    text: fa(`• ${t}`),           // بولت را خودمان prepend می‌کنیم
+    margin: [0, 2, 0, 0],
+    alignment: 'right'
+  })),
+  style: 'box',
+  fillColor: boxFill
+});
+
+// تاریخ جلالی مطمئن
+const fmtJ = (mObj) => jalaliMoment(mObj.toDate()).format('jYYYY/jMM/jDD');
 
 // Modified PDF report endpoint
 app.post('/api/user/:telegram_id/report', async (req, res) => {
@@ -880,44 +890,52 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
     const SOFT_YELLOW = '#FFF7C2'; // جایگزین رنگ ۸رقمی
 
     const docDefinition = {
-      pageSize: 'A4',
-      pageMargins: [28, 28, 28, 28],
-      defaultStyle: { font: 'vazirmatn', alignment: 'right' },
-      content: [
-        { text: bidi('گزارش تحلیلی چرخه قاعدگی'), style: 'h1', margin: [0, 0, 0, 6] },
-        { text: bidi(`بازه: ${fmtJ(startG)} تا ${fmtJ(endG)}`), style: 'muted', margin: [0, 4, 0, 12] },
+        pageSize: 'A4',
+        pageMargins: [28, 28, 28, 28],
+        defaultStyle: { font: 'vazirmatn', alignment: 'right' },
+        content: [
+            { text: fa('گزارش تحلیلی چرخه قاعدگی'), style: 'h1', margin: [0, 0, 0, 6] },
+            { text: fa(`بازه: ${fmtJ(startG)} تا ${fmtJ(endG)}`), style: 'muted', margin: [0, 4, 0, 12] },
 
-        { text: bidi('نام کاربر'), style: 'boxTitle', margin: [0, 4, 0, 2] },
-        { text: bidi(user.telegram_firstname || 'کاربر'), style: 'box', fillColor: '#F3F4F6', margin: [0, 0, 0, 6] },
+            { text: fa('نام کاربر'), style: 'boxTitle', margin: [0, 4, 0, 2] },
+            { text: fa(user.telegram_firstname || 'کاربر'), style: 'box', fillColor: '#F3F4F6', margin: [0, 0, 0, 6] },
 
-        { text: bidi('وضعیت چرخه‌های قاعدگی'), style: 'boxTitle', margin: [0, 10, 0, 2] },
-        {
-          stack: cycleLines.length
-            ? cycleLines.map(l => ({ text: bidi(l) }))
-            : [{ text: bidi('برای این بازه سیکل کامل ثبت نشده است.') }],
-          style: 'box',
-          fillColor: '#F3F4F6'
+            { text: fa('وضعیت چرخه‌های قاعدگی'), style: 'boxTitle', margin: [0, 10, 0, 2] },
+            {
+            stack: cycleLines.length
+                ? cycleLines.map(l => ({ text: fa(l), alignment: 'right' }))
+                : [{ text: fa('برای این بازه سیکل کامل ثبت نشده است.'), alignment: 'right' }],
+            style: 'box',
+            fillColor: '#F3F4F6'
+            },
+
+            { text: fa('علائم پرتکرار (کلی)'), style: 'boxTitle', margin: [0, 10, 0, 2] },
+            rtlList(toLines(topN(cAll.symptoms, 20)), '#FEF3F2'),
+
+            { text: fa('حالات روحی پرتکرار (کلی)'), style: 'boxTitle', margin: [0, 10, 0, 2] },
+            rtlList(toLines(topN(cAll.moods, 20)), '#EEF2FF'),
+
+            { text: fa('علائم پرتکرار در حالت پریود'), style: 'boxTitle', margin: [0, 10, 0, 2] },
+            rtlList(toLines(topN(cPer.symptoms, 20)), '#FFE4E6'),
+
+            { text: fa('حالات روحی پرتکرار در حالت PMS'), style: 'boxTitle', margin: [0, 10, 0, 2] },
+            rtlList(toLines(topN(cPms.moods, 20)), '#FFF7C2'),
+        ],
+        styles: {
+            h1: { fontSize: 16, bold: true, color: '#111827' },
+            muted: { fontSize: 9, color: '#6B7280' },
+            boxTitle: { fontSize: 12, bold: true, color: '#111827' },
+            box: { fontSize: 11, margin: [8, 8, 8, 8] },
         },
-
-        { text: bidi('علائم پرتکرار (کلی)'), style: 'boxTitle', margin: [0, 10, 0, 2] },
-        { ul: toLines(topN(cAll.symptoms, 20)).map(t => bidi(t)), style: 'box', fillColor: '#FEF3F2' },
-
-        { text: bidi('حالات روحی پرتکرار (کلی)'), style: 'boxTitle', margin: [0, 10, 0, 2] },
-        { ul: toLines(topN(cAll.moods, 20)).map(t => bidi(t)), style: 'box', fillColor: '#EEF2FF' },
-
-        { text: bidi('علائم پرتکرار در حالت پریود'), style: 'boxTitle', margin: [0, 10, 0, 2] },
-        { ul: toLines(topN(cPer.symptoms, 20)).map(t => bidi(t)), style: 'box', fillColor: '#FFE4E6' },
-
-        { text: bidi('حالات روحی پرتکرار در حالت PMS'), style: 'boxTitle', margin: [0, 10, 0, 2] },
-        { ul: toLines(topN(cPms.moods, 20)).map(t => bidi(t)), style: 'box', fillColor: SOFT_YELLOW },
-      ],
-      styles: {
-        h1: { fontSize: 16, bold: true, color: '#111827' },
-        muted: { fontSize: 9, color: '#6B7280' },
-        boxTitle: { fontSize: 12, bold: true, color: '#111827' },
-        box: { fontSize: 11, margin: [8, 8, 8, 8] },
-      },
     };
+
+    // sanity check
+    console.log('counts', {
+    all: Object.keys(cAll.symptoms).length + Object.keys(cAll.moods).length,
+    per: Object.keys(cPer.symptoms).length + Object.keys(cPer.moods).length,
+    pms: Object.keys(cPms.symptoms || {}).length + Object.keys(cPms.moods).length,
+    });
+    console.log('cycleLines example:', cycleLines[0]);
 
     const pdfDoc = printer.createPdfKitDocument(docDefinition);
 
