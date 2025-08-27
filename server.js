@@ -979,29 +979,36 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
         const periodsSection =
             `<b>🩸 طول پریودها</b>\n` +
             (periods.length ? periods.sort((a, b) => b.startG - a.startG).map(p => {
-                const emoji = p.durationG > 12 ? '⚠️' : '';
+                const emoji = p.durationG > 10 ? '⚠️' : '';
                 return `• از ${p.startFa} تا ${p.endFa}: ${p.durationFa} روز ${emoji}`;
             }).join('\n') : 'داده‌ای برای نمایش وجود ندارد.');
 
         const allSymptomsSection =
             `<b>🩺 علائم پرتکرار (کلی)</b>\n${bulletize(allSymptoms)}`;
 
+        const allMoodsSection =
+            `<b>🩺 حالات روحی پرتکرار (کلی)</b>\n${bulletize(allMoods)}`;
+
         const pmsSymptomsSection =
-            `<b>😣 علائم پرتکرار در حالت پی‌ام‌اس</b>\n${bulletize(pmsSymptoms)}`;
+            `<b>🔸 علائم پرتکرار در حالت پی‌ام‌اس</b>\n${bulletize(pmsSymptoms)}`;
 
         const pmsMoodsSection =
-            `<b>😔 حالات روحی پرتکرار در حالت پی‌ام‌اس</b>\n${bulletize(pmsMoods)}`;
+            `<b>🔸 حالات روحی پرتکرار در حالت پی‌ام‌اس</b>\n${bulletize(pmsMoods)}`;
 
         const periodSymptomsSection =
             `<b>🩸 علائم پرتکرار در حالت پریود</b>\n${bulletize(periodSymptoms)}`;
 
         const periodMoodsSection =
-            `<b>😔 حالات روحی پرتکرار در حالت پریود</b>\n${bulletize(periodMoods)}`;
+            `<b>🩸 حالات روحی پرتکرار در حالت پریود</b>\n${bulletize(periodMoods)}`;
 
         // 10) ارسال
         await sendInChunks(telegram_id, [header, '', cyclesSection, '', periodsSection].join('\n'), 'HTML');
         await sendInChunks(telegram_id, allSymptomsSection, 'HTML');
-        await sendInChunks(telegram_id, [pmsSymptomsSection, '', periodSymptomsSection].join('\n'), 'HTML');
+        await sendInChunks(telegram_id, allMoodsSection, 'HTML');
+        await sendInChunks(telegram_id, pmsSymptomsSection, 'HTML');
+        await sendInChunks(telegram_id, pmsMoodsSection, 'HTML');
+        await sendInChunks(telegram_id, periodSymptomsSection, 'HTML');
+        await sendInChunks(telegram_id, periodMoodsSection, 'HTML');
 
         res.status(200).json({ message: 'گزارش متنی با موفقیت برای شما ارسال شد.' });
 
