@@ -13,7 +13,7 @@ const jalaliMoment = require('jalali-moment');
 require('moment-jalaali');
 const XLSX = require('xlsx');
 
-const { LOG_CONFIG } = require('./config.js');
+const { LOG_CONFIG } = require('./public/config.js');
 
 // --- START: BOT & DB Initialization ---
 types.setTypeParser(1082, (dateString) => dateString);
