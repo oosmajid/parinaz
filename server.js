@@ -876,7 +876,9 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
                 cycles.push({
                     startFa: fmtFa(a),
                     endFa: fmtFa(end),
-                    durationFa: toPersian(duration)
+                    durationFa: toPersian(duration),
+                    startG: a.toDate(), // Add Gregorian start date
+                    durationG: duration // Add Gregorian duration
                 });
             }
         }
@@ -889,13 +891,19 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
                 startFa: fmtFa(start),
                 endFa: fmtFa(end),
                 durationFa: toPersian(p.duration || 0),
+                startG: start.toDate(),
+                durationG: p.duration || 0
             };
         });
 
-        // 8) علائم پرتکرار (کلی، PMS، Period)
+        // 8) علائم و حالات روحی پرتکرار (کلی، PMS، Period)
         const symptomCounts = {};
-        const pmsCounts = {};
-        const periodCounts = {};
+        const pmsSymptomCounts = {};
+        const periodSymptomCounts = {};
+
+        const moodCounts = {};
+        const pmsMoodCounts = {};
+        const periodMoodCounts = {};
 
         // برای تشخیص Period، روزهای بین start و start+duration-1 را علامت بزنیم
         const periodDaysSet = new Set();
@@ -909,25 +917,32 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
 
         // طول چرخه‌ی fallback (موقع محاسبه PMS)
         const fallBackCycleLen = Math.round(user.avg_cycle_length || user.cycle_length || 28);
+        const symptomCategories = ['symptoms', 'breasts', 'discharge', 'hair', 'nails', 'skin', 'other'];
 
         logsInRange.forEach(log => {
             const dayKey = moment(log.log_g).format('YYYY-MM-DD');
-            const isPeriod = periodDaysSet.has(dayKey);
-            const phase = isPeriod ? 'period' : getPhaseForDateG(log.log_g, sortedH, fallBackCycleLen);
+            const phase = getPhaseForDateG(log.log_g, sortedH, fallBackCycleLen);
 
-            const list = [];
-            const symptomCategories = ['symptoms', 'breasts', 'discharge', 'hair', 'nails', 'skin'];
+            // Process Symptoms
             symptomCategories.forEach(cat => {
                 if (log[cat]) {
                     const items = Array.isArray(log[cat]) ? log[cat] : [log[cat]];
-                    list.push(...items);
+                    items.forEach(item => {
+                        symptomCounts[item] = (symptomCounts[item] || 0) + 1;
+                        if (phase === 'pms') pmsSymptomCounts[item] = (pmsSymptomCounts[item] || 0) + 1;
+                        if (phase === 'period') periodSymptomCounts[item] = (periodSymptomCounts[item] || 0) + 1;
+                    });
                 }
             });
-            list.forEach(s => {
-                symptomCounts[s] = (symptomCounts[s] || 0) + 1;
-                if (phase === 'pms') pmsCounts[s] = (pmsCounts[s] || 0) + 1;
-                if (phase === 'period') periodCounts[s] = (periodCounts[s] || 0) + 1;
-            });
+
+            // Process Moods
+            if (log.moods && Array.isArray(log.moods)) {
+                log.moods.forEach(mood => {
+                    moodCounts[mood] = (moodCounts[mood] || 0) + 1;
+                    if (phase === 'pms') pmsMoodCounts[mood] = (pmsMoodCounts[mood] || 0) + 1;
+                    if (phase === 'period') periodMoodCounts[mood] = (periodMoodCounts[mood] || 0) + 1;
+                });
+            }
         });
 
         const top20 = (counts) =>
@@ -937,8 +952,11 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
                 .map(([sym, cnt]) => `${sym} (${toPersian(cnt)} بار)`);
 
         const allSymptoms = top20(symptomCounts);
-        const pmsSymptoms = top20(pmsCounts);
-        const periodSymptoms = top20(periodCounts);
+        const pmsSymptoms = top20(pmsSymptomCounts);
+        const periodSymptoms = top20(periodSymptomCounts);
+        const allMoods = top20(moodCounts);
+        const pmsMoods = top20(pmsMoodCounts);
+        const periodMoods = top20(periodMoods);
 
         // 9) ساخت پیام‌ها
         const nameFa = user.telegram_firstname || 'کاربر گرامی';
@@ -953,11 +971,17 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
 
         const cyclesSection =
             `<b>🔁 طول چرخه‌ها</b>\n` +
-            (cycles.length ? cycles.map(c => `• از ${c.startFa} تا ${c.endFa}: ${c.durationFa} روز`).join('\n') : 'داده‌ای برای نمایش وجود ندارد.');
+            (cycles.length ? cycles.sort((a, b) => b.startG - a.startG).map(c => {
+                const emoji = c.durationG > 35 ? '⚠️' : '';
+                return `• از ${c.startFa} تا ${c.endFa}: ${c.durationFa} روز ${emoji}`;
+            }).join('\n') : 'داده‌ای برای نمایش وجود ندارد.');
 
         const periodsSection =
             `<b>🩸 طول پریودها</b>\n` +
-            (periods.length ? periods.map(p => `• از ${p.startFa} تا ${p.endFa}: ${p.durationFa} روز`).join('\n') : 'داده‌ای برای نمایش وجود ندارد.');
+            (periods.length ? periods.sort((a, b) => b.startG - a.startG).map(p => {
+                const emoji = p.durationG > 12 ? '⚠️' : '';
+                return `• از ${p.startFa} تا ${p.endFa}: ${p.durationFa} روز ${emoji}`;
+            }).join('\n') : 'داده‌ای برای نمایش وجود ندارد.');
 
         const allSymptomsSection =
             `<b>🩺 علائم پرتکرار (کلی)</b>\n${bulletize(allSymptoms)}`;
@@ -965,8 +989,14 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
         const pmsSymptomsSection =
             `<b>😣 علائم پرتکرار در حالت پی‌ام‌اس</b>\n${bulletize(pmsSymptoms)}`;
 
+        const pmsMoodsSection =
+            `<b>😔 حالات روحی پرتکرار در حالت پی‌ام‌اس</b>\n${bulletize(pmsMoods)}`;
+
         const periodSymptomsSection =
             `<b>🩸 علائم پرتکرار در حالت پریود</b>\n${bulletize(periodSymptoms)}`;
+
+        const periodMoodsSection =
+            `<b>😔 حالات روحی پرتکرار در حالت پریود</b>\n${bulletize(periodMoods)}`;
 
         // 10) ارسال
         await sendInChunks(telegram_id, [header, '', cyclesSection, '', periodsSection].join('\n'), 'HTML');
