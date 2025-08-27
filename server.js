@@ -12,13 +12,13 @@ const moment = require('moment-timezone');
 const jalaliMoment = require('jalali-moment');
 require('moment-jalaali');
 const PDFDocument = require('pdfkit');
-let getStream;
+// استفاده از import پویای ناهمگام برای حل مشکل سازگاری ماژول‌ها
+let getStreamBuffer;
 import('get-stream').then(module => {
-    getStream = module.default;
+    getStreamBuffer = module.default.buffer;
 }).catch(err => {
     console.error('Failed to load get-stream ESM module:', err);
 });
-
 
 // --- START: BOT & DB Initialization ---
 types.setTypeParser(1082, (dateString) => dateString);
@@ -795,8 +795,8 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
       },
     });
 
-    const fontPath = path.join(__dirname, 'public', 'Vazirmatn-Regular.ttf');
-    const fontPathBold = path.join(__dirname, 'public', 'Vazirmatn-Bold.ttf');
+    const fontPath = path.join(__dirname, 'fonts', 'Vazirmatn-Regular.ttf');
+    const fontPathBold = path.join(__dirname, 'fonts', 'Vazirmatn-Bold.ttf');
     doc.registerFont('Vazirmatn', fontPath);
     doc.registerFont('Vazirmatn-Bold', fontPathBold);
     doc.font('Vazirmatn');
@@ -980,7 +980,8 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
 
     doc.end();
 
-    pdfBuffer = await buffer(doc);
+    // استفاده از متغیر getStreamBuffer
+    pdfBuffer = await getStreamBuffer(doc);
 
     await bot.sendDocument(telegram_id, pdfBuffer, {}, {
       filename: `Parinaz-Report-${jalaliMoment().locale('fa').format('jYYYY-jMM-jDD')}.pdf`,
