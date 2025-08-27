@@ -24,3 +24,10 @@ const LOG_CONFIG = {
     other: { title: 'سایر', single: false, items: { 'مسافرت': '✈️', 'فشار شدید': '🤯', 'بیماری یا آسیب‌دیدگی': '🤒', 'مصرف الکل': '🍷' } },
 };
 const ALL_SYMPTOM_CATEGORIES = ['symptoms', 'libido', 'breasts', 'skin', 'hair', 'nails', 'discharge', 'other'];
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        LOG_CONFIG,
+        ALL_SYMPTOM_CATEGORIES
+    };
+}

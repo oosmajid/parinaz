@@ -730,39 +730,24 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
     // --- Utils ---
     const toPersian = num => String(num).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
 
-    // تاریخِ ورودی (string) را به Moment میلادی نرمال می‌کند
-    // ورودی می‌تواند جلالیِ 'jYYYY-MM-DD' یا میلادیِ 'YYYY-MM-DD' باشد.
     const toG = (str) => {
         if (!str) return null;
         const jalali = jalaliMoment(str, 'jYYYY-jM-jD');
-        if (jalali.isValid()) {
-            return jalali.toDate(); // Returns a standard JS Date object
-        }
+        if (jalali.isValid()) return jalali.toDate();
         const gregorian = moment(str, 'YYYY-MM-DD');
-        if (gregorian.isValid()) {
-            return gregorian.toDate(); // Returns a standard JS Date object
-        }
+        if (gregorian.isValid()) return gregorian.toDate();
         return null;
     };
 
-    const fmtFa = (dateG) => {
-        // نمایش جلالی خوش‌خوان
-        return jalaliMoment(dateG).locale('fa').format('jD jMMMM jYYYY');
-    };
+    const fmtFa = (dateG) => jalaliMoment(dateG).locale('fa').format('jD jMMMM jYYYY');
 
-    // تشخیص فاز (PMS/Period/Other) بر اساس تاریخ میلادی و تاریخچه (با تاریخ‌های میلادی)
     const getPhaseForDateG = (dateG, periodHistoryG, userCycleLen) => {
         const m = moment(dateG).startOf('day');
-        
-        // Check for Period
         if (periodHistoryG.some(p => moment(p.start_g).isSame(m, 'day') || (moment(p.start_g).isBefore(m) && moment(p.start_g).add(p.duration - 1, 'days').isSameOrAfter(m)))) {
             return 'period';
         }
-
-        // Find the cycle the date belongs to
         const sorted = [...periodHistoryG].sort((a, b) => a.start_g - b.start_g);
         let cycleStart = null, cycleLen = userCycleLen;
-
         for (let i = 0; i < sorted.length - 1; i++) {
             const a = moment(sorted[i].start_g).startOf('day');
             const b = moment(sorted[i + 1].start_g).startOf('day');
@@ -772,32 +757,24 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
                 break;
             }
         }
-        
-        // If no cycle found in between, use the last period start to calculate
         if (!cycleStart && sorted.length > 0 && m.isAfter(moment(sorted[sorted.length-1].start_g))) {
             cycleStart = moment(sorted[sorted.length-1].start_g);
-            // cycleLen remains the default userCycleLen
         }
-        
         if (!cycleStart) {
-            // If the date is before all recorded periods, calculate an approximate cycle start
             if (sorted.length > 0 && m.isBefore(moment(sorted[0].start_g))) {
                 const diffDays = moment(sorted[0].start_g).diff(m, 'days');
                 const numCycles = Math.ceil(diffDays / userCycleLen);
                 cycleStart = moment(sorted[0].start_g).subtract(numCycles * userCycleLen, 'days');
             } else {
-                return 'other'; // No relevant cycle found
+                return 'other';
             }
         }
-        
         const pmsStartDay = cycleLen - 4;
         const dayOfCycle = m.diff(cycleStart, 'days') + 1;
         if (dayOfCycle >= pmsStartDay && dayOfCycle <= cycleLen) return 'pms';
-        
         return 'other';
     };
 
-    // برای شکستن پیام‌های طولانی
     const sendInChunks = async (chatId, text, parse_mode = 'HTML') => {
         const LIMIT = 3800;
         if ((text || '').length <= LIMIT) {
@@ -820,31 +797,22 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
     
     // --- MAIN LOGIC ---
     try {
-        // 1) User
         const uRes = await client.query('SELECT * FROM users WHERE telegram_id = $1', [telegram_id]);
         if (uRes.rows.length === 0) return res.status(404).json({ error: 'کاربر یافت نشد.' });
         const user = uRes.rows[0];
 
-        // 2) Report range
         const reportStartG = moment().subtract(Number(months || 1), 'months').startOf('day');
-
-        // 3) Fetch all logs
         const logsRes = await client.query('SELECT * FROM daily_logs WHERE user_id = $1 ORDER BY log_date ASC', [user.id]);
-
-        // 4) Filter logs
         const logsInRange = logsRes.rows
             .map(r => ({ ...r, log_g: toG(r.log_date) }))
             .filter(r => moment(r.log_g).isSameOrAfter(reportStartG));
         
-        // 5) Fetch all period history
         const histRes = await client.query('SELECT * FROM period_history WHERE user_id = $1 ORDER BY start_date ASC', [user.id]);
         const historyG = histRes.rows
             .map(r => ({ ...r, start_g: toG(r.start_date) }))
             .filter(r => r.start_g);
 
         // --- Generate and Send Text Report ---
-        
-        // Calculation for text report sections
         const historyInRange = historyG.filter(r => moment(r.start_g).isSameOrAfter(reportStartG));
         const sortedH = [...historyInRange].sort((a, b) => a.start_g - b.start_g);
         const cycles = [];
@@ -852,43 +820,30 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
             for (let i = 0; i < sortedH.length - 1; i++) {
                 const a = moment(sortedH[i].start_g);
                 const b = moment(sortedH[i + 1].start_g);
-                const duration = b.diff(a, 'days');
-                const end = b.clone().subtract(1, 'day');
                 cycles.push({
                     startFa: fmtFa(a),
-                    endFa: fmtFa(end),
-                    durationFa: toPersian(duration),
+                    endFa: fmtFa(b.clone().subtract(1, 'day')),
+                    durationFa: toPersian(b.diff(a, 'days')),
                     startG: a.toDate(),
-                    durationG: duration
+                    durationG: b.diff(a, 'days')
                 });
             }
         }
+        const periods = sortedH.map(p => ({
+            startFa: fmtFa(moment(p.start_g)),
+            endFa: fmtFa(moment(p.start_g).clone().add((p.duration || 0) - 1, 'days')),
+            durationFa: toPersian(p.duration || 0),
+            startG: moment(p.start_g).toDate(),
+            durationG: p.duration || 0
+        }));
 
-        const periods = sortedH.map(p => {
-            const start = moment(p.start_g);
-            const end = start.clone().add((p.duration || 0) - 1, 'days');
-            return {
-                startFa: fmtFa(start),
-                endFa: fmtFa(end),
-                durationFa: toPersian(p.duration || 0),
-                startG: start.toDate(),
-                durationG: p.duration || 0
-            };
-        });
-
-        const symptomCounts = {};
-        const pmsSymptomCounts = {};
-        const periodSymptomCounts = {};
-        const moodCounts = {};
-        const pmsMoodCounts = {};
-        const periodMoodCounts = {};
-
+        const symptomCounts = {}, pmsSymptomCounts = {}, periodSymptomCounts = {};
+        const moodCounts = {}, pmsMoodCounts = {}, periodMoodCounts = {};
         const fallBackCycleLen = Math.round(user.avg_cycle_length || user.cycle_length || 28);
         const symptomCategories = ['symptoms', 'breasts', 'discharge', 'hair', 'nails', 'skin', 'other'];
 
         logsInRange.forEach(log => {
             const phase = getPhaseForDateG(log.log_g, sortedH, fallBackCycleLen);
-
             symptomCategories.forEach(cat => {
                 if (log[cat]) {
                     const items = Array.isArray(log[cat]) ? log[cat] : [log[cat]];
@@ -899,7 +854,6 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
                     });
                 }
             });
-
             if (log.moods && Array.isArray(log.moods)) {
                 log.moods.forEach(mood => {
                     moodCounts[mood] = (moodCounts[mood] || 0) + 1;
@@ -908,110 +862,56 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
                 });
             }
         });
-
-        const top20 = (counts) =>
-            Object.entries(counts)
-                .sort(([, a], [, b]) => b - a)
-                .slice(0, 20)
-                .map(([sym, cnt]) => `${sym} (${toPersian(cnt)} بار)`);
-
-        const allSymptoms = top20(symptomCounts);
-        const pmsSymptoms = top20(pmsSymptomCounts);
-        const periodSymptoms = top20(periodSymptomCounts);
-        const allMoods = top20(moodCounts);
-        const pmsMoods = top20(pmsMoodCounts);
-        const periodMoods = top20(periodMoodCounts);
-
+        const top20 = (counts) => Object.entries(counts).sort(([, a], [, b]) => b - a).slice(0, 20).map(([sym, cnt]) => `${sym} (${toPersian(cnt)} بار)`);
+        const allSymptoms = top20(symptomCounts), pmsSymptoms = top20(pmsSymptomCounts), periodSymptoms = top20(periodSymptomCounts);
+        const allMoods = top20(moodCounts), pmsMoods = top20(pmsMoodCounts), periodMoods = top20(periodMoodCounts);
         const nameFa = user.telegram_firstname || 'کاربر گرامی';
-        const rangeFromFa = fmtFa(reportStartG);
-        const rangeToFa = fmtFa(moment());
-
-        const header =
-            `<b>📑 گزارش دوره قاعدگی</b>\n` +
-            `👤 نام: <b>${nameFa}</b>\n\n` +
-            `<b>📆 بازه گزارش</b>\n` +
-            `از <b>${rangeFromFa}</b> تا <b>${rangeToFa}</b>`;
-
-        const cyclesSection =
-            `<b>🔁 طول چرخه‌ها</b>\n` +
-            (cycles.length ? cycles.sort((a, b) => b.startG - a.startG).map(c => {
-                const emoji = c.durationG > 35 ? '⚠️' : '';
-                return `• از ${c.startFa} تا ${c.endFa}: ${c.durationFa} روز ${emoji}`;
-            }).join('\n') : 'داده‌ای برای نمایش وجود ندارد.');
-
-        const periodsSection =
-            `<b>🩸 طول پریودها</b>\n` +
-            (periods.length ? periods.sort((a, b) => b.startG - a.startG).map(p => {
-                const emoji = p.durationG > 10 ? '⚠️' : '';
-                return `• از ${p.startFa} تا ${p.endFa}: ${p.durationFa} روز ${emoji}`;
-            }).join('\n') : 'داده‌ای برای نمایش وجود ندارد.');
-
-        const allSymptomsSection =
-            `<b>🩺 علائم پرتکرار (کلی)</b>\n${bulletize(allSymptoms)}`;
-
-        const allMoodsSection =
-            `<b>🩺 حالات روحی پرتکرار (کلی)</b>\n${bulletize(allMoods)}`;
-
-        const pmsSymptomsSection =
-            `<b>🔸 علائم پرتکرار در حالت پی‌ام‌اس</b>\n${bulletize(pmsSymptoms)}`;
-
-        const pmsMoodsSection =
-            `<b>🔸 حالات روحی پرتکرار در حالت پی‌ام‌اس</b>\n${bulletize(pmsMoods)}`;
-
-        const periodSymptomsSection =
-            `<b>🩸 علائم پرتکرار در حالت پریود</b>\n${bulletize(periodSymptoms)}`;
-
-        const periodMoodsSection =
-            `<b>🩸 حالات روحی پرتکرار در حالت پریود</b>\n${bulletize(periodMoods)}`;
-
+        const rangeFromFa = fmtFa(reportStartG), rangeToFa = fmtFa(moment());
+        const header = `<b>📑 گزارش دوره قاعدگی</b>\n👤 نام: <b>${nameFa}</b>\n\n<b>📆 بازه گزارش</b>\nاز <b>${rangeFromFa}</b> تا <b>${rangeToFa}</b>`;
+        const cyclesSection = `<b>🔁 طول چرخه‌ها</b>\n` + (cycles.length ? cycles.sort((a, b) => b.startG - a.startG).map(c => `• از ${c.startFa} تا ${c.endFa}: ${c.durationFa} روز ${c.durationG > 35 ? '⚠️' : ''}`).join('\n') : 'داده‌ای برای نمایش وجود ندارد.');
+        const periodsSection = `<b>🩸 طول پریودها</b>\n` + (periods.length ? periods.sort((a, b) => b.startG - a.startG).map(p => `• از ${p.startFa} تا ${p.endFa}: ${p.durationFa} روز ${p.durationG > 10 ? '⚠️' : ''}`).join('\n') : 'داده‌ای برای نمایش وجود ندارد.');
+        const allSymptomsSection = `<b>🩺 علائم پرتکرار (کلی)</b>\n${bulletize(allSymptoms)}`, allMoodsSection = `<b>🩺 حالات روحی پرتکرار (کلی)</b>\n${bulletize(allMoods)}`;
+        const pmsSymptomsSection = `<b>🔸 علائم پرتکرار در حالت پی‌ام‌اس</b>\n${bulletize(pmsSymptoms)}`, pmsMoodsSection = `<b>🔸 حالات روحی پرتکرار در حالت پی‌ام‌اس</b>\n${bulletize(pmsMoods)}`;
+        const periodSymptomsSection = `<b>🩸 علائم پرتکرار در حالت پریود</b>\n${bulletize(periodSymptoms)}`, periodMoodsSection = `<b>🩸 حالات روحی پرتکرار در حالت پریود</b>\n${bulletize(periodMoods)}`;
         await sendInChunks(telegram_id, [header, '', cyclesSection, '', periodsSection].join('\n'), 'HTML');
-        await sendInChunks(telegram_id, allSymptomsSection, 'HTML');
-        await sendInChunks(telegram_id, allMoodsSection, 'HTML');
-        await sendInChunks(telegram_id, pmsSymptomsSection, 'HTML');
-        await sendInChunks(telegram_id, pmsMoodsSection, 'HTML');
-        await sendInChunks(telegram_id, periodSymptomsSection, 'HTML');
-        await sendInChunks(telegram_id, periodMoodsSection, 'HTML');
+        await sendInChunks(telegram_id, allSymptomsSection, 'HTML'); await sendInChunks(telegram_id, allMoodsSection, 'HTML');
+        await sendInChunks(telegram_id, pmsSymptomsSection, 'HTML'); await sendInChunks(telegram_id, pmsMoodsSection, 'HTML');
+        await sendInChunks(telegram_id, periodSymptomsSection, 'HTML'); await sendInChunks(telegram_id, periodMoodsSection, 'HTML');
 
-
-        // --- Generate Excel File ---
-        
-        // Map keys to their Persian titles
-        const logConfigTitles = {};
-        for (const cat in LOG_CONFIG) {
-            const category = LOG_CONFIG[cat];
-            for (const item in category.items) {
-                logConfigTitles[item] = category.items[item];
-            }
-        }
-
+        // --- REFACTORED: Generate Excel File ---
         const flattenedData = [];
         if (logsInRange.length > 0) {
-            
+            const getHeaderTitle = (key) => {
+                if (LOG_CONFIG.metrics && LOG_CONFIG.metrics.items[key]) {
+                    return LOG_CONFIG.metrics.items[key].title;
+                }
+                if (LOG_CONFIG[key] && LOG_CONFIG[key].title) {
+                    return LOG_CONFIG[key].title;
+                }
+                return key;
+            };
+
             const allLogKeys = new Set(logsInRange.flatMap(log => Object.keys(log)));
-            const sortedLogKeys = Array.from(allLogKeys).filter(k => k !== 'id' && k !== 'user_id' && k !== 'created_at' && k !== 'log_date' && k !== 'log_g' && k !== 'notes').sort();
-            
-            const headers = ['تاریخ', 'فاز', ...sortedLogKeys.map(key => LOG_CONFIG.metrics.items[key]?.title || (Object.values(LOG_CONFIG).flatMap(c => c.items).find(item => Object.keys(LOG_CONFIG).some(cat => LOG_CONFIG[cat].items[key] === item)) || key))];
-            headers.push('توضیحات');
+            const sortedLogKeys = Array.from(allLogKeys)
+                .filter(k => !['id', 'user_id', 'created_at', 'log_date', 'log_g', 'notes'].includes(k))
+                .sort();
 
             logsInRange.forEach(log => {
                 const row = {};
                 row['تاریخ'] = fmtFa(log.log_g);
                 row['فاز'] = getPhaseForDateG(log.log_g, historyG, user.avg_cycle_length || user.cycle_length);
-                row['توضیحات'] = log.notes || '';
 
                 sortedLogKeys.forEach(key => {
-                    let value = log[key];
+                    const headerTitle = getHeaderTitle(key);
+                    const value = log[key];
                     if (value !== null && value !== undefined) {
-                        const cellKey = LOG_CONFIG.metrics.items[key]?.title || logConfigTitles[key] || key;
-                        if (Array.isArray(value)) {
-                            row[cellKey] = value.map(item => LOG_CONFIG.moods.items[item] || LOG_CONFIG.symptoms.items[item] || LOG_CONFIG.activity.items[item] || LOG_CONFIG.breasts.items[item] || LOG_CONFIG.hair.items[item] || LOG_CONFIG.nails.items[item] || LOG_CONFIG.skin.items[item] || LOG_CONFIG.other.items[item] || item).join(', ');
-                        } else if (typeof value === 'string') {
-                             row[cellKey] = logConfigTitles[value] || value;
-                        } else if (typeof value === 'number') {
-                             row[cellKey] = value;
-                        }
+                        row[headerTitle] = Array.isArray(value) ? value.join(', ') : value;
+                    } else {
+                        row[headerTitle] = '';
                     }
                 });
+
+                row['توضیحات'] = log.notes || '';
                 flattenedData.push(row);
             });
         }
@@ -1022,12 +922,7 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
         const filePath = path.join(__dirname, `report-${telegram_id}.xlsx`);
         XLSX.writeFile(workbook, filePath);
 
-        // --- Send Excel File to Telegram ---
-        await bot.sendDocument(telegram_id, filePath, {
-            caption: 'گزارش روزانه شما آماده است.'
-        });
-
-        // Clean up the generated file
+        await bot.sendDocument(telegram_id, filePath, { caption: 'گزارش کامل شما آماده است.' });
         fs.unlinkSync(filePath);
         
         res.status(200).json({ message: 'گزارش با موفقیت برای شما ارسال شد.' });
@@ -1039,7 +934,6 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
         client.release();
     }
 });
-
 // END: REVISED PDF report endpoint
 
 
