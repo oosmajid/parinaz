@@ -765,34 +765,45 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
     });
 
     function getPhaseForDate(dG) {
-      const key = dG.format('YYYY-MM-DD');
-      if (periodDaysSet.has(key)) return 'period';
-      if (sortedHist.length === 0) return 'other';
+        const key = dG.format('YYYY-MM-DD');
+        if (periodDaysSet.has(key)) return 'period';
 
-      let cycleStart = null;
-      let cycleEndNextStart = null;
+        if (sortedHist.length === 0) return 'other';
 
-      for (let i = 0; i < sortedHist.length; i++) {
-        const cur = sortedHist[i].mStart.clone();
-        const next = sortedHist[i + 1]?.mStart ? sortedHist[i + 1].mStart.clone() : null;
-        if (dG.isSameOrAfter(cur, 'day') && (!next || dG.isBefore(next, 'day'))) {
-          cycleStart = cur.clone();
-          cycleEndNextStart = next;
-          break;
+        let cycleStart = null;
+        let cycleLength;
+
+        // 1. Find the cycle the log date belongs to
+        for (let i = 0; i < sortedHist.length; i++) {
+            const currentPeriodStart = sortedHist[i].mStart.clone();
+            const nextPeriodStart = sortedHist[i + 1]?.mStart ? sortedHist[i + 1].mStart.clone() : null;
+
+            if (dG.isSameOrAfter(currentPeriodStart, 'day') && (!nextPeriodStart || dG.isBefore(nextPeriodStart, 'day'))) {
+                cycleStart = currentPeriodStart;
+                cycleLength = nextPeriodStart ? nextPeriodStart.diff(currentPeriodStart, 'days') : cycleLenSafe;
+                break;
+            }
         }
-      }
-      if (!cycleStart) {
-        const first = sortedHist[0].mStart.clone();
-        cycleStart = first.clone().subtract(cycleLenSafe, 'days');
-        cycleEndNextStart = first.clone();
-      }
 
-      const cycleLength = cycleEndNextStart ? cycleEndNextStart.diff(cycleStart, 'days') : cycleLenSafe;
-      const pmsStart = (cycleLength - pmsWindow);
-      const dayOfCycle = dG.diff(cycleStart, 'days') + 1;
+        // 2. If the date is before the first recorded period, estimate the cycle
+        if (!cycleStart && dG.isBefore(sortedHist[0].mStart.clone(), 'day')) {
+            const firstPeriodStart = sortedHist[0].mStart.clone();
+            cycleLength = sortedHist.length > 1 ? sortedHist[1].mStart.diff(firstPeriodStart, 'days') : cycleLenSafe;
+            let estimatedCycleStart = firstPeriodStart.clone().subtract(cycleLength, 'days');
+            while (dG.isBefore(estimatedCycleStart, 'day')) {
+                estimatedCycleStart.subtract(cycleLength, 'days');
+            }
+            cycleStart = estimatedCycleStart;
+        }
 
-      if (dayOfCycle >= pmsStart + 1 && dayOfCycle <= cycleLength) return 'pms';
-      return 'other';
+        if (!cycleStart) return 'other';
+
+        const pmsStart = Math.max(1, cycleLength - pmsWindow);
+        const dayOfCycle = dG.diff(cycleStart, 'days') + 1;
+
+        if (dayOfCycle >= pmsStart && dayOfCycle <= cycleLength) return 'pms';
+
+        return 'other';
     }
 
     // 4) وضعیت چرخه‌ها در بازه
