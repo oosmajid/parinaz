@@ -836,8 +836,8 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
     // 6) PDF (pdfmake)
     const fonts = {
       vazirmatn: {
-        normal: path.join(__dirname, 'public/fonts/Vazirmatn-Regular.ttf'),
-        bold: path.join(__dirname, 'public/fonts/Vazirmatn-Bold.ttf'),
+        normal: path.join(__dirname, 'public/Vazirmatn-Regular.ttf'),
+        bold: path.join(__dirname, 'public/Vazirmatn-Bold.ttf'),
       }
     };
     const printer = new PdfPrinter(fonts);
