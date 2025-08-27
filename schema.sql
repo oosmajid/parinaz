@@ -1,54 +1,51 @@
--- SQL Schema for Parinaz App (Updated)
+-- SQL Schema for Parinaz App (Jalali dates stored as TEXT)
 
--- جدول اول: برای نگهداری اطلاعات پایه هر کاربر
--- این جدول اطلاعاتی را ذخیره می‌کند که معمولاً تغییر نمی‌کنند
+-- جدول کاربران
 CREATE TABLE users (
-    id SERIAL PRIMARY KEY,                      -- یک شماره شناسایی منحصر به فرد و خودکار برای هر کاربر
-    telegram_id BIGINT UNIQUE NOT NULL,         -- شناسه تلگرام کاربر برای شناسایی او در مراجعات بعدی
-    telegram_username TEXT,                     -- نام کاربری تلگرام برای نمایش
-    telegram_firstname TEXT,                    -- نام تلگرام کاربر
-    
-    -- تنظیمات اولیه یا دستی کاربر
-    cycle_length INT NOT NULL DEFAULT 28,       -- طول سیکل قاعدگی (پیش‌فرض ۲۸ روز)
-    period_length INT NOT NULL DEFAULT 7,       -- طول دوره پریود (پیش‌فرض ۷ روز)
-    
-    -- آخرین تاریخ پریود ثبت شده برای دسترسی سریع
-    last_period_date DATE NULL,
-    birth_year INT,                             -- سال تولد کاربر
-    
-    -- میانگین‌های محاسبه‌شده بر اساس تاریخچه برای پیش‌بینی دقیق‌تر
+    id SERIAL PRIMARY KEY,
+    telegram_id BIGINT UNIQUE NOT NULL,
+    telegram_username TEXT,
+    telegram_firstname TEXT,
+
+    cycle_length INT NOT NULL DEFAULT 28,
+    period_length INT NOT NULL DEFAULT 7,
+
+    -- تاریخ آخرین پریود (جلالی)
+    last_period_date TEXT,
+
+    birth_year INT,
+
     avg_cycle_length NUMERIC(5, 2),
     avg_period_length NUMERIC(5, 2),
 
-    -- تنظیمات اعلان‌ها
     reminder_logs BOOLEAN NOT NULL DEFAULT TRUE,
     reminder_cycle BOOLEAN NOT NULL DEFAULT TRUE,
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW() -- تاریخ و زمان ایجاد حساب کاربری
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- جدول جدید: برای ذخیره تاریخچه پریودها و یادگیری سیستم
+-- تاریخچه پریودها
 CREATE TABLE period_history (
     id SERIAL PRIMARY KEY,
-    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- اتصال به کاربر (اگر کاربر حذف شد، رکوردهای اینجا هم حذف شود)
-    start_date DATE,                   -- تاریخ شروع پریود
-    duration INT NOT NULL,                      -- مدت زمان این پریود خاص (به روز)
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    start_date TEXT,   -- تاریخ شروع پریود (جلالی)
+    duration INT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (user_id, start_date)                -- هر کاربر نمی‌تواند دو پریود با تاریخ شروع یکسان داشته باشد
+    UNIQUE (user_id, start_date)
 );
 
--- جدول همراهان
+-- همراهان
 CREATE TABLE companions (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     companion_telegram_id BIGINT NOT NULL,
-    name TEXT, -- Optional, for display purposes
+    name TEXT,
     notify_daily_symptoms BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (user_id, companion_telegram_id) -- A user can't add the same companion twice
+    UNIQUE (user_id, companion_telegram_id)
 );
 
--- جدول توکن‌های دعوت همراه
+-- توکن‌های دعوت همراه
 CREATE TABLE companion_invites (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -58,37 +55,32 @@ CREATE TABLE companion_invites (
     expires_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '24 hours')
 );
 
-
--- جدول دوم: برای نگهداری گزارش‌های روزانه هر کاربر
--- این جدول تمام علائم و مقادیری که کاربر هر روز ثبت می‌کند را ذخیره می‌کند
+-- گزارش‌های روزانه
 CREATE TABLE daily_logs (
-    id SERIAL PRIMARY KEY,                      -- شماره شناسایی منحصر به فرد برای هر گزارش
-    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,  -- اتصال این گزارش به یک کاربر در جدول users
-    log_date DATE NOT NULL,                     -- تاریخی که این گزارش برای آن ثبت شده است
-    
-    -- اطلاعات متریک (عددی)
-    weight NUMERIC(5, 2),                       -- وزن (مثلا 65.50)
-    water INT,                                  -- تعداد لیوان آب
-    sleep NUMERIC(4, 2),                        -- ساعات خواب (مثلا 7.5)
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    log_date TEXT NOT NULL,  -- تاریخ جلالی
 
-    -- اطلاعات انتخابی (چیپ‌ها)
-    sex TEXT,                                   -- وضعیت رابطه جنسی
-    libido TEXT,                                -- وضعیت میل جنسی
-    moods TEXT[],                               -- لیستی از حالات روحی (آرایه)
-    symptoms TEXT[],                            -- لیستی از علائم فیزیکی (آرایه)
-    activity TEXT[],                            -- لیستی از فعالیت‌های فیزیکی (آرایه)
-    breasts TEXT[],                             -- لیستی از وضعیت پستان (آرایه)
-    discharge TEXT,                             -- وضعیت ترشحات واژن
-    blood_color TEXT,                           -- رنگ خون پریود
-    flow TEXT,                                  -- شدت خونریزی
-    hair TEXT[],                                -- لیستی از وضعیت مو (آرایه)
-    nails TEXT[],                               -- لیستی از وضعیت ناخن (آرایه)
-    skin TEXT[],                                -- لیستی از وضعیت پوست (آرایه)
-    other TEXT[],                               -- لیستی از موارد دیگر (آرایه)
-    
-    -- توضیحات متنی
-    notes TEXT,                                 -- یادداشت‌های متنی کاربر
+    weight NUMERIC(5, 2),
+    water INT,
+    sleep NUMERIC(4, 2),
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- تاریخ و زمان ثبت این گزارش
-    UNIQUE (user_id, log_date)                  -- هر کاربر در هر روز فقط می‌تواند یک گزارش داشته باشد
+    sex TEXT,
+    libido TEXT,
+    moods TEXT[],
+    symptoms TEXT[],
+    activity TEXT[],
+    breasts TEXT[],
+    discharge TEXT,
+    blood_color TEXT,
+    flow TEXT,
+    hair TEXT[],
+    nails TEXT[],
+    skin TEXT[],
+    other TEXT[],
+
+    notes TEXT,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (user_id, log_date)
 );
