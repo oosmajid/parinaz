@@ -14,7 +14,7 @@ require('moment-jalaali'); // adds jYYYY formats on moment
 const PdfPrinter = require('pdfmake');
 const bidiFactory = require('bidi-js');
 const bidiEngine = bidiFactory();
-const { reshape } = require('arabic-persian-reshaper');
+const reshape = require('arabic-reshaper');
 
 
 // --- START: BOT & DB Initialization ---
@@ -749,9 +749,6 @@ const rtlList = (lines, boxFill) => ({
   style: 'box',
   fillColor: boxFill
 });
-
-// تاریخ جلالی مطمئن
-const fmtJ = (mObj) => jalaliMoment(mObj.toDate()).format('jYYYY/jMM/jDD');
 
 // Modified PDF report endpoint
 app.post('/api/user/:telegram_id/report', async (req, res) => {
