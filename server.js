@@ -492,7 +492,6 @@ app.post('/api/user/:telegram_id/period', async (req, res) => {
         
         // Notify companions that period has started
         const todayJalali = jalaliMoment().locale("fa").format("YYYY-MM-DD");
-        console.log('Today Jalali:', todayJalali, 'Start Date:', start_date);
         if (start_date === todayJalali) {
             const companionsRes = await client.query('SELECT companion_telegram_id FROM companions WHERE user_id = $1', [userId]);
             companionsRes.rows.forEach(c => {
@@ -709,7 +708,7 @@ const scheduleRandomly = (cronExpression, task) => {
 // Daily Log Reminder (18:00 - 21:00) - No changes needed here, kept for context
 scheduleRandomly(`${Math.floor(Math.random() * 60)} ${Math.floor(Math.random() * 4) + 18} * * *`, async () => {
     // گرفتن تاریخ امروز به فرمت میلادی برای مقایسه با دیتابیس
-    const todayGregorian = moment().tz('Asia/Tehran').format('YYYY-MM-DD');
+    const todayGregorian = jalaliMoment().locale("fa").format("YYYY-MM-DD");
     
     const query = `
         SELECT u.telegram_id FROM users u
@@ -724,7 +723,7 @@ scheduleRandomly(`${Math.floor(Math.random() * 60)} ${Math.floor(Math.random() *
 
 // Companion daily summary (21:00 - 22:00) - No changes needed here, kept for context
 scheduleRandomly(`${Math.floor(Math.random() * 60)} 21 * * *`, async () => {
-    const today = moment().tz('Asia/Tehran').format('YYYY-MM-DD');
+    const today = jalaliMoment().locale("fa").format("YYYY-MM-DD");
     const query = `
         SELECT 
             c.companion_telegram_id, 
@@ -763,7 +762,7 @@ const scheduleDailyCycleChecks = () => {
 
             for (const user of users) {
                 const cycleLength = Math.round(user.avg_cycle_length || user.cycle_length);
-                const lastPeriodStart = jalaliMoment(user.last_period_date, 'YYYY-MM-DD');
+                const lastPeriodStart = user.last_period_date;
 
                 if (!lastPeriodStart.isValid()) {
                     console.error(`Invalid last_period_date for user ${user.telegram_id}: ${user.last_period_date}`);
