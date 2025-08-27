@@ -12,10 +12,7 @@ const moment = require('moment-timezone');
 const jalaliMoment = require('jalali-moment');
 require('moment-jalaali');
 const PDFDocument = require('pdfkit');
-let getStream;
-import('get-stream').then(module => {
-  getStream = module.default;
-});
+const { buffer } = require('get-stream');
 
 
 // --- START: BOT & DB Initialization ---
@@ -978,7 +975,7 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
 
     doc.end();
 
-    pdfBuffer = await getStream.buffer(doc);
+    pdfBuffer = await buffer(doc);
 
     await bot.sendDocument(telegram_id, pdfBuffer, {}, {
       filename: `Parinaz-Report-${jalaliMoment().locale('fa').format('jYYYY-jMM-jDD')}.pdf`,
