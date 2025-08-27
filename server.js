@@ -491,7 +491,7 @@ app.post('/api/user/:telegram_id/period', async (req, res) => {
         );
         
         // Notify companions that period has started
-        const todayJalali = jalaliMoment().locale("fa").format("DD-MM-YYYY");
+        const todayJalali = jalaliMoment().locale("fa").format("YYYY-MM-DD");
         console.log('Today Jalali:', todayJalali, 'Start Date:', start_date);
         if (start_date === todayJalali) {
             const companionsRes = await client.query('SELECT companion_telegram_id FROM companions WHERE user_id = $1', [userId]);
