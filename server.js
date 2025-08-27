@@ -721,7 +721,14 @@ app.delete('/api/companion/:companion_id', async (req, res) => {
 
 // Modified PDF report endpoint
 app.post('/api/user/:telegram_id/report', async (req, res) => {
-    bot.sendMessage(user.telegram_id, 'قابلیت گزارش در حال توسعه است.');
+  const { telegram_id } = req.params;
+  try {
+    await bot.sendMessage(telegram_id, 'قابلیت گزارش در دست توسعه است');
+    return res.status(200).json({ message: 'پیام ارسال شد.' });
+  } catch (err) {
+    console.error('Error sending simple report message:', err);
+    return res.status(500).json({ error: 'ارسال پیام ناموفق بود.' });
+  }
 });
 
 
