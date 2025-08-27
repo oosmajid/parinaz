@@ -14,7 +14,7 @@ require('moment-jalaali'); // adds jYYYY formats on moment
 const PdfPrinter = require('pdfmake');
 const bidiFactory = require('bidi-js');
 const bidiEngine = bidiFactory();
-const reshape = require('arabic-persian-reshaper');
+const { reshape } = require('arabic-persian-reshaper');
 
 
 // --- START: BOT & DB Initialization ---
