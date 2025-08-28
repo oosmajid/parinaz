@@ -500,7 +500,7 @@ document.addEventListener('DOMContentLoaded', function() {
             renderDatePicker() {
                 const { currentDate, targetInputId, periodHistory } = datepickerState;
                 const targetInput = document.getElementById(targetInputId);
-                const selectedDate = targetInput.dataset.value ? moment(targetInput.dataset.value, 'jYYYY-jMM-jDD').locale('fa') : null;
+                const selectedDate = targetInput.dataset.value ? moment(targetInput.dataset.value, 'YYYY-MM-DD').locale('fa') : null;
                 const monthStart = currentDate.clone().startOf('jMonth');
                 const today = moment().locale('fa');
 
@@ -533,7 +533,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     // *** END: MODIFICATION ***
 
-                    const clickHandler = isDisabled ? '' : `onclick="window.app.selectDate('${dayMoment.format('jYYYY-jMM-jDD')}')"`;
+                    const clickHandler = isDisabled ? '' : `onclick="window.app.selectDate('${dayMoment.format('YYYY-MM-DD')}')"`;
                     html += `<div class="${classes}" ${clickHandler}>${toPersian(i)}</div>`;
                 }
                 html += `</div>`;
