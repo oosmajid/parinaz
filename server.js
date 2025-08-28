@@ -836,33 +836,47 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
             .filter(r => moment(r.log_date).isSameOrAfter(reportStartG));
         
         const histRes = await client.query('SELECT * FROM period_history WHERE user_id = $1 ORDER BY start_date ASC', [user.id]);
-        const historyG = histRes.rows
-            .filter(r => r.start_date);
+        const allHistoryG = histRes.rows.map(r => ({...r, start_g: toG(r.start_date)})).filter(r => r.start_g);
 
-        // --- Generate and Send Text Report ---
-        const historyInRange = historyG.filter(r => moment(r.start_g).isSameOrAfter(reportStartG));
-        const sortedH = [...historyInRange].sort((a, b) => a.start_g - b.start_g);
+        // --- BUG FIX #1 START: CORRECTLY CALCULATE CYCLES FOR TEXT REPORT ---
+        const lastPeriodBeforeRange = [...allHistoryG]
+            .filter(p => moment(p.start_g).isBefore(reportStartG))
+            .pop();
+        
+        const periodsInRange = allHistoryG.filter(p => moment(p.start_g).isSameOrAfter(reportStartG));
+        
+        const historyForCycleCalc = [];
+        if (lastPeriodBeforeRange) {
+            historyForCycleCalc.push(lastPeriodBeforeRange);
+        }
+        historyForCycleCalc.push(...periodsInRange);
+
         const cycles = [];
-        if (sortedH.length > 1) {
-            for (let i = 0; i < sortedH.length - 1; i++) {
-                const a = moment(sortedH[i].start_g);
-                const b = moment(sortedH[i + 1].start_g);
-                cycles.push({
-                    startFa: fmtFa(a),
-                    endFa: fmtFa(b.clone().subtract(1, 'day')),
-                    durationFa: toPersian(b.diff(a, 'days')),
-                    startG: a.toDate(),
-                    durationG: b.diff(a, 'days')
-                });
+        if (historyForCycleCalc.length > 1) {
+            for (let i = 0; i < historyForCycleCalc.length - 1; i++) {
+                const a = moment(historyForCycleCalc[i].start_g);
+                const b = moment(historyForCycleCalc[i + 1].start_g);
+                // Only include cycles that END within the report's time frame.
+                if (b.isSameOrAfter(reportStartG)) {
+                    cycles.push({
+                        startFa: fmtFa(a),
+                        endFa: fmtFa(b.clone().subtract(1, 'day')),
+                        durationFa: toPersian(b.diff(a, 'days')),
+                        startG: a.toDate(),
+                        durationG: b.diff(a, 'days')
+                    });
+                }
             }
         }
-        const periods = sortedH.map(p => ({
+        
+        const periods = periodsInRange.map(p => ({
             startFa: fmtFa(moment(p.start_g)),
             endFa: fmtFa(moment(p.start_g).clone().add((p.duration || 0) - 1, 'days')),
             durationFa: toPersian(p.duration || 0),
             startG: moment(p.start_g).toDate(),
             durationG: p.duration || 0
         }));
+        // --- BUG FIX #1 END ---
 
         const symptomCounts = {}, pmsSymptomCounts = {}, periodSymptomCounts = {};
         const moodCounts = {}, pmsMoodCounts = {}, periodMoodCounts = {};
@@ -870,7 +884,7 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
         const symptomCategories = ['symptoms', 'breasts', 'discharge', 'hair', 'nails', 'skin', 'other'];
 
         logsInRange.forEach(log => {
-            const phase = getPhaseForDateG(log.log_g, sortedH, fallBackCycleLen);
+            const phase = getPhaseForDateG(log.log_g, allHistoryG, fallBackCycleLen);
             symptomCategories.forEach(cat => {
                 if (log[cat]) {
                     const items = Array.isArray(log[cat]) ? log[cat] : [log[cat]];
@@ -926,7 +940,7 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
             logsInRange.forEach(log => {
                 const row = {};
                 row['تاریخ'] = fmtFa(log.log_g);
-                row['فاز'] = getPhaseForDateG(log.log_g, historyG, user.avg_cycle_length || user.cycle_length);
+                row['فاز'] = getPhaseForDateG(log.log_g, allHistoryG, user.avg_cycle_length || user.cycle_length);
 
                 sortedLogKeys.forEach(key => {
                     const headerTitle = getHeaderTitle(key);

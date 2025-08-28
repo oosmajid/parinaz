@@ -594,7 +594,9 @@ const renderSettings = (userData) => {
 
 const renderAnalysis = (userData, charts) => {
     render(templates.analysis());
+    // --- BUG FIX #2 START: CONSOLIDATE FILTERS ---
     let currentFilter = { months: 1, phase: 'all' };
+    // --- BUG FIX #2 END ---
     
     const createBarChart = (canvasId, data, label) => {
         const container = document.getElementById(canvasId)?.parentElement;
@@ -813,50 +815,31 @@ const renderAnalysis = (userData, charts) => {
         createLineChart('sleep-chart', processMetricLogs('sleep'), 'خواب', 'ساعت');
     };
 
-    // const tabs = document.querySelectorAll('.analysis-tab');
-    // tabs.forEach(tab => {
-    //     tab.addEventListener('click', () => {
-    //         if (tab.classList.contains('time-tab')) {
-    //             document.querySelectorAll('.time-tab').forEach(t => t.classList.remove('active-tab'));
-    //             currentFilter.months = parseInt(tab.dataset.months);
-    //         }
-    //         if (tab.classList.contains('phase-tab')) {
-    //             document.querySelectorAll('.phase-tab').forEach(t => t.classList.remove('active-tab'));
-    //             currentFilter.phase = tab.dataset.phase;
-    //         }
-    //         tab.classList.add('active-tab');
-    //         updateAnalysisCharts(currentFilter.months, currentFilter.phase);
-    //     });
-    // });
-
-    // document.getElementById('export-XLSX-btn').addEventListener('click', () => {
-    //     window.app.exportToXLSX(currentFilter.months);
-    // });
-
-    const tabs = Array.from(document.querySelectorAll('.analysis-tab.time-tab'));
-    let currentMonths = 1;
-    tabs.forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-        tabs.forEach(b=>b.classList.remove('active-tab'));
-        btn.classList.add('active-tab');
-        currentMonths = parseInt(btn.dataset.months, 10);
-        updateAnalysisCharts(currentMonths, currentFilter.phase); // موجود در کدت
-    });
-    });
-
-    const phaseTabs = Array.from(document.querySelectorAll('.analysis-tab.phase-tab'));
-    phaseTabs.forEach(btn=>{
-        btn.addEventListener('click', ()=>{
-            phaseTabs.forEach(b=>b.classList.remove('active-tab'));
-            btn.classList.add('active-tab');
-            currentFilter.phase = btn.dataset.phase;
+    // --- BUG FIX #2 START: REVISED EVENT LISTENERS ---
+    const timeTabs = document.querySelectorAll('.analysis-tab.time-tab');
+    timeTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            timeTabs.forEach(t => t.classList.remove('active-tab'));
+            tab.classList.add('active-tab');
+            currentFilter.months = parseInt(tab.dataset.months, 10);
             updateAnalysisCharts(currentFilter.months, currentFilter.phase);
         });
     });
 
-    document.getElementById('export-XLSX-btn').addEventListener('click', ()=>{
-    window.app.exportToXLSX(currentMonths);
+    const phaseTabs = document.querySelectorAll('.analysis-tab.phase-tab');
+    phaseTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            phaseTabs.forEach(t => t.classList.remove('active-tab'));
+            tab.classList.add('active-tab');
+            currentFilter.phase = tab.dataset.phase;
+            updateAnalysisCharts(currentFilter.months, currentFilter.phase);
+        });
     });
+
+    document.getElementById('export-XLSX-btn').addEventListener('click', () => {
+        window.app.exportToXLSX(currentFilter.months);
+    });
+    // --- BUG FIX #2 END ---
 
     updateAnalysisCharts(currentFilter.months, currentFilter.phase);
     document.getElementById('settings-btn').classList.add('hidden');
