@@ -290,9 +290,9 @@ app.post('/api/onboarding', async (req, res) => {
     let message = result.rowCount > 0 ? 'کاربر با موفقیت ایجاد یا به‌روزرسانی شد' : 'کاربر از قبل وجود داشت';
 
     if (result.rowCount > 0) {
-    await client.query(
-        'INSERT INTO period_history (user_id, start_date, duration) VALUES ($1, $2, $3) ON CONFLICT (user_id, start_date) DO NOTHING',
-        [user.id, lastPeriodGregorian, user.period_length]
+       await client.query(
+            'INSERT INTO period_history (user_id, start_date, duration) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+            [user.id, lastPeriodGregorian, user.period_length]
         );
     }
     
