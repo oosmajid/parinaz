@@ -490,7 +490,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // *** START: MODIFICATION to accept period history ***
             openDatePicker(targetInputId, periodHistory = []) {
                 const targetInput = document.getElementById(targetInputId);
-                const initialDate = targetInput.dataset.value ? moment(targetInput.dataset.value, 'YYYY-MM-DD').locale('fa') : moment().locale('fa');
+                const initialDate = targetInput.dataset.value ? moment(targetInput.dataset.value, 'YYYY-MM-DD') : moment().locale('fa');
                 datepickerState.targetInputId = targetInputId;
                 datepickerState.currentDate = initialDate.clone();
                 datepickerState.periodHistory = periodHistory; // Store history
