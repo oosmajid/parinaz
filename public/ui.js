@@ -466,8 +466,8 @@ const renderCalendar = (calendarDate, userData) => {
     for (let i = 0; i < monthStart.jDay(); i++) { calendarGrid.innerHTML += '<div></div>'; }
     
     for (let day = monthStart.clone(); day.isSameOrBefore(monthEnd); day.add(1, 'days')) {
-        // const dayKey = moment.from(day.format('YYYY-MM-DD'), "fa", "jYYYY-jMM-jDD").format("YYYY-MM-DD");
-        const dayKey = day.format('YYYY-MM-DD');
+        const dayKey = moment.from(day.format('YYYY-MM-DD'), "fa", "jYYYY-jMM-jDD").format("YYYY-MM-DD");
+        // const dayKeyGreg = day.format('YYYY-MM-DD');
         const canLog = day.isSameOrBefore(moment(), 'day');
         
         let phaseInfo = { class: 'normal-day' };
