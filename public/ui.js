@@ -6,9 +6,7 @@
  * @returns {string} The Persian string representation of the number.
  */
 window.toPersian = num => num.toString().replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
-
-moment().locale('fa');
-
+moment.locale('fa');
 // --- NEW: Flag to control the initial animation ---
 let isFirstRender = true;
 
