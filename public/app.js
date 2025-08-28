@@ -500,7 +500,7 @@ document.addEventListener('DOMContentLoaded', function() {
             renderDatePicker() {
                 const { currentDate, targetInputId, periodHistory } = datepickerState;
                 const targetInput = document.getElementById(targetInputId);
-                const selectedDate = targetInput.dataset.value ? moment(targetInput.dataset.value, 'YYYY-MM-DD').locale('fa') : null;
+                const selectedDate = targetInput.dataset.value ? moment(targetInput.dataset.value, 'jYYYY-jMM-jDD').locale('fa') : null;
                 const monthStart = currentDate.clone().startOf('jMonth');
                 const today = moment().locale('fa');
 
@@ -545,7 +545,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 this.renderDatePicker();
             },
             selectDate(dateStr) {
-                const selectedMoment = moment(dateStr, 'YYYY-MM-DD');
+                const selectedMoment = moment(dateStr, 'jYYYY-jMM-jDD');
                 const targetInput = document.getElementById(datepickerState.targetInputId);
                 targetInput.value = toPersian(selectedMoment.locale('fa').format('jYYYY/jM/jD'));
                 targetInput.dataset.value = selectedMoment.format('YYYY-MM-DD');
