@@ -570,8 +570,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 dateInput.addEventListener('click', () => window.app.openDatePicker('edit-period-date-input', userData.period_history));
                 // *** END: MODIFICATION ***
 
-                const today = moment();
-                dateInput.value = toPersian(today.locale('fa').format('YYYY/M/D'));
+                const today = moment().locale('fa');
+                dateInput.value = toPersian(today.format('jYYYY/jM/jD'));
                 dateInput.dataset.value = today.format('YYYY-MM-DD');
                 const lengthSlider = document.getElementById('edit-period-length');
                 const lengthValueSpan = document.getElementById('edit-period-length-value');
