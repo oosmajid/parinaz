@@ -466,13 +466,11 @@ const renderCalendar = (calendarDate, userData) => {
     for (let i = 0; i < monthStart.jDay(); i++) { calendarGrid.innerHTML += '<div></div>'; }
     
     for (let day = monthStart.clone(); day.isSameOrBefore(monthEnd); day.add(1, 'days')) {
-        const dayKey = day.format('YYYY-MM-DD');
-        // const dayKey = moment.from(day.format('YYYY-MM-DD'), "fa", "jYYYY-jMM-jDD").format("YYYY-MM-DD");
+        const dayKey = moment.from(day.format('YYYY-MM-DD'), "fa", "jYYYY-jMM-jDD").format("YYYY-MM-DD");
         const canLog = day.isSameOrBefore(moment(), 'day');
         
         let phaseInfo = { class: 'normal-day' };
-        const asArray = Array.from(recordedPeriodDays);
-        console.log(asArray[1], dayKey, recordedPeriodDays.has(dayKey), userData.period_history);
+        
         if (recordedPeriodDays.has(dayKey)) {
             phaseInfo = { class: 'period-day' };
         } else if (isPastMonth && hasRecordInMonth) {
@@ -487,7 +485,6 @@ const renderCalendar = (calendarDate, userData) => {
         if (!canLog) classes += ' disabled';
         
         const logData = userData.logs?.[dayKey];
-        // console.log(userData.logs["2025-08-27"], dayKey, logData);
         const hasLog = logData && Object.values(logData).some(v => (Array.isArray(v) && v.length > 0) || (typeof v === 'string' && v) || (typeof v === 'number' && v !== ''));
         const logIndicator = hasLog ? '<div class="log-indicator"></div>' : '';
         const clickHandler = canLog ? `onclick="window.app.openLogModal('${dayKey}')"` : '';
