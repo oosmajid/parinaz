@@ -78,8 +78,8 @@ const templates = {
                             <button data-months="12" class="analysis-tab time-tab px-4 py-2 font-semibold">۱ سال</button>
                         </div>
                     </div>
-                    <button id="export-pdf-btn" class="w-full flex justify-between items-center text-right p-3 bg-gray-100 text-gray-700 rounded-lg font-medium text-sm hover:bg-gray-200 transition-colors">
-                        <span>دانلود گزارش به صورت pdf</span>
+                    <button id="export-XLSX-btn" class="w-full flex justify-between items-center text-right p-3 bg-gray-100 text-gray-700 rounded-lg font-medium text-sm hover:bg-gray-200 transition-colors">
+                        <span>دانلود گزارش به صورت اکسل</span>
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                         </svg>
@@ -829,8 +829,8 @@ const renderAnalysis = (userData, charts) => {
     //     });
     // });
 
-    // document.getElementById('export-pdf-btn').addEventListener('click', () => {
-    //     window.app.exportToPDF(currentFilter.months);
+    // document.getElementById('export-XLSX-btn').addEventListener('click', () => {
+    //     window.app.exportToXLSX(currentFilter.months);
     // });
 
     const tabs = Array.from(document.querySelectorAll('.analysis-tab.time-tab'));
@@ -854,8 +854,8 @@ const renderAnalysis = (userData, charts) => {
         });
     });
 
-    document.getElementById('export-pdf-btn').addEventListener('click', ()=>{
-    window.app.exportToPDF(currentMonths);
+    document.getElementById('export-XLSX-btn').addEventListener('click', ()=>{
+    window.app.exportToXLSX(currentMonths);
     });
 
     updateAnalysisCharts(currentFilter.months, currentFilter.phase);

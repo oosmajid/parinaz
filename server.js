@@ -721,7 +721,7 @@ app.delete('/api/companion/:companion_id', async (req, res) => {
     }
 });
 
-// START: REVISED PDF report endpoint
+// START: REVISED report endpoint
 app.post('/api/user/:telegram_id/report', async (req, res) => {
     const { telegram_id } = req.params;
     const { months } = req.body;
@@ -934,7 +934,7 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
         client.release();
     }
 });
-// END: REVISED PDF report endpoint
+// END: REVISED report endpoint
 
 
 // --- NOTIFICATION LOGIC ---

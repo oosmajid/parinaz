@@ -394,7 +394,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
 
-            async exportToPDF(months) {
+            async exportToXLSX(months) {
                 const spinner = document.getElementById('spinner-overlay');
                 spinner.classList.add('visible');
                 try {
@@ -413,7 +413,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     showToast(data.message);
 
                 } catch (error) {
-                    console.error("Failed to request PDF report:", error);
+                    console.error("Failed to request XLSX report:", error);
                     tg.showAlert(error.message);
                     showToast(error.message, true);
                 } finally {
