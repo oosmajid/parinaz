@@ -294,7 +294,7 @@ const renderDashboard = (userData) => {
         editPeriodBtn.classList.remove('animate-heartbeat');
     }
     
-    document.getElementById('next-period-date').textContent = toPersian(moment(expectedNextPeriodStart).locale('fa').format('dddd، jD jMMMM'));
+    document.getElementById('next-period-date').textContent = toPersian(moment(expectedNextPeriodStart).locale('fa').format('dddd، D MMMM'));
     renderCycleChart(finalDayForChart, cycleLength, periodLength, userData, daysDelayed, isFirstRender);
     isFirstRender = false;
     window.app.renderCalendar(moment());
@@ -441,11 +441,11 @@ const renderCycleChart = (dayOfCycle, cycleLength, periodLength, userData, daysD
 
 const renderCalendar = (calendarDate, userData) => {
     if (!userData.user) return;
-    document.getElementById('calendar-month-year').textContent = toPersian(calendarDate.locale('fa').format('jMMMM jYYYY'));
+    document.getElementById('calendar-month-year').textContent = toPersian(calendarDate.locale('fa').format('MMMM YYYY'));
     const calendarGrid = document.getElementById('calendar-grid');
     calendarGrid.innerHTML = '';
-    const monthStart = calendarDate.clone().startOf('jMonth');
-    const monthEnd = calendarDate.clone().endOf('jMonth');
+    const monthStart = calendarDate.clone().startOf('month');
+    const monthEnd = calendarDate.clone().endOf('month');
     
     const recordedPeriodDays = new Set();
     if (userData.period_history) {
@@ -464,7 +464,7 @@ const renderCalendar = (calendarDate, userData) => {
         return recordStart.isSameOrBefore(monthEnd) && recordEnd.isSameOrAfter(monthStart);
     });
     
-    for (let i = 0; i < monthStart.jDay(); i++) { calendarGrid.innerHTML += '<div></div>'; }
+    for (let i = 0; i < ((monthStart.day() + 1) % 7); i++) { calendarGrid.innerHTML += '<div></div>'; }
     
     for (let day = monthStart.clone(); day.isSameOrBefore(monthEnd); day.add(1, 'days')) {
         const dayKey = day.format('YYYY-MM-DD');
@@ -489,7 +489,7 @@ const renderCalendar = (calendarDate, userData) => {
         const hasLog = logData && Object.values(logData).some(v => (Array.isArray(v) && v.length > 0) || (typeof v === 'string' && v) || (typeof v === 'number' && v !== ''));
         const logIndicator = hasLog ? '<div class="log-indicator"></div>' : '';
         const clickHandler = canLog ? `onclick="window.app.openLogModal('${dayKey}')"` : '';
-        calendarGrid.innerHTML += `<div class="${classes}" ${clickHandler}><span>${toPersian(day.jDate())}</span>${logIndicator}</div>`;
+        calendarGrid.innerHTML += `<div class="${classes}" ${clickHandler}><span>${toPersian(day.date())}</span>${logIndicator}</div>`;
     }
 };
 
@@ -621,7 +621,7 @@ const renderAnalysis = (userData, charts) => {
             container.innerHTML = `<p class="text-center text-gray-500 p-4">داده کافی برای رسم نمودار خطی وجود ندارد.</p>`;
             return;
         }
-        charts[canvasId] = new Chart(ctx, { type: 'line', data: { labels: data.labels.map(l => toPersian(moment(l, 'YYYY-MM-DD').format('jM/jD'))), datasets: [{ label, data: data.data, fill: false, borderColor: 'rgba(236, 72, 153, 1)', backgroundColor: 'rgba(236, 72, 153, 0.6)', tension: 0.1 }] }, options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: false, ticks: { callback: (value) => toPersian(value) + ` ${unit}` } }, x: { ticks: { callback: function(val, index) { return index % Math.ceil(data.labels.length / 7) === 0 ? this.getLabelForValue(val) : ''; } } } } } });
+        charts[canvasId] = new Chart(ctx, { type: 'line', data: { labels: data.labels.map(l => toPersian(moment(l, 'YYYY-MM-DD').format('M/D'))), datasets: [{ label, data: data.data, fill: false, borderColor: 'rgba(236, 72, 153, 1)', backgroundColor: 'rgba(236, 72, 153, 0.6)', tension: 0.1 }] }, options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: false, ticks: { callback: (value) => toPersian(value) + ` ${unit}` } }, x: { ticks: { callback: function(val, index) { return index % Math.ceil(data.labels.length / 7) === 0 ? this.getLabelForValue(val) : ''; } } } } } });
     };
 
     const updateAnalysisCharts = (months, phase) => {
@@ -694,7 +694,7 @@ const renderAnalysis = (userData, charts) => {
                                     <span class="absolute text-lg font-bold text-gray-700">${toPersian(cycleLength)} روز</span>
                                 </div>
                                 <div class="text-right text-sm">
-                                    <p class="font-bold text-gray-800">${toPersian(cycleStartDate.format('jD jMMMM'))} - ${toPersian(cycleEndDate.format('jD jMMMM'))}</p>
+                                    <p class="font-bold text-gray-800">${toPersian(cycleStartDate.format('D MMMM'))} - ${toPersian(cycleEndDate.format('D MMMM'))}</p>
                                     <div class="mt-2 space-y-1 text-xs text-gray-600">
                                         <p><span class="inline-block w-2 h-2 rounded-full bg-red-400 ml-2"></span>طول پریود: ${toPersian(periodLength)} روز</p>
                                         <p><span class="inline-block w-2 h-2 rounded-full bg-gray-300 ml-2"></span>طول دوره: ${toPersian(cycleLength)} روز</p>

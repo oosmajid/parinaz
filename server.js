@@ -9,8 +9,7 @@ const TelegramBot = require('node-telegram-bot-api');
 const crypto = require('crypto');
 const cron = require('node-cron');
 const moment = require('moment-timezone');
-const jalaliMoment = require('jalali-moment');
-require('moment-jalaali');
+require('moment/locale/fa');
 const XLSX = require('xlsx');
 
 const { LOG_CONFIG } = require('./public/config.js');
@@ -64,15 +63,14 @@ const formatUserName = (firstName, userName) => {
 };
 
 /**
- * Converts a Jalali date string (e.g., "1403-05-15") to a Gregorian date string ("2024-08-05").
+ * Validates and normalizes a Gregorian date string (YYYY-MM-DD).
  * Returns null if the input is invalid.
- * @param {string} jalaliStr The Jalali date string.
- * @returns {string|null} The Gregorian date string in YYYY-MM-DD format or null.
+ * @param {string} dateStr The Gregorian date string.
+ * @returns {string|null} The normalized date string or null.
  */
-const jalaliToGregorian = (jalaliStr) => {
-    if (!jalaliStr) return null;
-    // We support both jYYYY-jM-jD and YYYY-MM-DD (with Persian numbers) formats
-    const m = jalaliMoment(jalaliStr, 'jYYYY-jM-jD');
+const parseDate = (dateStr) => {
+    if (!dateStr) return null;
+    const m = moment(dateStr, 'YYYY-MM-DD', true);
     return m.isValid() ? m.format('YYYY-MM-DD') : null;
 };
 
@@ -268,7 +266,7 @@ app.post('/api/onboarding', async (req, res) => {
       return res.status(400).json({ error: 'شناسه تلگرام و تاریخ آخرین پریود ضروری است.' });
     }
 
-    const lastPeriodGregorian = jalaliToGregorian(last_period_date);
+    const lastPeriodGregorian = parseDate(last_period_date);
     if (!lastPeriodGregorian) {
         return res.status(400).json({ error: 'فرمت تاریخ آخرین پریود نامعتبر است.' });
     }
@@ -394,7 +392,7 @@ app.post('/api/logs', async (req, res) => {
             return res.status(400).json({ error: 'اطلاعات ضروری ارسال نشده است.' });
         }
 
-        const logDateGregorian = jalaliToGregorian(log_date);
+        const logDateGregorian = parseDate(log_date);
         if (!logDateGregorian) {
             return res.status(400).json({ error: 'فرمت تاریخ گزارش نامعتبر است.' });
         }
@@ -470,7 +468,7 @@ app.post('/api/logs', async (req, res) => {
 app.delete('/api/logs', async (req, res) => {
     try {
         const { user_id, log_date } = req.body;
-        const logDateGregorian = jalaliToGregorian(log_date);
+        const logDateGregorian = parseDate(log_date);
         if (!user_id || !logDateGregorian) {
             return res.status(400).json({ error: 'اطلاعات ضروری برای حذف ارسال نشده است.' });
         }
@@ -495,7 +493,7 @@ app.post('/api/user/:telegram_id/period', async (req, res) => {
     try {
         await client.query('BEGIN');
 
-        const startDateGregorian = jalaliToGregorian(start_date);
+        const startDateGregorian = parseDate(start_date);
         if (!startDateGregorian) {
             return res.status(400).json({ error: 'فرمت تاریخ شروع پریود نامعتبر است.' });
         }
@@ -761,14 +759,11 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
 
     const toG = (str) => {
         if (!str) return null;
-        const jalali = jalaliMoment(str, 'jYYYY-jM-jD');
-        if (jalali.isValid()) return jalali.toDate();
         const gregorian = moment(str, 'YYYY-MM-DD');
-        if (gregorian.isValid()) return gregorian.toDate();
-        return null;
+        return gregorian.isValid() ? gregorian.toDate() : null;
     };
 
-    const fmtFa = (dateG) => jalaliMoment(dateG).locale('fa').format('jD jMMMM jYYYY');
+    const fmtDate = (dateG) => moment(dateG).locale('fa').format('D MMMM YYYY');
 
     const getPhaseForDateG = (dateG, periodHistoryG, userCycleLen) => {
         const m = moment(dateG).startOf('day');
@@ -859,8 +854,8 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
                 // Only include cycles that END within the report's time frame.
                 if (b.isSameOrAfter(reportStartG)) {
                     cycles.push({
-                        startFa: fmtFa(a),
-                        endFa: fmtFa(b.clone().subtract(1, 'day')),
+                        startFa: fmtDate(a),
+                        endFa: fmtDate(b.clone().subtract(1, 'day')),
                         durationFa: toPersian(b.diff(a, 'days')),
                         startG: a.toDate(),
                         durationG: b.diff(a, 'days')
@@ -870,8 +865,8 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
         }
         
         const periods = periodsInRange.map(p => ({
-            startFa: fmtFa(moment(p.start_g)),
-            endFa: fmtFa(moment(p.start_g).clone().add((p.duration || 0) - 1, 'days')),
+            startFa: fmtDate(moment(p.start_g)),
+            endFa: fmtDate(moment(p.start_g).clone().add((p.duration || 0) - 1, 'days')),
             durationFa: toPersian(p.duration || 0),
             startG: moment(p.start_g).toDate(),
             durationG: p.duration || 0
@@ -907,7 +902,7 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
         const allSymptoms = top20(symptomCounts), pmsSymptoms = top20(pmsSymptomCounts), periodSymptoms = top20(periodSymptomCounts);
         const allMoods = top20(moodCounts), pmsMoods = top20(pmsMoodCounts), periodMoods = top20(periodMoodCounts);
         const nameFa = user.telegram_firstname || 'کاربر گرامی';
-        const rangeFromFa = fmtFa(reportStartG), rangeToFa = fmtFa(moment());
+        const rangeFromFa = fmtDate(reportStartG), rangeToFa = fmtDate(moment());
         const header = `<b>📑 گزارش دوره قاعدگی</b>\n👤 نام: <b>${nameFa}</b>\n\n<b>📆 بازه گزارش</b>\nاز <b>${rangeFromFa}</b> تا <b>${rangeToFa}</b>`;
         const cyclesSection = `<b>🔁 طول چرخه‌ها</b>\n` + (cycles.length ? cycles.sort((a, b) => b.startG - a.startG).map(c => `• از ${c.startFa} تا ${c.endFa}: ${c.durationFa} روز ${c.durationG > 35 ? '⚠️' : ''}`).join('\n') : 'داده‌ای برای نمایش وجود ندارد.');
         const periodsSection = `<b>🩸 طول پریودها</b>\n` + (periods.length ? periods.sort((a, b) => b.startG - a.startG).map(p => `• از ${p.startFa} تا ${p.endFa}: ${p.durationFa} روز ${p.durationG > 10 ? '⚠️' : ''}`).join('\n') : 'داده‌ای برای نمایش وجود ندارد.');
@@ -939,7 +934,7 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
 
             logsInRange.forEach(log => {
                 const row = {};
-                row['تاریخ'] = fmtFa(log.log_g);
+                row['تاریخ'] = fmtDate(log.log_g);
                 row['فاز'] = getPhaseForDateG(log.log_g, allHistoryG, user.avg_cycle_length || user.cycle_length);
 
                 sortedLogKeys.forEach(key => {
@@ -995,7 +990,7 @@ const scheduleRandomly = (cronExpression, task) => {
 // Daily Log Reminder (18:00 - 21:00) - No changes needed here, kept for context
 scheduleRandomly(`${Math.floor(Math.random() * 60)} ${Math.floor(Math.random() * 4) + 18} * * *`, async () => {
     // گرفتن تاریخ امروز به فرمت میلادی برای مقایسه با دیتابیس
-    const today = jalaliMoment().locale("fa").format("YYYY-MM-DD");
+    const today = moment().locale("fa").format("YYYY-MM-DD");
     
     const query = `
         SELECT u.telegram_id FROM users u
@@ -1010,7 +1005,7 @@ scheduleRandomly(`${Math.floor(Math.random() * 60)} ${Math.floor(Math.random() *
 
 // Companion daily summary (21:00 - 22:00) - No changes needed here, kept for context
 scheduleRandomly(`${Math.floor(Math.random() * 60)} 21 * * *`, async () => {
-    const today = jalaliMoment().locale("fa").format("YYYY-MM-DD");
+    const today = moment().locale("fa").format("YYYY-MM-DD");
     const query = `
         SELECT 
             c.companion_telegram_id, 
