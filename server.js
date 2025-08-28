@@ -10,7 +10,7 @@ const crypto = require('crypto');
 const cron = require('node-cron');
 const moment = require('moment-timezone');
 const jalaliMoment = require('jalali-moment');
-// require('moment-jalaali');
+require('moment-jalaali');
 const XLSX = require('xlsx');
 
 const { LOG_CONFIG } = require('./public/config.js');
