@@ -621,7 +621,7 @@ const renderAnalysis = (userData, charts) => {
             container.innerHTML = `<p class="text-center text-gray-500 p-4">داده کافی برای رسم نمودار خطی وجود ندارد.</p>`;
             return;
         }
-        charts[canvasId] = new Chart(ctx, { type: 'line', data: { labels: data.labels.map(l => toPersian(moment(l, 'YYYY-MM-DD').format('jM/jD'))), datasets: [{ label, data: data.data, fill: false, borderColor: 'rgba(236, 72, 153, 1)', backgroundColor: 'rgba(236, 72, 153, 0.6)', tension: 0.1 }] }, options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: false, ticks: { callback: (value) => toPersian(value) + ` ${unit}` } }, x: { ticks: { callback: function(val, index) { return index % Math.ceil(data.labels.length / 7) === 0 ? this.getLabelForValue(val) : ''; } } } } } });
+        charts[canvasId] = new Chart(ctx, { type: 'line', data: { labels: data.labels.map(l => toPersian(moment(l, 'YYYY-MM-DD').locale('fa').format('jM/jD'))), datasets: [{ label, data: data.data, fill: false, borderColor: 'rgba(236, 72, 153, 1)', backgroundColor: 'rgba(236, 72, 153, 0.6)', tension: 0.1 }] }, options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: false, ticks: { callback: (value) => toPersian(value) + ` ${unit}` } }, x: { ticks: { callback: function(val, index) { return index % Math.ceil(data.labels.length / 7) === 0 ? this.getLabelForValue(val) : ''; } } } } } });
     };
 
     const updateAnalysisCharts = (months, phase) => {
