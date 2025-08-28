@@ -528,7 +528,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     // *** START: MODIFICATION to add period-day class ***
                     const dayKey = dayMoment.format('YYYY-MM-DD');
-                    console.log('Checking day:', dayKey, 'Recorded:', recordedPeriodDays);
+                    console.log("record: ", recordedPeriodDays[i]);
                     if (recordedPeriodDays.has(dayKey)) {
                         classes += ' period-day';
                     }
