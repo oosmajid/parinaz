@@ -485,7 +485,7 @@ const renderCalendar = (calendarDate, userData) => {
         if (!canLog) classes += ' disabled';
         
         const logData = userData.logs?.[dayKey];
-        console.log(userData.logs, dayKey, logData);
+        console.log(userData.logs[dayKey], dayKey, logData);
         const hasLog = logData && Object.values(logData).some(v => (Array.isArray(v) && v.length > 0) || (typeof v === 'string' && v) || (typeof v === 'number' && v !== ''));
         const logIndicator = hasLog ? '<div class="log-indicator"></div>' : '';
         const clickHandler = canLog ? `onclick="window.app.openLogModal('${dayKey}')"` : '';
