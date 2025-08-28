@@ -571,8 +571,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 // *** END: MODIFICATION ***
 
                 const today = moment();
-                dateInput.value = toPersian(today.locale('fa').format('jYYYY/jM/jD'));
-                dateInput.dataset.value = today.locale('fa').format('YYYY-MM-DD');
+                dateInput.value = toPersian(today.locale('fa').format('YYYY/M/D'));
+                dateInput.dataset.value = today.format('YYYY-MM-DD');
                 const lengthSlider = document.getElementById('edit-period-length');
                 const lengthValueSpan = document.getElementById('edit-period-length-value');
                 const currentPeriodLength = userData.user.avg_period_length ? Math.round(userData.user.avg_period_length) : userData.user.period_length;
