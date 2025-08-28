@@ -449,7 +449,7 @@ const renderCalendar = (calendarDate, userData) => {
     const recordedPeriodDays = new Set();
     if (userData.period_history) {
         userData.period_history.forEach(record => {
-            const start = moment(record.start_date, 'jYYYY-jMM-jDD').local('fa');
+            const start = moment(record.start_date, 'jYYYY-jMM-jDD');
             for (let i = 0; i < record.duration; i++) {
                 recordedPeriodDays.add(start.clone().add(i, 'days').format('jYYYY-jMM-jDD'));
             }
@@ -458,7 +458,7 @@ const renderCalendar = (calendarDate, userData) => {
 
     const isPastMonth = monthEnd.isBefore(moment(), 'startOf', 'month');
     const hasRecordInMonth = userData.period_history && userData.period_history.some(record => {
-        const recordStart = moment(record.start_date, 'YYYY-MM-DD');
+        const recordStart = moment(record.start_date, 'jYYYY-jMM-jDD');
         const recordEnd = recordStart.clone().add(record.duration - 1, 'days');
         return recordStart.isSameOrBefore(monthEnd) && recordEnd.isSameOrAfter(monthStart);
     });
