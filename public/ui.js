@@ -449,9 +449,9 @@ const renderCalendar = (calendarDate, userData) => {
     const recordedPeriodDays = new Set();
     if (userData.period_history) {
         userData.period_history.forEach(record => {
-            const start = moment(record.start_date, 'YYYY-MM-DD');
+            const start = moment(record.start_date, 'jYYYY-jMM-jDD').local('fa');
             for (let i = 0; i < record.duration; i++) {
-                recordedPeriodDays.add(start.clone().add(i, 'days').format('YYYY-MM-DD'));
+                recordedPeriodDays.add(start.clone().add(i, 'days').format('jYYYY-jMM-jDD').locale('fa'));
             }
         });
     }
