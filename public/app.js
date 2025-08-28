@@ -508,9 +508,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 const recordedPeriodDays = new Set();
                 if (periodHistory) {
                     periodHistory.forEach(record => {
-                        const start = moment(record.start_date, 'jYYYY-jMM-jDD');
+                        const start = moment(record.start_date, 'YYYY-MM-DD');
                         for (let i = 0; i < record.duration; i++) {
-                            recordedPeriodDays.add(start.clone().add(i, 'days').format('jYYYY-jMM-jDD'));
+                            recordedPeriodDays.add(start.clone().add(i, 'days').format('YYYY-MM-DD'));
                         }
                     });
                 }
@@ -527,7 +527,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (selectedDate && dayMoment.isSame(selectedDate, 'day')) classes += ' selected';
 
                     // *** START: MODIFICATION to add period-day class ***
-                    const dayKey = dayMoment.format('YYYY-MM-DD');
+                    const dayKey = dayMoment.format('jYYYY-jMM-jDD');
                     if (recordedPeriodDays.has(dayKey)) {
                         classes += ' period-day';
                     }
