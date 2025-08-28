@@ -571,7 +571,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // *** END: MODIFICATION ***
 
                 const today = moment();
-                dateInput.value = toPersian(today.locale('fa').format('jYYYY/jM/jD'));
+                dateInput.value = toPersian(jalaliMoment(today).format('jYYYY/jM/jD'));
                 dateInput.dataset.value = today.format('YYYY-MM-DD');
                 const lengthSlider = document.getElementById('edit-period-length');
                 const lengthValueSpan = document.getElementById('edit-period-length-value');
