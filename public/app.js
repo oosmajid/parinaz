@@ -441,7 +441,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 }, 50);
             },
             openLogModal(dateKey) {
-                selectedLogDate = dateKey;
+                // selectedLogDate = dateKey;
+                selectedLogDate = moment.from(dateKey, "fa", "jYYYY-jMM-jDD").format("YYYY-MM-DD");
+                console.log(`Opening log modal for dateKey: ${dateKey}, parsed as: ${selectedLogDate}`);
                 const currentLog = userData.logs[selectedLogDate] || {};
                 const shouldNotifyCompanion = userData.companions && userData.companions.some(c => c.notify_daily_symptoms);
                 let modalBodyHTML = `<div class="flex justify-between items-center mb-4"><button id="delete-log-btn" class="text-red-500 hover:text-red-700 text-sm font-semibold ${Object.keys(currentLog).length > 0 ? '' : 'invisible'}">حذف علائم</button><h3 class="text-xl font-bold text-center">ثبت علائم</h3><div class="w-16"></div></div><p class="text-center text-gray-500 mb-4 -mt-4">${toPersian(moment(dateKey, 'YYYY-MM-DD').locale('fa').format('dddd jD jMMMM'))}</p><div class="space-y-4">`;
