@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // --- STATE & DOM ELEMENTS ---
         let userData = { user: null, logs: {}, period_history: [], companions: [] };
-        let calendarDate = moment();
+        let calendarDate = moment().locale('fa');
         let selectedLogDate = null;
         // *** MODIFICATION: Add periodHistory to datepicker state ***
         let datepickerState = { visible: false, targetInputId: null, currentDate: moment(), periodHistory: [] };
@@ -490,10 +490,17 @@ document.addEventListener('DOMContentLoaded', function() {
             // *** START: MODIFICATION to accept period history ***
             openDatePicker(targetInputId, periodHistory = []) {
                 const targetInput = document.getElementById(targetInputId);
-                const initialDate = targetInput.dataset.value ? moment(targetInput.dataset.value, 'YYYY-MM-DD') : moment();
+                let initialDate;
+                if (targetInput.dataset.value) {
+                    // تاریخ میلادی ورودی را به یک آبجکت جلالی تبدیل می‌کنیم
+                    initialDate = moment(targetInput.dataset.value, 'YYYY-MM-DD').locale('fa');
+                } else {
+                    // تاریخ امروز را به صورت یک آبجکت جلالی می‌گیریم
+                    initialDate = moment().locale('fa');
+                }
                 datepickerState.targetInputId = targetInputId;
-                datepickerState.currentDate = initialDate.clone();
-                datepickerState.periodHistory = periodHistory; // Store history
+                datepickerState.currentDate = initialDate;
+                datepickerState.periodHistory = periodHistory;
                 this.renderDatePicker();
                 datepickerModal.classList.add('visible');
             },
