@@ -470,8 +470,7 @@ const renderCalendar = (calendarDate, userData) => {
         const canLog = day.isSameOrBefore(moment(), 'day');
         
         let phaseInfo = { class: 'normal-day' };
-        const asArray = Array.from(recordedPeriodDays);
-        console.log(asArray[1], dayKey, recordedPeriodDays.has(dayKey), userData.period_history);
+
         if (recordedPeriodDays.has(dayKey)) {
             phaseInfo = { class: 'period-day' };
         } else if (isPastMonth && hasRecordInMonth) {
@@ -490,6 +489,8 @@ const renderCalendar = (calendarDate, userData) => {
         const logIndicator = hasLog ? '<div class="log-indicator"></div>' : '';
         const clickHandler = canLog ? `onclick="window.app.openLogModal('${dayKey}')"` : '';
         calendarGrid.innerHTML += `<div class="${classes}" ${clickHandler}><span>${toPersian(day.jDate())}</span>${logIndicator}</div>`;
+
+        console.log(`Rendered day: ${dayKey}, Phase: ${phaseInfo.class}, Can Log: ${canLog}, Has Log: ${hasLog}, log Data: ${JSON.stringify(logData)}`);
     }
 };
 
