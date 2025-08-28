@@ -471,7 +471,7 @@ const renderCalendar = (calendarDate, userData) => {
         
         let phaseInfo = { class: 'normal-day' };
         const asArray = Array.from(recordedPeriodDays);
-        console.log(asArray[1], dayKey);
+        console.log(asArray[1], dayKey, recordedPeriodDays.has(dayKey), userData.period_history);
         if (recordedPeriodDays.has(dayKey)) {
             phaseInfo = { class: 'period-day' };
         } else if (isPastMonth && hasRecordInMonth) {
