@@ -63,6 +63,19 @@ const formatUserName = (firstName, userName) => {
     return firstName;
 };
 
+/**
+ * Converts a Jalali date string (e.g., "1403-05-15") to a Gregorian date string ("2024-08-05").
+ * Returns null if the input is invalid.
+ * @param {string} jalaliStr The Jalali date string.
+ * @returns {string|null} The Gregorian date string in YYYY-MM-DD format or null.
+ */
+const jalaliToGregorian = (jalaliStr) => {
+    if (!jalaliStr) return null;
+    // We support both jYYYY-jM-jD and YYYY-MM-DD (with Persian numbers) formats
+    const m = jalaliMoment(jalaliStr, 'jYYYY-jM-jD');
+    return m.isValid() ? m.format('YYYY-MM-DD') : null;
+};
+
 // --- BOT COMMANDS ---
 bot.onText(/\/start$/, async (msg) => {
     const chatId = msg.chat.id;
@@ -254,7 +267,12 @@ app.post('/api/onboarding', async (req, res) => {
     if (!telegram_id || !last_period_date) {
       return res.status(400).json({ error: 'شناسه تلگرام و تاریخ آخرین پریود ضروری است.' });
     }
-    const values = [telegram_id, cycle_length, period_length, last_period_date, birth_year, telegram_username, telegram_firstname];
+
+    const lastPeriodGregorian = jalaliToGregorian(last_period_date);
+    if (!lastPeriodGregorian) {
+        return res.status(400).json({ error: 'فرمت تاریخ آخرین پریود نامعتبر است.' });
+    }
+    const values = [telegram_id, cycle_length, period_length, lastPeriodGregorian, birth_year, telegram_username, telegram_firstname];
     const userQuery = `
       INSERT INTO users (telegram_id, cycle_length, period_length, last_period_date, birth_year, telegram_username, telegram_firstname)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -274,7 +292,7 @@ app.post('/api/onboarding', async (req, res) => {
     if (result.rowCount > 0) {
        await client.query(
             'INSERT INTO period_history (user_id, start_date, duration) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
-            [user.id, user.last_period_date, user.period_length]
+            [user.id, lastPeriodGregorian, user.period_length]
         );
     }
     
@@ -376,9 +394,14 @@ app.post('/api/logs', async (req, res) => {
             return res.status(400).json({ error: 'اطلاعات ضروری ارسال نشده است.' });
         }
 
+        const logDateGregorian = jalaliToGregorian(log_date);
+        if (!logDateGregorian) {
+            return res.status(400).json({ error: 'فرمت تاریخ گزارش نامعتبر است.' });
+        }
+
         const existingLogRes = await client.query(
             'SELECT id FROM daily_logs WHERE user_id = $1 AND log_date = $2',
-            [user_id, log_date]
+            [user_id, logDateGregorian]
         );
 
         const hasDataToLog = Object.keys(logData).length > 0;
@@ -402,7 +425,7 @@ app.post('/api/logs', async (req, res) => {
                     valueCounter++;
                 });
                 
-                values.push(user_id, log_date);
+                values.push(user_id, logDateGregorian);
 
                 const query = `
                     UPDATE daily_logs SET ${updates.join(', ')}
@@ -421,7 +444,7 @@ app.post('/api/logs', async (req, res) => {
             // No log for this day, INSERT a new one if there's data
             if (hasDataToLog) {
                 const columns = ['user_id', 'log_date', ...Object.keys(logData)];
-                const values = [user_id, log_date, ...Object.values(logData)];
+                const values = [user_id, logDateGregorian, ...Object.values(logData)];
                 const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
 
                 const query = `
@@ -447,10 +470,11 @@ app.post('/api/logs', async (req, res) => {
 app.delete('/api/logs', async (req, res) => {
     try {
         const { user_id, log_date } = req.body;
-        if (!user_id || !log_date) {
+        const logDateGregorian = jalaliToGregorian(log_date);
+        if (!user_id || !logDateGregorian) {
             return res.status(400).json({ error: 'اطلاعات ضروری برای حذف ارسال نشده است.' });
         }
-        const result = await pool.query('DELETE FROM daily_logs WHERE user_id = $1 AND log_date = $2', [user_id, log_date]);
+        const result = await pool.query('DELETE FROM daily_logs WHERE user_id = $1 AND log_date = $2', [user_id, logDateGregorian]);
         
         if (result.rowCount === 0) {
             return res.status(404).json({ error: 'گزارشی برای حذف یافت نشد.' });
@@ -471,6 +495,11 @@ app.post('/api/user/:telegram_id/period', async (req, res) => {
     try {
         await client.query('BEGIN');
 
+        const startDateGregorian = jalaliToGregorian(start_date);
+        if (!startDateGregorian) {
+            return res.status(400).json({ error: 'فرمت تاریخ شروع پریود نامعتبر است.' });
+        }
+
         const userRes = await client.query('SELECT id, telegram_firstname, period_length FROM users WHERE telegram_id = $1', [telegram_id]);
         if (userRes.rows.length === 0) {
             return res.status(404).json({ error: 'کاربر یافت نشد.' });
@@ -483,7 +512,7 @@ app.post('/api/user/:telegram_id/period', async (req, res) => {
             `INSERT INTO period_history (user_id, start_date, duration)
              VALUES ($1, $2, $3)
              ON CONFLICT (user_id, start_date) DO UPDATE SET duration = EXCLUDED.duration`,
-            [userId, start_date, duration]
+            [userId, startDateGregorian, duration]
         );
 
         // Recalculate averages and update last_period_date
@@ -534,8 +563,8 @@ app.post('/api/user/:telegram_id/period', async (req, res) => {
         );
         
         // Notify companions that period has started
-        const todayJalali = jalaliMoment().locale("fa").format("YYYY-MM-DD");
-        if (start_date === todayJalali) {
+        const todayGregorian = moment().format('YYYY-MM-DD');
+        if (startDateGregorian === todayGregorian) {
             const companionsRes = await client.query('SELECT companion_telegram_id FROM companions WHERE user_id = $1', [userId]);
             companionsRes.rows.forEach(c => {
                 const message = getRandomMessage('companion', 'period_started').replace('{FIRST_NAME}', userFirstName);
@@ -804,13 +833,11 @@ app.post('/api/user/:telegram_id/report', async (req, res) => {
         const reportStartG = moment().subtract(Number(months || 1), 'months').startOf('day');
         const logsRes = await client.query('SELECT * FROM daily_logs WHERE user_id = $1 ORDER BY log_date ASC', [user.id]);
         const logsInRange = logsRes.rows
-            .map(r => ({ ...r, log_g: toG(r.log_date) }))
-            .filter(r => moment(r.log_g).isSameOrAfter(reportStartG));
+            .filter(r => moment(r.log_date).isSameOrAfter(reportStartG));
         
         const histRes = await client.query('SELECT * FROM period_history WHERE user_id = $1 ORDER BY start_date ASC', [user.id]);
         const historyG = histRes.rows
-            .map(r => ({ ...r, start_g: toG(r.start_date) }))
-            .filter(r => r.start_g);
+            .filter(r => r.start_date);
 
         // --- Generate and Send Text Report ---
         const historyInRange = historyG.filter(r => moment(r.start_g).isSameOrAfter(reportStartG));
@@ -1005,18 +1032,18 @@ const scheduleDailyCycleChecks = () => {
             const query = `SELECT * FROM users WHERE last_period_date IS NOT NULL AND reminder_cycle = TRUE`;
             const { rows: users } = await pool.query(query);
 
-            // امروز به جلالی (طبق تایم‌زون تهران)
-            const todayJalali = jalaliMoment().locale("fa").startOf("day");
+            // امروز به میلادی
+            const today = moment().startOf("day");
 
             for (const user of users) {
-            const cycleLength = Math.round(user.avg_cycle_length || user.cycle_length);
+                const cycleLength = Math.round(user.avg_cycle_length || user.cycle_length);
 
-            // تاریخ آخرین پریود از متن جلالی
-            const lastPeriodStart = jalaliMoment(user.last_period_date, "jYYYY-jMM-jDD").locale("fa").startOf("day");
-            if (!lastPeriodStart.isValid()) {
-                console.error(`Invalid last_period_date for user ${user.telegram_id}: ${user.last_period_date}`);
-                continue;
-            }
+            // تاریخ آخرین پریود
+            const lastPeriodStart = moment(user.last_period_date, "YYYY-MM-DD").startOf("day");
+                if (!lastPeriodStart.isValid()) {
+                    console.error(`Invalid last_period_date for user ${user.telegram_id}: ${user.last_period_date}`);
+                    continue;
+                }
 
             // تاریخ‌های کلیدی
             const nextPeriodDate = lastPeriodStart.clone().add(cycleLength, "days");
@@ -1028,7 +1055,7 @@ const scheduleDailyCycleChecks = () => {
             const isSameDay = (a, b) => a.isSame(b, "day");
 
             // 1) یک روز قبل از پریود
-            if (isSameDay(todayJalali, preWarnDate)) {
+            if (isSameDay(today, preWarnDate)) {
                 bot.sendMessage(user.telegram_id, getRandomMessage("user", "pre_period_warning"));
                 const companionsRes = await pool.query(
                 "SELECT companion_telegram_id FROM companions WHERE user_id = $1",
@@ -1044,12 +1071,12 @@ const scheduleDailyCycleChecks = () => {
             }
 
             // 2) روز شروع پیش‌بینی‌شده
-            if (isSameDay(todayJalali, nextPeriodDate)) {
+            if (isSameDay(today, nextPeriodDate)) {
                 bot.sendMessage(user.telegram_id, getRandomMessage("user", "period_day_warning"));
             }
 
             // 3) شروع PMS (۴ روز قبل)
-            if (isSameDay(todayJalali, pmsStartDate)) {
+            if (isSameDay(today, pmsStartDate)) {
                 bot.sendMessage(user.telegram_id, getRandomMessage("user", "pms_start"));
                 const companionsRes = await pool.query(
                 "SELECT companion_telegram_id FROM companions WHERE user_id = $1",
@@ -1065,7 +1092,7 @@ const scheduleDailyCycleChecks = () => {
             }
 
             // 4) تأخیر سه‌روزه
-            if (isSameDay(todayJalali, lateDate)) {
+            if (isSameDay(today, lateDate)) {
                 bot.sendMessage(user.telegram_id, getRandomMessage("user", "period_late"));
                 const companionsRes = await pool.query(
                 "SELECT companion_telegram_id FROM companions WHERE user_id = $1",

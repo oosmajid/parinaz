@@ -1,4 +1,4 @@
--- SQL Schema for Parinaz App (Jalali dates stored as TEXT)
+-- SQL Schema for Parinaz App (Gregorian dates stored as DATE)
 
 -- جدول کاربران
 CREATE TABLE users (
@@ -10,8 +10,7 @@ CREATE TABLE users (
     cycle_length INT NOT NULL DEFAULT 28,
     period_length INT NOT NULL DEFAULT 7,
 
-    -- تاریخ آخرین پریود (جلالی)
-    last_period_date TEXT,
+    last_period_date DATE,
 
     birth_year INT,
 
@@ -28,13 +27,13 @@ CREATE TABLE users (
 CREATE TABLE period_history (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    start_date TEXT,   -- تاریخ شروع پریود (جلالی)
+    start_date DATE NOT NULL,
     duration INT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (user_id, start_date)
 );
 
--- همراهان
+-- همراهان (بدون تغییر)
 CREATE TABLE companions (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -45,7 +44,7 @@ CREATE TABLE companions (
     UNIQUE (user_id, companion_telegram_id)
 );
 
--- توکن‌های دعوت همراه
+-- توکن‌های دعوت همراه (بدون تغییر)
 CREATE TABLE companion_invites (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -59,7 +58,7 @@ CREATE TABLE companion_invites (
 CREATE TABLE daily_logs (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    log_date TEXT NOT NULL,  -- تاریخ جلالی
+    log_date DATE NOT NULL,
 
     weight NUMERIC(5, 2),
     water INT,
