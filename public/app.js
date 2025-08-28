@@ -510,7 +510,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     periodHistory.forEach(record => {
                         const start = moment(record.start_date, 'jYYYY-jMM-jDD').locale('fa');
                         for (let i = 0; i < record.duration; i++) {
-                            recordedPeriodDays.add(start.clone().add(i, 'days').format('YYYY-MM-DD'));
+                            recordedPeriodDays.add(start.clone().add(i, 'days').format('jYYYY-jMM-jDD'));
                         }
                     });
                 }
