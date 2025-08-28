@@ -8,7 +8,7 @@ const fs = require('fs');
 const TelegramBot = require('node-telegram-bot-api');
 const crypto = require('crypto');
 const cron = require('node-cron');
-const moment = require('moment-timezone');
+const moment = require('jalali-moment');
 const jalaliMoment = require('jalali-moment');
 // require('moment-jalaali');
 const XLSX = require('xlsx');
