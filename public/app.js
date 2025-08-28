@@ -492,9 +492,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 const targetInput = document.getElementById(targetInputId);
                 const initialDate = targetInput.dataset.value ? moment(targetInput.dataset.value, 'YYYY-MM-DD') : moment();
                 datepickerState.targetInputId = targetInputId;
-                // با افزودن .locale('fa')، این تاریخ به یک آبجکت جلالی تبدیل می‌شود
-                datepickerState.currentDate = initialDate.clone().locale('fa');
-                datepickerState.periodHistory = periodHistory;
+                datepickerState.currentDate = initialDate.clone();
+                datepickerState.periodHistory = periodHistory; // Store history
                 this.renderDatePicker();
                 datepickerModal.classList.add('visible');
             },
@@ -516,9 +515,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
                 }
                 // *** END: MODIFICATION ***
-
-                let html = `<div class="datepicker-header"><button class="p-2 rounded-full hover:bg-gray-100" onclick="window.app.changeDatePickerMonth(-1)">&lt;</button><span class="font-bold">${toPersian(currentDate.locale('fa').format('jMMMM jYYYY'))}</span><button class="p-2 rounded-full hover:bg-gray-100" onclick="window.app.changeDatePickerMonth(1)">&gt;</button></div><div class="grid grid-cols-7 text-center text-xs text-gray-500 mb-2">${['ش','ی','د','س','چ','پ','ج'].map(d=>`<span>${d}</span>`).join('')}</div><div class="datepicker-grid">`;
-                for (let i = 0; i < monthStart.jDay(); i++) html += '<div></div>';
+                const monthName = currentDate.locale('fa').format('jMMMM');
+                const yearNumber = currentDate.jYear();
+                let html = `<div class="datepicker-header"><button class="p-2 rounded-full hover:bg-gray-100" onclick="window.app.changeDatePickerMonth(-1)">&lt;</button><span class="font-bold">${monthName} ${toPersian(yearNumber)}</span><button class="p-2 rounded-full hover:bg-gray-100" onclick="window.app.changeDatePickerMonth(1)">&gt;</button></div><div class="grid grid-cols-7 text-center text-xs text-gray-500 mb-2">${['ش','ی','د','س','چ','پ','ج'].map(d=>`<span>${d}</span>`).join('')}</div><div class="datepicker-grid">`;                for (let i = 0; i < monthStart.jDay(); i++) html += '<div></div>';
                 for (let i = 1; i <= currentDate.jDaysInMonth(); i++) {
                     const dayMoment = currentDate.clone().jDate(i);
                     let classes = 'datepicker-day';
