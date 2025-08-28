@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', function() {
         window.app = {
             onboardingData: {},
             async init(refreshOnly = false) {
-                moment.locale('fa');
+                //moment.locale('fa');
                 try {
                     // Update user info silently in the background
                     fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}/update-info`, {
