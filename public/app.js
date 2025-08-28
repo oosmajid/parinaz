@@ -442,7 +442,7 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             openLogModal(dateKey) {
                 // selectedLogDate = dateKey;
-                selectedLogDate = moment.from(dateKey, "fa", "jYYYY-jMM-jDD").format("YYYY-MM-DD");
+                selectedLogDate = moment.from(dateKey, "YYYY-MM-DD").format("jYYYY-jMM-jDD");
                 console.log(`Opening log modal for dateKey: ${dateKey}, parsed as: ${selectedLogDate}`);
                 const currentLog = userData.logs[selectedLogDate] || {};
                 const shouldNotifyCompanion = userData.companions && userData.companions.some(c => c.notify_daily_symptoms);
