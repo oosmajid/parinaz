@@ -232,7 +232,7 @@ const renderDashboard = (userData) => {
     const today = moment().startOf('day');
     const cycleLength = userData.user.avg_cycle_length ? Math.round(userData.user.avg_cycle_length) : parseInt(userData.user.cycle_length);
     const periodLength = userData.user.avg_period_length ? Math.round(userData.user.avg_period_length) : parseInt(userData.user.period_length);
-    const lastPeriodStart = moment(userData.user.last_period_date, 'YYYY-MM-DD');
+    const lastPeriodStart = moment(userData.user.last_period_date, 'YYYY-MM-DD', 'en');
     
     const expectedNextPeriodStart = lastPeriodStart.clone().add(cycleLength, 'days');
     const daysToPeriod = expectedNextPeriodStart.diff(today, 'days');
