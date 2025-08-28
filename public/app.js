@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // --- STATE & DOM ELEMENTS ---
         let userData = { user: null, logs: {}, period_history: [], companions: [] };
-        let calendarDate = moment().locale('fa');
+        let calendarDate = moment();
         let selectedLogDate = null;
         // *** MODIFICATION: Add periodHistory to datepicker state ***
         let datepickerState = { visible: false, targetInputId: null, currentDate: moment(), periodHistory: [] };
@@ -490,17 +490,10 @@ document.addEventListener('DOMContentLoaded', function() {
             // *** START: MODIFICATION to accept period history ***
             openDatePicker(targetInputId, periodHistory = []) {
                 const targetInput = document.getElementById(targetInputId);
-                let initialDate;
-                if (targetInput.dataset.value) {
-                    // تاریخ میلادی ورودی را به یک آبجکت جلالی تبدیل می‌کنیم
-                    initialDate = moment(targetInput.dataset.value, 'YYYY-MM-DD').locale('fa');
-                } else {
-                    // تاریخ امروز را به صورت یک آبجکت جلالی می‌گیریم
-                    initialDate = moment().locale('fa');
-                }
+                const initialDate = targetInput.dataset.value ? moment(targetInput.dataset.value, 'YYYY-MM-DD') : moment();
                 datepickerState.targetInputId = targetInputId;
-                datepickerState.currentDate = initialDate;
-                datepickerState.periodHistory = periodHistory;
+                datepickerState.currentDate = initialDate.clone();
+                datepickerState.periodHistory = periodHistory; // Store history
                 this.renderDatePicker();
                 datepickerModal.classList.add('visible');
             },
@@ -522,8 +515,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
                 }
                 // *** END: MODIFICATION ***
-
-                let html = `<div class="datepicker-header"><button class="p-2 rounded-full hover:bg-gray-100" onclick="window.app.changeDatePickerMonth(-1)">&lt;</button><span class="font-bold">${toPersian(currentDate.locale('fa').format('jMMMM jYYYY'))}</span><button class="p-2 rounded-full hover:bg-gray-100" onclick="window.app.changeDatePickerMonth(1)">&gt;</button></div><div class="grid grid-cols-7 text-center text-xs text-gray-500 mb-2">${['ش','ی','د','س','چ','پ','ج'].map(d=>`<span>${d}</span>`).join('')}</div><div class="datepicker-grid">`;
+                const gDate = datepickerState.currentDate.toDate(); // تاریخ میلادی استاندارد
+                const monthFa = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { month: 'long' }).format(gDate);
+                const yearFa  = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { year: 'numeric' }).format(gDate);
+                let html = `<div class="datepicker-header"><button class="p-2 rounded-full hover:bg-gray-100" onclick="window.app.changeDatePickerMonth(-1)">&lt;</button><span class="font-bold">${monthFa} ${yearFa}</span><button class="p-2 rounded-full hover:bg-gray-100" onclick="window.app.changeDatePickerMonth(1)">&gt;</button></div><div class="grid grid-cols-7 text-center text-xs text-gray-500 mb-2">${['ش','ی','د','س','چ','پ','ج'].map(d=>`<span>${d}</span>`).join('')}</div><div class="datepicker-grid">`;
                 for (let i = 0; i < monthStart.jDay(); i++) html += '<div></div>';
                 for (let i = 1; i <= currentDate.jDaysInMonth(); i++) {
                     const dayMoment = currentDate.clone().jDate(i);
