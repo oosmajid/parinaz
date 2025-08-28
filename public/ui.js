@@ -653,7 +653,7 @@ const renderAnalysis = (userData, charts) => {
                 } else {
                     let historyHTML = '';
                     completedCycles.forEach(cycle => {
-                        const cycleStartDate = cycle.previousPeriod.startDateMoment.locale('fa');
+                        const cycleStartDate = cycle.previousPeriod.startDateMoment;
                         const cycleEndDate = cycle.currentPeriod.startDateMoment.clone().subtract(1, 'day');
                         const cycleLength = cycle.currentPeriod.startDateMoment.diff(cycle.previousPeriod.startDateMoment, 'days');
                         const periodLength = cycle.previousPeriod.duration;
