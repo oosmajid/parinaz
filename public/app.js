@@ -528,12 +528,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     // *** START: MODIFICATION to add period-day class ***
                     const dayKey = dayMoment.format('YYYY-MM-DD');
-                    if (recordedPeriodDays.has(dayKey)) {
+                    const rrr = recordedPeriodDays.clone().locale('fa').format('jYYYY/jM/jD');
+                    if (rrr.has(dayKey)) {
                         classes += ' period-day';
                     }
                     // *** END: MODIFICATION ***
 
-                    const clickHandler = isDisabled ? '' : `onclick="window.app.selectDate('${dayMoment.format('jYYYY-jMM-jDD')}')"`;
+                    const clickHandler = isDisabled ? '' : `onclick="window.app.selectDate('${dayMoment.format('YYYY-MM-DD')}')"`;
                     html += `<div class="${classes}" ${clickHandler}>${toPersian(i)}</div>`;
                 }
                 html += `</div>`;
