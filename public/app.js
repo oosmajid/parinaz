@@ -424,7 +424,7 @@ document.addEventListener('DOMContentLoaded', function() {
             goToSettings() { renderSettings(userData); },
             goToAnalysis() { renderAnalysis(userData, charts); },
             goToDashboard() { renderDashboard(userData); },
-            changeMonth(direction) { calendarDate.add(direction, 'jMonth'); this.renderCalendar(calendarDate); },
+            changeMonth(direction) { calendarDate.add(direction, 'month'); this.renderCalendar(calendarDate); },
             renderCalendar(date) { calendarDate = date; renderCalendar(calendarDate, userData); },
             logToday() { const todayStr = moment().format('YYYY-MM-DD'); this.openLogModal(todayStr); },
             goToToday() {
@@ -444,7 +444,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 selectedLogDate = dateKey;
                 const currentLog = userData.logs[selectedLogDate] || {};
                 const shouldNotifyCompanion = userData.companions && userData.companions.some(c => c.notify_daily_symptoms);
-                let modalBodyHTML = `<div class="flex justify-between items-center mb-4"><button id="delete-log-btn" class="text-red-500 hover:text-red-700 text-sm font-semibold ${Object.keys(currentLog).length > 0 ? '' : 'invisible'}">حذف علائم</button><h3 class="text-xl font-bold text-center">ثبت علائم</h3><div class="w-16"></div></div><p class="text-center text-gray-500 mb-4 -mt-4">${toPersian(moment(dateKey, 'YYYY-MM-DD').locale('fa').format('dddd jD jMMMM'))}</p><div class="space-y-4">`;
+                let modalBodyHTML = `<div class="flex justify-between items-center mb-4"><button id="delete-log-btn" class="text-red-500 hover:text-red-700 text-sm font-semibold ${Object.keys(currentLog).length > 0 ? '' : 'invisible'}">حذف علائم</button><h3 class="text-xl font-bold text-center">ثبت علائم</h3><div class="w-16"></div></div><p class="text-center text-gray-500 mb-4 -mt-4">${toPersian(moment(dateKey, 'YYYY-MM-DD').locale('fa').format('dddd D MMMM'))}</p><div class="space-y-4">`;
                 for (const categoryKey in LOG_CONFIG) {
                     if (categoryKey === 'moods' && shouldNotifyCompanion) {
                         modalBodyHTML += `<div class="p-3 pt-4 bg-pink-50 rounded-lg border border-pink-200 space-y-4 relative"><span class="absolute top-2 left-3 text-xs text-pink-600 font-semibold">اطلاع‌رسانی به همراه</span>`;
@@ -516,10 +516,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 // *** END: MODIFICATION ***
 
-                let html = `<div class="datepicker-header"><button class="p-2 rounded-full hover:bg-gray-100" onclick="window.app.changeDatePickerMonth(-1)">&lt;</button><span class="font-bold">${toPersian(currentDate.locale('fa').format('jMMMM jYYYY'))}</span><button class="p-2 rounded-full hover:bg-gray-100" onclick="window.app.changeDatePickerMonth(1)">&gt;</button></div><div class="grid grid-cols-7 text-center text-xs text-gray-500 mb-2">${['ش','ی','د','س','چ','پ','ج'].map(d=>`<span>${d}</span>`).join('')}</div><div class="datepicker-grid">`;
-                for (let i = 0; i < monthStart.jDay(); i++) html += '<div></div>';
-                for (let i = 1; i <= currentDate.jDaysInMonth(); i++) {
-                    const dayMoment = currentDate.clone().jDate(i);
+                let html = `<div class="datepicker-header"><button class="p-2 rounded-full hover:bg-gray-100" onclick="window.app.changeDatePickerMonth(-1)">&lt;</button><span class="font-bold">${toPersian(currentDate.locale('fa').format('MMMM YYYY'))}</span><button class="p-2 rounded-full hover:bg-gray-100" onclick="window.app.changeDatePickerMonth(1)">&gt;</button></div><div class="grid grid-cols-7 text-center text-xs text-gray-500 mb-2">${['ش','ی','د','س','چ','پ','ج'].map(d=>`<span>${d}</span>`).join('')}</div><div class="datepicker-grid">`;
+                for (let i = 0; i < ((monthStart.day() + 1) % 7); i++) html += '<div></div>';
+                for (let i = 1; i <= currentDate.daysInMonth(); i++) {
+                    const dayMoment = currentDate.clone().date(i);
                     let classes = 'datepicker-day';
                     const isDisabled = dayMoment.isAfter(today, 'day');
                     if (isDisabled) classes += ' disabled';
@@ -541,13 +541,13 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             // *** END: MODIFICATION ***
             changeDatePickerMonth(direction) {
-                datepickerState.currentDate.add(direction, 'jMonth');
+                datepickerState.currentDate.add(direction, 'month');
                 this.renderDatePicker();
             },
             selectDate(dateStr) {
                 const selectedMoment = moment(dateStr, 'YYYY-MM-DD');
                 const targetInput = document.getElementById(datepickerState.targetInputId);
-                targetInput.value = toPersian(selectedMoment.locale('fa').format('jYYYY/jM/jD'));
+                targetInput.value = toPersian(selectedMoment.format('YYYY/MM/DD'));
                 targetInput.dataset.value = selectedMoment.format('YYYY-MM-DD');
                 datepickerModal.classList.remove('visible');
             },
@@ -571,7 +571,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // *** END: MODIFICATION ***
 
                 const today = moment();
-                dateInput.value = toPersian(today.locale('fa').format('jYYYY/jM/jD'));
+                dateInput.value = toPersian(today.format('YYYY/MM/DD'));
                 dateInput.dataset.value = today.format('YYYY-MM-DD');
                 const lengthSlider = document.getElementById('edit-period-length');
                 const lengthValueSpan = document.getElementById('edit-period-length-value');
