@@ -470,7 +470,8 @@ const renderCalendar = (calendarDate, userData) => {
         const canLog = day.isSameOrBefore(moment(), 'day');
         
         let phaseInfo = { class: 'normal-day' };
-        
+        const asArray = Array.from(recordedPeriodDays);
+        console.log(asArray[1], dayKey);
         if (recordedPeriodDays.has(dayKey)) {
             phaseInfo = { class: 'period-day' };
         } else if (isPastMonth && hasRecordInMonth) {
@@ -486,8 +487,6 @@ const renderCalendar = (calendarDate, userData) => {
         
         const logData = userData.logs?.[dayKey];
         // console.log(userData.logs["2025-08-27"], dayKey, logData);
-        const asArray = Array.from(recordedPeriodDays);
-        console.log(asArray[1], asArray[2], asArray[3]); // 5
         const hasLog = logData && Object.values(logData).some(v => (Array.isArray(v) && v.length > 0) || (typeof v === 'string' && v) || (typeof v === 'number' && v !== ''));
         const logIndicator = hasLog ? '<div class="log-indicator"></div>' : '';
         const clickHandler = canLog ? `onclick="window.app.openLogModal('${dayKey}')"` : '';
