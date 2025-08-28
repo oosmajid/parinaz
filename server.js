@@ -389,7 +389,7 @@ app.post('/api/logs', async (req, res) => {
                 // UPDATE the existing log
                 const allPossibleColumns = [
                     'weight', 'water', 'sleep', 'sex', 'libido', 'moods', 'symptoms',
-                    'activity', 'breasts', 'discharge', 'bloodColor', 'flow',
+                    'activity', 'breasts', 'discharge', 'blood_color', 'flow',
                     'hair', 'nails', 'skin', 'other', 'notes'
                 ];
                 const updates = [];
