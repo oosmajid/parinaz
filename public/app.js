@@ -490,7 +490,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // *** START: MODIFICATION to accept period history ***
             openDatePicker(targetInputId, periodHistory = []) {
                 const targetInput = document.getElementById(targetInputId);
-                const initialDate = targetInput.dataset.value ? moment(targetInput.dataset.value, 'YYYY-MM-DD').locale('fa') : moment().locale('fa');
+                const initialDate = targetInput.dataset.value ? moment(targetInput.dataset.value).locale('fa').format('YYYY-MM-DD') : moment().locale('fa').format('YYYY-MM-DD');
                 datepickerState.targetInputId = targetInputId;
                 datepickerState.currentDate = initialDate.clone();
                 datepickerState.periodHistory = periodHistory; // Store history
@@ -500,9 +500,9 @@ document.addEventListener('DOMContentLoaded', function() {
             renderDatePicker() {
                 const { currentDate, targetInputId, periodHistory } = datepickerState;
                 const targetInput = document.getElementById(targetInputId);
-                const selectedDate = targetInput.dataset.value ? moment(targetInput.dataset.value, 'YYYY-MM-DD') : null;
+                const selectedDate = targetInput.dataset.value ? moment(targetInput.dataset.value, 'YYYY-MM-DD').locale('fa') : null;
                 const monthStart = currentDate.clone().startOf('jMonth');
-                const today = moment();
+                const today = moment().locale('fa');
 
                 // *** START: MODIFICATION to create a set of recorded period days ***
                 const recordedPeriodDays = new Set();
