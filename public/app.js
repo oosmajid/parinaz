@@ -508,9 +508,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 const recordedPeriodDays = new Set();
                 if (periodHistory) {
                     periodHistory.forEach(record => {
-                        const start = moment(record.start_date, 'YYYY-MM-DD');
+                        const start = moment(record.start_date, 'jYYYY-jMM-jDD');
                         for (let i = 0; i < record.duration; i++) {
-                            recordedPeriodDays.add(start.clone().add(i, 'days').format('YYYY-MM-DD'));
+                            recordedPeriodDays.add(start.clone().add(i, 'days').format('jYYYY-jMM-jDD'));
                         }
                     });
                 }
