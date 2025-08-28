@@ -229,7 +229,7 @@ const renderDashboard = (userData) => {
     }
 
     // Calculations for when data is present
-    const today = moment(new Date()).startOf('day');
+    const today = moment().startOf('day');
     const cycleLength = userData.user.avg_cycle_length ? Math.round(userData.user.avg_cycle_length) : parseInt(userData.user.cycle_length);
     const periodLength = userData.user.avg_period_length ? Math.round(userData.user.avg_period_length) : parseInt(userData.user.period_length);
     const lastPeriodStart = moment(userData.user.last_period_date, 'YYYY-MM-DD');
@@ -294,7 +294,7 @@ const renderDashboard = (userData) => {
         editPeriodBtn.classList.remove('animate-heartbeat');
     }
     
-    document.getElementById('next-period-date').textContent = toPersian(expectedNextPeriodStart.format('dddd، jD jMMMM'));
+    document.getElementById('next-period-date').textContent = toPersian(moment(expectedNextPeriodStart).locale('fa').format('dddd، jD jMMMM'));
     renderCycleChart(finalDayForChart, cycleLength, periodLength, userData, daysDelayed, isFirstRender);
     isFirstRender = false;
     window.app.renderCalendar(moment());
@@ -441,7 +441,7 @@ const renderCycleChart = (dayOfCycle, cycleLength, periodLength, userData, daysD
 
 const renderCalendar = (calendarDate, userData) => {
     if (!userData.user) return;
-    document.getElementById('calendar-month-year').textContent = toPersian(calendarDate.format('jMMMM jYYYY'));
+    document.getElementById('calendar-month-year').textContent = toPersian(calendarDate.locale('fa').format('jMMMM jYYYY'));
     const calendarGrid = document.getElementById('calendar-grid');
     calendarGrid.innerHTML = '';
     const monthStart = calendarDate.clone().startOf('jMonth');

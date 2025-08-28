@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', function() {
         window.app = {
             onboardingData: {},
             async init(refreshOnly = false) {
-                moment.locale('fa');
+                // moment.locale('fa');
                 try {
                     // Update user info silently in the background
                     fetch(`${API_BASE_URL}/user/${TELEGRAM_ID}/update-info`, {
@@ -444,7 +444,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 selectedLogDate = dateKey;
                 const currentLog = userData.logs[selectedLogDate] || {};
                 const shouldNotifyCompanion = userData.companions && userData.companions.some(c => c.notify_daily_symptoms);
-                let modalBodyHTML = `<div class="flex justify-between items-center mb-4"><button id="delete-log-btn" class="text-red-500 hover:text-red-700 text-sm font-semibold ${Object.keys(currentLog).length > 0 ? '' : 'invisible'}">حذف علائم</button><h3 class="text-xl font-bold text-center">ثبت علائم</h3><div class="w-16"></div></div><p class="text-center text-gray-500 mb-4 -mt-4">${toPersian(moment(dateKey, 'YYYY-MM-DD').format('dddd jD jMMMM'))}</p><div class="space-y-4">`;
+                let modalBodyHTML = `<div class="flex justify-between items-center mb-4"><button id="delete-log-btn" class="text-red-500 hover:text-red-700 text-sm font-semibold ${Object.keys(currentLog).length > 0 ? '' : 'invisible'}">حذف علائم</button><h3 class="text-xl font-bold text-center">ثبت علائم</h3><div class="w-16"></div></div><p class="text-center text-gray-500 mb-4 -mt-4">${toPersian(moment(dateKey, 'YYYY-MM-DD').locale('fa').format('dddd jD jMMMM'))}</p><div class="space-y-4">`;
                 for (const categoryKey in LOG_CONFIG) {
                     if (categoryKey === 'moods' && shouldNotifyCompanion) {
                         modalBodyHTML += `<div class="p-3 pt-4 bg-pink-50 rounded-lg border border-pink-200 space-y-4 relative"><span class="absolute top-2 left-3 text-xs text-pink-600 font-semibold">اطلاع‌رسانی به همراه</span>`;
@@ -547,7 +547,7 @@ document.addEventListener('DOMContentLoaded', function() {
             selectDate(dateStr) {
                 const selectedMoment = moment(dateStr, 'YYYY-MM-DD');
                 const targetInput = document.getElementById(datepickerState.targetInputId);
-                targetInput.value = toPersian(selectedMoment.format('jYYYY/jM/jD'));
+                targetInput.value = toPersian(selectedMoment.locale('fa').format('jYYYY/jM/jD'));
                 targetInput.dataset.value = selectedMoment.format('YYYY-MM-DD');
                 datepickerModal.classList.remove('visible');
             },
@@ -571,7 +571,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // *** END: MODIFICATION ***
 
                 const today = moment();
-                dateInput.value = toPersian(today.format('jYYYY/jM/jD'));
+                dateInput.value = toPersian(today.locale('fa').format('jYYYY/jM/jD'));
                 dateInput.dataset.value = today.format('YYYY-MM-DD');
                 const lengthSlider = document.getElementById('edit-period-length');
                 const lengthValueSpan = document.getElementById('edit-period-length-value');
