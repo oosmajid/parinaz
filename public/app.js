@@ -492,13 +492,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 const targetInput = document.getElementById(targetInputId);
                 const initialDate = targetInput.dataset.value ? moment(targetInput.dataset.value, 'YYYY-MM-DD').locale('fa') : moment().locale('fa');
                 datepickerState.targetInputId = targetInputId;
-                datepickerState.currentDate = initialDate.clone().locale('fa');
+                datepickerState.currentDate = initialDate.clone();
                 datepickerState.periodHistory = periodHistory; // Store history
                 this.renderDatePicker();
                 datepickerModal.classList.add('visible');
             },
             renderDatePicker() {
                 const { currentDate, targetInputId, periodHistory } = datepickerState;
+                currentDate.locale('fa');
                 const targetInput = document.getElementById(targetInputId);
                 const selectedDate = targetInput.dataset.value ? moment(targetInput.dataset.value, 'YYYY-MM-DD').locale('fa') : null;
                 const monthStart = currentDate.clone().startOf('jMonth');
