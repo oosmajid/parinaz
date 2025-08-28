@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', function() {
         let calendarDate = moment();
         let selectedLogDate = null;
         // *** MODIFICATION: Add periodHistory to datepicker state ***
-        let datepickerState = { visible: false, targetInputId: null, currentDate: moment().locale('fa'), periodHistory: [] };
+        let datepickerState = { visible: false, targetInputId: null, currentDate: moment(), periodHistory: [] };
         let charts = {};
 
         // --- DOM Element References ---
