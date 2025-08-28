@@ -6,7 +6,6 @@
  * @returns {string} The Persian string representation of the number.
  */
 window.toPersian = num => num.toString().replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
-moment.locale('fa');
 // --- NEW: Flag to control the initial animation ---
 let isFirstRender = true;
 
@@ -694,7 +693,7 @@ const renderAnalysis = (userData, charts) => {
                                     <span class="absolute text-lg font-bold text-gray-700">${toPersian(cycleLength)} روز</span>
                                 </div>
                                 <div class="text-right text-sm">
-                                    <p class="font-bold text-gray-800">${toPersian(cycleStartDate.format('jD jMMMM'))} - ${toPersian(cycleEndDate.format('jD jMMMM'))}</p>
+                                    <p class="font-bold text-gray-800">${toPersian(cycleStartDate.locale('fa').format('jD jMMMM'))} - ${toPersian(cycleEndDate.locale('fa').format('jD jMMMM'))}</p>
                                     <div class="mt-2 space-y-1 text-xs text-gray-600">
                                         <p><span class="inline-block w-2 h-2 rounded-full bg-red-400 ml-2"></span>طول پریود: ${toPersian(periodLength)} روز</p>
                                         <p><span class="inline-block w-2 h-2 rounded-full bg-gray-300 ml-2"></span>طول دوره: ${toPersian(cycleLength)} روز</p>
