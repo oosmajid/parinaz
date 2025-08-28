@@ -533,7 +533,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     // *** END: MODIFICATION ***
 
-                    const clickHandler = isDisabled ? '' : `onclick="window.app.selectDate('${dayMoment.format('YYYY-MM-DD')}')"`;
+                    const clickHandler = isDisabled ? '' : `onclick="window.app.selectDate('${dayMoment.format('jYYYY-jMM-jDD')}')"`;
                     html += `<div class="${classes}" ${clickHandler}>${toPersian(i)}</div>`;
                 }
                 html += `</div>`;
